@@ -19,19 +19,19 @@
             "null"
           ]
         },
-        "auditURLMethod": {
+        "method": {
           "type": [
             "string",
             "null"
           ]
         },
-        "auditURLPayload": {
+        "payload": {
           "type": [
             "string",
             "null"
           ]
         },
-        "auditCreatedDate": {
+        "createdDate": {
           "type": [
             "string",
             "null"
@@ -46,19 +46,7 @@
         "userID": {
           "type": "integer"
         },
-        "userSecretKey": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
         "userUsername": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "userPassword": {
           "type": [
             "string",
             "null"
@@ -76,7 +64,7 @@
             "null"
           ]
         },
-        "userPhone": {
+        "userPassword": {
           "type": [
             "string",
             "null"
@@ -87,6 +75,15 @@
             "string",
             "null"
           ]
+        },
+        "userPhone": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "userIC": {
+          "type": "string"
         },
         "userCreatedDate": {
           "type": [
@@ -101,6 +98,30 @@
             "null"
           ],
           "format": "date-time"
+        },
+        "appointments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/appointments"
+          }
+        },
+        "user_parents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/user_parents"
+          }
+        },
+        "user_patients": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/user_patients"
+          }
+        },
+        "user_practitioners": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/user_practitioners"
+          }
         },
         "userrole": {
           "type": "array",
@@ -162,39 +183,39 @@
         "lookupID": {
           "type": "integer"
         },
+        "refCode": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "lookupOrder": {
           "type": [
             "integer",
-            "null"
-          ]
-        },
-        "lookupTitle": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "lookupRefCode": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "lookupValue": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "lookupType": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "lookupStatus": {
-          "type": [
-            "string",
             "null"
           ]
         },
@@ -211,6 +232,36 @@
             "null"
           ],
           "format": "date-time"
+        },
+        "appointments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/appointments"
+          }
+        },
+        "progress_track": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/progress_track"
+          }
+        },
+        "user_parents_user_parents_parent_relationshipTolookup": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/user_parents"
+          }
+        },
+        "user_parents_user_parents_parent_nationalityTolookup": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/user_parents"
+          }
+        },
+        "user_parents_user_parents_parent_stateTolookup": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/user_parents"
+          }
         }
       }
     },
@@ -221,14 +272,870 @@
           "type": "integer"
         },
         "userRoleCreatedDate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "user": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/user"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "role": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/role"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "appointments": {
+      "type": "object",
+      "properties": {
+        "appointment_id": {
+          "type": "integer"
+        },
+        "date": {
           "type": "string",
           "format": "date-time"
         },
-        "role": {
-          "$ref": "#/definitions/role"
+        "status": {
+          "type": "integer"
+        },
+        "parent_rate": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "parent_comment": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "therapist_doctor_comment": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "user": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/user"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "user_patients": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/user_patients"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "user_practitioners": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/user_practitioners"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "service": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/service"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lookup": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/lookup"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "progress_track": {
+      "type": "object",
+      "properties": {
+        "progress_id": {
+          "type": "integer"
+        },
+        "progress_details": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "user_patients": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/user_patients"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "user_practitioners": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/user_practitioners"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lookup": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/lookup"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "questionnaires": {
+      "type": "object",
+      "properties": {
+        "questionnaire_id": {
+          "type": "integer"
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "created_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "questionnaires_questions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/questionnaires_questions"
+          }
+        },
+        "questionnaires_responds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/questionnaires_responds"
+          }
+        }
+      }
+    },
+    "questionnaires_questions": {
+      "type": "object",
+      "properties": {
+        "question_id": {
+          "type": "integer"
+        },
+        "parentID": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "question_text_bm": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "question_text_bi": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "is_required": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "created_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "questionnaires": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/questionnaires"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "questionnaires_questions_action": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/questionnaires_questions_action"
+          }
+        },
+        "questionnaires_questions_answers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/questionnaires_questions_answers"
+          }
+        }
+      }
+    },
+    "questionnaires_questions_action": {
+      "type": "object",
+      "properties": {
+        "option_id": {
+          "type": "integer"
+        },
+        "option_title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "option_value": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "order_number": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "created_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "questionnaires_questions": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/questionnaires_questions"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "questionnaires_questions_answers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/questionnaires_questions_answers"
+          }
+        }
+      }
+    },
+    "questionnaires_questions_answers": {
+      "type": "object",
+      "properties": {
+        "answer_id": {
+          "type": "integer"
+        },
+        "score": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "created_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "questionnaires_responds": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/questionnaires_responds"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "questionnaires_questions": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/questionnaires_questions"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "questionnaires_questions_action": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/questionnaires_questions_action"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "questionnaires_responds": {
+      "type": "object",
+      "properties": {
+        "qr_id": {
+          "type": "integer"
+        },
+        "total_score": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "score_s2": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "created_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "questionnaires_questions_answers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/questionnaires_questions_answers"
+          }
+        },
+        "questionnaires": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/questionnaires"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "user_patients": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/user_patients"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "service_id": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "appointments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/appointments"
+          }
+        }
+      }
+    },
+    "survey_list": {
+      "type": "object",
+      "properties": {
+        "data_id": {
+          "type": "integer"
+        },
+        "survey_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "vehicle_number": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "project_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "surveyor_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "vehicle_timein": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "vehicle_timeout": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "created_by": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "created_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "updated_by": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "updated_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "user_parent_patient": {
+      "type": "object",
+      "properties": {
+        "parent_child_id": {
+          "type": "integer"
+        },
+        "user_parents": {
+          "$ref": "#/definitions/user_parents"
+        },
+        "user_patients": {
+          "$ref": "#/definitions/user_patients"
+        }
+      }
+    },
+    "user_parents": {
+      "type": "object",
+      "properties": {
+        "parent_id": {
+          "type": "integer"
+        },
+        "parent_gender": {
+          "type": "string"
+        },
+        "parent_dob": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "parent_phone": {
+          "type": "string"
+        },
+        "parent_add1": {
+          "type": "string"
+        },
+        "parent_add2": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parent_add3": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parent_city": {
+          "type": "string"
+        },
+        "parent_postcode": {
+          "type": "string"
+        },
+        "parent_status": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "user_parent_patient": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/user_parent_patient"
+          }
+        },
+        "lookup_user_parents_parent_relationshipTolookup": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/lookup"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lookup_user_parents_parent_nationalityTolookup": {
+          "$ref": "#/definitions/lookup"
+        },
+        "lookup_user_parents_parent_stateTolookup": {
+          "$ref": "#/definitions/lookup"
         },
         "user": {
           "$ref": "#/definitions/user"
+        }
+      }
+    },
+    "user_patients": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "integer"
+        },
+        "nickname": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "gender": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dob": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "autism_diagnose": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "diagnosed_on": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "available_session": {
+          "type": "integer"
+        },
+        "created_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "update_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "appointments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/appointments"
+          }
+        },
+        "progress_track": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/progress_track"
+          }
+        },
+        "questionnaires_responds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/questionnaires_responds"
+          }
+        },
+        "user_parent_patient": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/user_parent_patient"
+          }
+        },
+        "user": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/user"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "user_practitioners": {
+      "type": "object",
+      "properties": {
+        "practitioner_id": {
+          "type": "integer"
+        },
+        "type": {
+          "type": "string"
+        },
+        "registration_no": {
+          "type": "string"
+        },
+        "specialty": {
+          "type": "string"
+        },
+        "department": {
+          "type": "string"
+        },
+        "qualifications": {
+          "type": "string"
+        },
+        "experience_years": {
+          "type": "integer"
+        },
+        "signature": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "appointments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/appointments"
+          }
+        },
+        "progress_track": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/progress_track"
+          }
+        },
+        "user": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/user"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     }
@@ -249,6 +1156,45 @@
     },
     "userrole": {
       "$ref": "#/definitions/userrole"
+    },
+    "appointments": {
+      "$ref": "#/definitions/appointments"
+    },
+    "progress_track": {
+      "$ref": "#/definitions/progress_track"
+    },
+    "questionnaires": {
+      "$ref": "#/definitions/questionnaires"
+    },
+    "questionnaires_questions": {
+      "$ref": "#/definitions/questionnaires_questions"
+    },
+    "questionnaires_questions_action": {
+      "$ref": "#/definitions/questionnaires_questions_action"
+    },
+    "questionnaires_questions_answers": {
+      "$ref": "#/definitions/questionnaires_questions_answers"
+    },
+    "questionnaires_responds": {
+      "$ref": "#/definitions/questionnaires_responds"
+    },
+    "service": {
+      "$ref": "#/definitions/service"
+    },
+    "survey_list": {
+      "$ref": "#/definitions/survey_list"
+    },
+    "user_parent_patient": {
+      "$ref": "#/definitions/user_parent_patient"
+    },
+    "user_parents": {
+      "$ref": "#/definitions/user_parents"
+    },
+    "user_patients": {
+      "$ref": "#/definitions/user_patients"
+    },
+    "user_practitioners": {
+      "$ref": "#/definitions/user_practitioners"
     }
   }
 }
