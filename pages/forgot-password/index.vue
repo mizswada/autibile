@@ -4,6 +4,33 @@ definePageMeta({
   layout: "empty",
   middleware: ["dashboard"],
 });
+
+import { ref } from 'vue'
+
+const email = ref('')
+const loading = ref(false)
+const error = ref('')
+const success = ref('')
+
+async function onSendEmail() {
+  error.value = ''
+  success.value = ''
+  loading.value = true
+  try {
+    const res = await $fetch('/api/auth/sendResetEmail', {
+      method: 'POST',
+      body: { email: email.value }
+    })
+    if (res.status === 200) {
+      success.value = 'Verification email sent. Please check your inbox.'
+    } else {
+      error.value = res.message || 'Failed to send email.'
+    }
+  } catch (e) {
+    error.value = e.data?.message || 'An error occurred.'
+  }
+  loading.value = false
+}
 </script>
 
 <template>
@@ -25,10 +52,23 @@ definePageMeta({
           Please input the correct email to reset the password.
         </p>
         <div class="grid grid-cols-1">
-          <FormKit label="Email" type="email" outer-class="text-left" />
-          <NuxtLink to="/reset-password">
-            <FormKit type="button" input-class="w-full">Validate Email</FormKit>
-          </NuxtLink>
+          <FormKit
+            label="Email"
+            type="email"
+            outer-class="text-left"
+            v-model="email"
+          />
+          <div v-if="error" class="text-red-500 mb-2">{{ error }}</div>
+          <div v-if="success" class="text-green-600 mb-2">{{ success }}</div>
+          <FormKit
+            type="button"
+            input-class="w-full"
+            :disabled="loading"
+            @click="onSendEmail"
+          >
+            <span v-if="loading">Sending...</span>
+            <span v-else>Send Email</span>
+          </FormKit>
         </div>
         <p class="mt-3 text-center text-slate-500">
           Already have an account?

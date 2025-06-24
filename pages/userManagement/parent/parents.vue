@@ -6,8 +6,14 @@ const data = [
     "parentName": "John Doe",
     "email": "Johndoe@gmail.com",
     "phoneNumber": "1234567890",
-    "childName": "Jane Doe",
-    "childAge": 5,
+    "parentRelationship": "Father",
+    "parentGender": "Male",
+    "parentDOB": "1980-01-01",
+    "parentNationality": "Malaysian",
+    "parentCity": "Kuala Lumpur",
+    "parentPostcode": "50000",
+    "parentState": "WP Kuala Lumpur",
+    "parentStatus": "Active",
     "action": "edit",
   }
 ]
@@ -19,23 +25,41 @@ const showModalForm = ref({
   parentName: '',
   email: '',
   phoneNumber: '',
-  childName: '',
-  childAge: '',
+  parentRelationship: '',
+  parentGender: '',
+  parentDOB: '',
+  parentNationality: '',
+  parentCity: '',
+  parentPostcode: '',
+  parentState: '',
+  parentStatus: '',
 });
 const showModalDeleteForm = ref({
   parentName: '',
   email: '',
   phoneNumber: '',
-  childName: '',
-  childAge: '',
+  parentRelationship: '',
+  parentGender: '',
+  parentDOB: '',
+  parentNationality: '',
+  parentCity: '',
+  parentPostcode: '',
+  parentState: '',
+  parentStatus: '',
 });
 
 const columns = [
   { name: 'parentname', label: 'Full Name' },
   { name: 'email', label: 'Email' },
   { name: 'phonenumber', label: 'Phone Number' },
-  { name: 'childname', label: 'Child Name' },
-  { name: 'childage', label: 'Child Age' },
+  { name: 'parentrelationship', label: 'Relationship' },
+  { name: 'parentgender', label: 'Gender' },
+  { name: 'parentdob', label: 'Date of Birth' },
+  { name: 'parentnationality', label: 'Nationality' },
+  { name: 'parentcity', label: 'City' },
+  { name: 'parentpostcode', label: 'Postcode' },
+  { name: 'parentstate', label: 'State' },
+  { name: 'parentstatus', label: 'Status' },
   { name: 'action', label: 'Actions' }
 ];
 
@@ -48,8 +72,14 @@ function openModal(value, action) {
       parentName: '',
       email: '',
       phoneNumber: '',
-      childName: '',
-      childAge: '',
+      parentRelationship: '',
+      parentGender: '',
+      parentDOB: '',
+      parentNationality: '',
+      parentCity: '',
+      parentPostcode: '',
+      parentState: '',
+      parentStatus: '',
     };
   }
   showModal.value = true;
@@ -131,41 +161,117 @@ function deleteParent() {
     v-model="showModal"
     :overlay-close="false"
   >
-    <FormKit
-      type="text"
-      v-model="showModalForm.parentName"
-      name="parentName"
-      label="Full Name"
-      :disabled="modalType == 'edit' ? true : false"
-    />
-    <FormKit
-      type="email"
-      v-model="showModalForm.email"
-      name="email"
-      label="Email"
-      :disabled="modalType == 'edit' ? true : false"
-    />
-     <FormKit
-      type="number"
-      v-model="showModalForm.phoneNumber"
-      name="phoneNumber"
-      label="Phone Number"
-      :disabled="modalType == 'edit' ? true : false"
-    />
-    <FormKit
-      type="text"
-      v-model="showModalForm.childName"
-      name="childName"
-      label="Child Name"
-      :disabled="modalType == 'edit' ? true : false"
-    />
-    <FormKit
-      type="number"
-      v-model="showModalForm.childAge"
-      name="childAge"
-      label="Child Age"
-      :disabled="modalType == 'edit' ? true : false"
-    />
+    <div class="grid grid-cols-2 gap-4">
+      <FormKit
+        type="text"
+        v-model="showModalForm.parentName"
+        name="parentName"
+        label="Full Name"
+        :disabled="modalType == 'edit' ? true : false"
+      />
+      <FormKit
+        type="email"
+        v-model="showModalForm.email"
+        name="email"
+        label="Email"
+        :disabled="modalType == 'edit' ? true : false"
+      />
+      <FormKit
+        type="number"
+        v-model="showModalForm.phoneNumber"
+        name="phoneNumber"
+        label="Phone Number"
+        :disabled="modalType == 'edit' ? true : false"
+      />
+      <FormKit
+        type="select"
+        v-model="showModalForm.parentRelationship"
+        name="parentRelationship"
+        label="Relationship"
+        :options="[
+          { label: 'Father', value: 'Father' },
+          { label: 'Mother', value: 'Mother' },
+          { label: 'Guardian', value: 'Guardian' }
+        ]"
+        :disabled="modalType == 'edit' ? true : false"
+      />
+      <FormKit
+        type="select"
+        v-model="showModalForm.parentGender"
+        name="parentGender"
+        label="Gender"
+        :options="[
+          { label: 'Male', value: 'Male' },
+          { label: 'Female', value: 'Female' },
+          { label: 'Other', value: 'Other' }
+        ]"
+        :disabled="modalType == 'edit' ? true : false"
+      />
+      <FormKit
+        type="date"
+        v-model="showModalForm.parentDOB"
+        name="parentDOB"
+        label="Date of Birth"
+        :disabled="modalType == 'edit' ? true : false"
+      />
+      <FormKit
+        type="select"
+        v-model="showModalForm.parentNationality"
+        name="parentNationality"
+        label="Nationality"
+        :options="[
+          { label: 'Malaysian', value: 'Malaysian' },
+          { label: 'Singaporean', value: 'Singaporean' },
+          { label: 'Indonesian', value: 'Indonesian' },
+          { label: 'Other', value: 'Other' }
+        ]"
+        :disabled="modalType == 'edit' ? true : false"
+      />
+      <FormKit
+        type="select"
+        v-model="showModalForm.parentCity"
+        name="parentCity"
+        label="City"
+        :options="[
+          { label: 'Kuala Lumpur', value: 'Kuala Lumpur' },
+          { label: 'Petaling Jaya', value: 'Petaling Jaya' },
+          { label: 'Shah Alam', value: 'Shah Alam' },
+          { label: 'Other', value: 'Other' }
+        ]"
+        :disabled="modalType == 'edit' ? true : false"
+      />
+      <FormKit
+        type="text"
+        v-model="showModalForm.parentPostcode"
+        name="parentPostcode"
+        label="Postcode"
+        :disabled="modalType == 'edit' ? true : false"
+      />
+      <FormKit
+        type="select"
+        v-model="showModalForm.parentState"
+        name="parentState"
+        label="State"
+        :options="[
+          { label: 'WP Kuala Lumpur', value: 'WP Kuala Lumpur' },
+          { label: 'Selangor', value: 'Selangor' },
+          { label: 'Penang', value: 'Penang' },
+          { label: 'Other', value: 'Other' }
+        ]"
+        :disabled="modalType == 'edit' ? true : false"
+      />
+      <FormKit
+        type="select"
+        v-model="showModalForm.parentStatus"
+        name="parentStatus"
+        label="Status"
+        :options="[
+          { label: 'Active', value: 'Active' },
+          { label: 'Inactive', value: 'Inactive' }
+        ]"
+        :disabled="modalType == 'edit' ? true : false"
+      />
+    </div>
   </rs-modal>
   <!-- Modal Delete Confirmation -->
   <rs-modal
