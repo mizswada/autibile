@@ -43,48 +43,50 @@ function saveAppointment() {
   <div class="max-w-lg mx-auto p-4">
     <h1 class="text-2xl font-bold mb-4">Book New Appointment</h1>
     <FormKit type="form" @submit="saveAppointment" :actions="false">
-      <!-- Date and Time at the top -->
-      <FormKit
-        type="date"
-        v-model="appointmentForm.date"
-        name="date"
-        label="Date"
-      />
-      <FormKit
-        type="select"
-        v-model="appointmentForm.time"
-        name="time"
-        label="Time Slot"
-        :options="timeSlotOptions"
-      />
-      <FormKit
-        type="select"
-        v-model="appointmentForm.patient"
-        name="patient"
-        label="Patient Name"
-        :options="patientOptions"
-      />
-      <FormKit
-        type="select"
-        v-model="appointmentForm.appointmentType"
-        name="appointmentType"
-        label="Appointment Type"
-        :options="appointmentTypeOptions"
-      />
-      <FormKit
-        type="select"
-        v-model="appointmentForm.therapistDoctor"
-        name="therapistDoctor"
-        label="Therapist/Doctor"
-        :options="therapistDoctorOptions"
-      />
-      <FormKit
-        type="select"
-        v-model="appointmentForm.serviceId"
-        name="serviceId"
-        label="Service ID"
-        :options="serviceIdOptions"
-      />
+      <rs-card class="p-4 mb-4">
+        <!-- Date and Time at the top -->
+        <FormKit
+          type="date"
+          v-model="appointmentForm.date"
+          name="date"
+          label="Date"
+        />
+        <FormKit
+          type="select"
+          v-model="appointmentForm.time"
+          name="time"
+          label="Time Slot"
+          :options="timeSlotOptions"
+        />
+        <FormKit
+          type="select"
+          v-model="appointmentForm.patient"
+          name="patient"
+          label="Patient Name"
+          :options="patientOptions"
+        />
+        <FormKit
+          type="select"
+          v-model="appointmentForm.appointmentType"
+          name="appointmentType"
+          label="Appointment Type"
+          :options="appointmentTypeOptions"
+        />
+        <FormKit
+          type="select"
+          v-model="appointmentForm.therapistDoctor"
+          name="therapistDoctor"
+          label="Therapist/Doctor"
+          :options="therapistDoctorOptions"
+        />
+        <FormKit
+          type="select"
+          v-model="appointmentForm.serviceId"
+          name="serviceId"
+          label="Service ID"
+          :options="serviceIdOptions"
+        />
+      </rs-card>
       <div class="flex justify-end mt-4">
         <rs-button type="submit" variant="primary">Save Appointment</rs-button>
       </div>

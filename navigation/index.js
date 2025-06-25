@@ -83,13 +83,9 @@ export default [
           },
         ],
       },
-          {
-            title: "Doctors",
-            path: "/userManagement/doctor",
-          },
-          {
-            title: "Therapists",
-            path: "/userManagement/therapist",
+           {
+            title: "Practitioners Management",
+            path: "/userManagement/practitioners",
           },
           {
             title: "Users Approval",
