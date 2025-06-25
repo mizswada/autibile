@@ -1,173 +1,151 @@
- <script setup>
-import { ref } from 'vue';
+<script setup>
+import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 
-const data = [
-  {
-    "parentName": "John Doe",
-    "email": "Johndoe@gmail.com",
-    "phoneNumber": "1234567890",
-    "childName": "Jane Doe",
-    "childAge": 5,
-    "action": "edit",
-  }
-]
+const router = useRouter();
 
-const showModal = ref(false);
+const data = ref([]);
+
 const showModalDelete = ref(false);
-const modalType = ref('');
-const showModalForm = ref({
-  parentName: '',
-  email: '',
-  phoneNumber: '',
-  childName: '',
-  childAge: '',
-});
-const showModalDeleteForm = ref({
-  parentName: '',
-  email: '',
-  phoneNumber: '',
-  childName: '',
-  childAge: '',
-});
+const showModalDeleteForm = ref({});
 
 const columns = [
-  { name: 'parentname', label: 'Full Name' },
-  { name: 'email', label: 'Email' },
-  { name: 'phonenumber', label: 'Phone Number' },
-  { name: 'childname', label: 'Child Name' },
-  { name: 'childage', label: 'Child Age' },
+  { name: 'parentID', label: 'ID' },
+  { name: 'parentRelationship', label: 'Relationship' },
+  { name: 'parentGender', label: 'Gender' },
+  { name: 'parentDateOfBirth', label: 'Date of Birth' },
+  { name: 'parentNationality', label: 'Nationality' },
+  { name: 'parentPhone', label: 'Phone' },
+  { name: 'parentChildrenNames', label: 'Children Names' },
+  { name: 'parentCity', label: 'City' },
+  { name: 'parentPostcode', label: 'Postcode' },
+  { name: 'parentState', label: 'State' },
   { name: 'action', label: 'Actions' }
 ];
-
-function openModal(value, action) {
-  modalType.value = action;
-  if (action === 'edit' && value) {
-    showModalForm.value = { ...value };
-  } else {
-    showModalForm.value = {
-      parentName: '',
-      email: '',
-      phoneNumber: '',
-      childName: '',
-      childAge: '',
-    };
-  }
-  showModal.value = true;
-}
 
 function openModalDelete(value) {
   showModalDeleteForm.value = { ...value };
   showModalDelete.value = true;
 }
 
-function openModalAdd() {
-  openModal(null, 'add');
+async function deleteParent() {
+  try {
+    const parentID = showModalDeleteForm.value.parentID;
+    const res = await fetch(`/api/parents/delete?parentID=${parentID}`, {
+      method: 'DELETE',
+    });
+
+
+    const result = await res.json();
+
+    if (result.statusCode === 200) {
+      // Remove deleted item from table without refetching
+      data.value = data.value.filter(p => p.parentID !== showModalDeleteForm.value.parentID);
+
+      alert('Parent deleted successfully');
+    } else {
+      alert(`Error: ${result.message}`);
+    }
+  } catch (err) {
+    console.error('Delete error:', err);
+    alert('An error occurred while deleting.');
+  } finally {
+    showModalDelete.value = false;
+  }
 }
 
-function saveParent() {
-  // Implement the logic to save user
-  console.log('Save', showModalForm.value);
-  showModal.value = false;
-}
+onMounted(async () => {
+  try {
+    const [parentRes, relRes, natRes, stateRes] = await Promise.all([
+      fetch('/api/parents/listParents'),
+      fetch('/api/parents/lookupRelationship'),
+      fetch('/api/parents/lookupNationality'),
+      fetch('/api/parents/lookupState'),
+    ]);
 
-function deleteParent() {
-  // Implement the logic to delete user
-  console.log('Delete', showModalDeleteForm.value);
-  showModalDelete.value = false;
-}
+    const result = await parentRes.json();
+    const relData = await relRes.json();
+    const natData = await natRes.json();
+    const stateData = await stateRes.json();
+
+    // Convert lookup arrays to maps for quick lookup
+    const relMap = Object.fromEntries(relData.map(item => [item.lookupID, item.title]));
+    const natMap = Object.fromEntries(natData.map(item => [item.lookupID, item.title]));
+    const stateMap = Object.fromEntries(stateData.map(item => [item.lookupID, item.title]));
+
+    if (result.statusCode === 200) {
+      data.value = result.data.map(p => {
+        const childNames = [p.parent_add1, p.parent_add2, p.parent_add3]
+          .filter(name => !!name && name.trim() !== '')
+          .join(', ');
+
+        return {
+          parentID: p.parent_id,
+          parentRelationship: relMap[p.parent_relationship] || `Unknown (${p.parent_relationship})`,
+          parentNationality: natMap[p.parent_nationality] || `Unknown (${p.parent_nationality})`,
+          parentPhone: p.parent_phone,
+          parentCity: p.parent_city,
+          parentChildrenNames: childNames,
+          action: 'edit',
+        };
+      });
+    } else {
+      console.error('Failed to load parents:', result.message);
+    }
+  } catch (err) {
+    console.error('Fetch error:', err);
+  }
+});
+
 </script>
-
 <template>
   <div class="mb-4">
-    <h1 class="text-2xl font-bold">Parents</h1>
+    <h1 class="text-2xl font-bold">Parents Information</h1>
     <div class="card p-4 mt-4">
       <div class="flex justify-end items-center mb-4">
-        <rs-button @click="openModal(null, 'add')">
+        <rs-button @click="$router.push('/userManagement/parent/addParents')">
           <Icon name="material-symbols:add" class="mr-1"></Icon>
           Add Parent
         </rs-button>
       </div>
+
       <rs-table
         :data="data"
         :columns="columns"
-        :options="{
-          variant: 'default',
-          striped: true,
-          borderless: true,
-        }"
-        :options-advanced="{
-          sortable: true,
-          responsive: true,
-          filterable: false,
-        }"
+        :options="{ variant: 'default', striped: true, borderless: true }"
+        :options-advanced="{ sortable: true, responsive: true, filterable: false }"
         advanced
       >
+
         <template v-slot:action="data">
-          <div
-            class="flex justify-center items-center"
-          >
-            <Icon
-              name="material-symbols:edit-outline-rounded"
-              class="text-primary hover:text-primary/90 cursor-pointer mr-1"
-              size="22"
-              @click="openModal(data.value, 'edit')"
-            ></Icon>
-            <Icon
-              name="material-symbols:close-rounded"
-              class="text-primary hover:text-primary/90 cursor-pointer"
-              size="22"
-              @click="openModalDelete(data.value)"
-            ></Icon>
+          <div class="flex justify-center items-center space-x-4">
+             <!-- Edit Button -->
+              <Icon
+                name="material-symbols:edit-outline-rounded"
+                class="text-primary hover:text-primary/90 cursor-pointer"
+                size="22"
+                @click="$router.push({ path: '/userManagement/parent/editParent', query: { parentID: data.value.parentID } })"
+              />
+
+              <!-- Delete Button -->
+              <Icon
+                name="material-symbols:close-rounded"
+                class="text-primary hover:text-primary/90 cursor-pointer"
+                size="22"
+                @click="openModalDelete(data.value)"
+              />
+
+              <!-- Add Child Button -->
+              <rs-button @click="$router.push({ path: '/userManagement/parent/addChild', query: { parentID: data.value.parentID } })">
+                <Icon name="material-symbols:add" class="mr-1"></Icon>
+                Add Child
+              </rs-button>
           </div>
         </template>
       </rs-table>
     </div>
   </div>
-  <rs-modal
-    :title="modalType == 'edit' ? 'Edit Parent' : 'Add Parent'"
-    ok-title="Save"
-    :ok-callback="saveParent"
-    cancel-title="Cancel"
-    v-model="showModal"
-    :overlay-close="false"
-  >
-    <FormKit
-      type="text"
-      v-model="showModalForm.parentName"
-      name="parentName"
-      label="Full Name"
-      :disabled="modalType == 'edit' ? true : false"
-    />
-    <FormKit
-      type="email"
-      v-model="showModalForm.email"
-      name="email"
-      label="Email"
-      :disabled="modalType == 'edit' ? true : false"
-    />
-     <FormKit
-      type="number"
-      v-model="showModalForm.phoneNumber"
-      name="phoneNumber"
-      label="Phone Number"
-      :disabled="modalType == 'edit' ? true : false"
-    />
-    <FormKit
-      type="text"
-      v-model="showModalForm.childName"
-      name="childName"
-      label="Child Name"
-      :disabled="modalType == 'edit' ? true : false"
-    />
-    <FormKit
-      type="number"
-      v-model="showModalForm.childAge"
-      name="childAge"
-      label="Child Age"
-      :disabled="modalType == 'edit' ? true : false"
-    />
-  </rs-modal>
-  <!-- Modal Delete Confirmation -->
+
   <rs-modal
     title="Delete Confirmation"
     ok-title="Yes"
@@ -177,9 +155,7 @@ function deleteParent() {
     :overlay-close="false"
   >
     <p>
-      Are you sure want to delete this user ({{
-        showModalDeleteForm.parentName
-      }})?
+      Are you sure you want to delete this parent (ID: {{ showModalDeleteForm.parentID }})?
     </p>
   </rs-modal>
 </template>
