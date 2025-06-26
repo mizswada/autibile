@@ -1,6 +1,6 @@
-<!-- Added by: Firzana Huda 24 June 2025 -->
 <script setup>
-import { ref, watch, onMounted } from 'vue';
+// Added by: Firzana Huda 24 June 2025
+import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 
 const router = useRouter();
@@ -11,29 +11,21 @@ const nationalityOptions = ref([]);
 const stateOptions = ref([]);
 
 const form = ref({
+  fullName: '',
+  ic: '',
+  email: '',
+  phone: '',
   relationship: null,
   gender: '',
   dateOfBirth: '',
   nationality: null,
-  phone: '',
-  numberOfChildren: 1,
-  childrenNames: [''],
+  addressLine1: '',
+  addressLine2: '',
+  addressLine3: '',
   city: '',
   postcode: '',
   state: null,
   status: '',
-});
-
-watch(() => form.value.numberOfChildren, (newCount) => {
-  const count = parseInt(newCount) || 0;
-  const current = form.value.childrenNames.length;
-  if (count > current) {
-    for (let i = current; i < count; i++) {
-      form.value.childrenNames.push('');
-    }
-  } else if (count < current) {
-    form.value.childrenNames.splice(count);
-  }
 });
 
 onMounted(async () => {
@@ -50,7 +42,6 @@ onMounted(async () => {
       fetch('/api/parents/lookupNationality'),
       fetch('/api/parents/lookupState'),
       fetch(`/api/parents/fetchEdit?parentID=${parentID}`),
-
     ]);
 
     const relData = await relRes.json();
@@ -64,37 +55,40 @@ onMounted(async () => {
       return;
     }
 
-    form.value = { ...parentData.data };
+    const data = parentData.data;
 
-    if (form.value.dateOfBirth) {
-        form.value.dateOfBirth = new Date(form.value.dateOfBirth).toISOString().split('T')[0];
-    }
-
-    // Ensure childrenNames are populated
-    const count = parseInt(form.value.numberOfChildren) || 0;
-    if (Array.isArray(form.value.childrenNames)) {
-      while (form.value.childrenNames.length < count) {
-        form.value.childrenNames.push('');
-      }
-    } else {
-      form.value.childrenNames = Array(count).fill('');
-    }
+    form.value = {
+      fullName: data.fullName || '',
+      ic: data.ic || '',
+      email: data.email || '',
+      phone: data.phone || '',
+      relationship: data.relationship || '',
+      gender: data.gender || '',
+      dateOfBirth: data.dateOfBirth
+        ? new Date(data.dateOfBirth).toISOString().split('T')[0]
+        : '',
+      nationality: data.nationality || '',
+      addressLine1: data.addressLine1 || '',
+      addressLine2: data.addressLine2 || '',
+      addressLine3: data.addressLine3 || '',
+      city: data.city || '',
+      postcode: data.postcode || '',
+      state: data.state || '',
+      status: data.status || '',
+    };
 
     relationshipOptions.value = [
       { label: '-- Please select --', value: '' },
       ...relData.map(item => ({ label: item.title, value: item.lookupID })),
     ];
-
     nationalityOptions.value = [
       { label: '-- Please select --', value: '' },
       ...natData.map(item => ({ label: item.title, value: item.lookupID })),
     ];
-
     stateOptions.value = [
       { label: '-- Please select --', value: '' },
       ...stateData.map(item => ({ label: item.title, value: item.lookupID })),
     ];
-
   } catch (err) {
     console.error('Error fetching data:', err);
     alert('An error occurred.');
@@ -103,46 +97,11 @@ onMounted(async () => {
 });
 
 async function updateParent() {
-  const requiredFields = {
-    relationship: 'Relationship',
-    gender: 'Gender',
-    dateOfBirth: 'Date of Birth',
-    nationality: 'Nationality',
-    phone: 'Phone',
-    numberOfChildren: 'Number of Children',
-    city: 'City',
-    postcode: 'Postcode',
-    state: 'State',
-    status: 'Status',
-  };
-
-  const isEmpty = (val) =>
-    val === null || val === undefined || (typeof val === 'string' && val.trim() === '');
-
-  const missingFields = [];
-
-  for (const [key, label] of Object.entries(requiredFields)) {
-    if (isEmpty(form.value[key])) {
-      missingFields.push(label);
-    }
-  }
-
-  form.value.childrenNames.forEach((name, index) => {
-    if (isEmpty(name)) {
-      missingFields.push(`Child Name ${index + 1}`);
-    }
-  });
-
-  if (missingFields.length > 0) {
-    alert(`Please fill in:\n- ${missingFields.join('\n- ')}`);
-    return;
-  }
-
   try {
     const response = await fetch('/api/parents/update', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form.value),
+      body: JSON.stringify({ ...form.value, parentID: route.query.parentID }),
     });
 
     const result = await response.json();
@@ -157,78 +116,92 @@ async function updateParent() {
     alert('An unexpected error occurred.');
   }
 }
+
 </script>
+
 
 <template>
   <div class="p-6">
-    <h1 class="text-2xl font-bold mb-4">Edit Parent</h1>
+    <h1 class="text-2xl font-bold mb-4">Update Parent Information</h1>
 
-    <FormKit
-      type="select"
-      v-model="form.relationship"
-      label="Relationship"
-      :options="relationshipOptions"
-      name="relationship"
-    />
-    <FormKit
-      type="select"
-      v-model="form.gender"
-      label="Gender"
-      :options="['-- Please select --', 'Male', 'Female']"
-    />
-    <FormKit type="date" v-model="form.dateOfBirth" label="Date of Birth" />
-    <FormKit
-      type="select"
-      v-model="form.nationality"
-      label="Nationality"
-      :options="nationalityOptions"
-      name="nationality"
-    />
-    <FormKit type="number" v-model="form.phone" label="Phone" disabled />
-    <FormKit
-      type="number"
-      v-model="form.numberOfChildren"
-      label="Number of Children"
-      min="1"
-    />
-
-    <div v-for="(name, index) in form.childrenNames" :key="index">
-      <FormKit
-        type="text"
-        v-model="form.childrenNames[index]"
-        :label="`Child Name ${index + 1}`"
-      />
-    </div>
-
-    <FormKit type="text" v-model="form.city" label="City" />
-    <FormKit type="text" v-model="form.postcode" label="Postcode" />
-    <FormKit
-      type="select"
-      v-model="form.state"
-      label="State"
-      :options="stateOptions"
-      name="state"
-    />
-    <FormKit
-      type="select"
-      v-model="form.status"
-      label="Status"
-      :options="['-- Please select --', 'Active', 'Inactive']"
-    />
-
-    <div class="flex gap-4 mt-4">
-      <div class="w-1/2">
-        <rs-button class="w-full" @click="updateParent">Update</rs-button>
+    <FormKit type="form" :actions="false">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <FormKit type="text" v-model="form.fullName" label="Full Name" validation="required" />
+        <FormKit type="text" v-model="form.ic" label="IC Number" validation="required" />
+        <FormKit type="email" v-model="form.email" label="Email" validation="required|email" />
+        <FormKit type="text" v-model="form.phone" label="Phone" validation="required" />
+        <FormKit
+          type="select"
+          v-model="form.relationship"
+          label="Relationship"
+          :options="relationshipOptions"
+          name="relationship"
+          validation="required"
+        />
+        <FormKit
+          type="select"
+          v-model="form.gender"
+          label="Gender"
+          :options="['-- Please select --', 'Male', 'Female']"
+          validation="required"
+        />
+        <FormKit
+          type="date"
+          v-model="form.dateOfBirth"
+          label="Date of Birth"
+          validation="required"
+        />
+        <FormKit
+          type="select"
+          v-model="form.nationality"
+          label="Nationality"
+          :options="nationalityOptions"
+          name="nationality"
+          validation="required"
+        />
+        <FormKit
+          type="text"
+          v-model="form.addressLine1"
+          label="Address Line 1"
+          validation="required"
+        />
+        <FormKit type="text" v-model="form.addressLine2" label="Address Line 2" />
+        <FormKit type="text" v-model="form.addressLine3" label="Address Line 3" />
+        <FormKit type="text" v-model="form.city" label="City" validation="required" />
+        <FormKit type="text" v-model="form.postcode" label="Postcode" validation="required" />
+        <FormKit
+          type="select"
+          v-model="form.state"
+          label="State"
+          :options="stateOptions"
+          name="state"
+          validation="required"
+        />
+        <FormKit
+          type="select"
+          v-model="form.status"
+          label="Status"
+          :options="['-- Please select --', 'Active', 'Inactive']"
+          validation="required"
+        />
       </div>
-      <div class="w-1/2">
-        <rs-button
-          class="w-full bg-gray-200 hover:bg-gray-400 text-gray-800"
-          variant="ghost"
-          @click="router.back()"
-        >
-          Cancel
-        </rs-button>
+
+      <div class="flex gap-4 mt-6">
+        <div class="w-1/2">
+          <rs-button class="w-full" @click="updateParent">Update</rs-button>
+        </div>
+
+        <div class="w-1/2">
+          <rs-button
+            class="w-full bg-gray-200 hover:bg-gray-400 text-gray-800"
+            variant="ghost"
+            @click="router.back()"
+          >
+            Cancel
+          </rs-button>
+        </div>
       </div>
-    </div>
+    </FormKit>
   </div>
 </template>
+

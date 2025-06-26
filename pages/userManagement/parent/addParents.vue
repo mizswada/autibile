@@ -1,243 +1,399 @@
-<!-- Added by: Firzana Huda 24 June 2025 -->
 <script setup>
 import { ref, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 
-const relationshipOptions = ref([]);
-const nationalityOptions = ref([]); 
-const stateOptions = ref([]); 
 const router = useRouter();
+const showStep2Modal = ref(false);
+const usernameError = ref('');
+const message = ref('');
+const messageType = ref('success');
+const togglePasswordVisibility = ref(false);
+const togglePasswordVisibility2 = ref(false);
+const confirmPasswordError = ref('');
+const registeredIDs = ref({ userID: null, parentID: null });
 
-const form = ref({
+function showMessage(msg, type = 'success') {
+  message.value = msg;
+  messageType.value = type;
+  setTimeout(() => (message.value = ''), 3000);
+}
+
+const step1Form = ref({
+  username: '',
+  fullname: '',
+  email: '',
+  ic: '',
+  phone: '',
+  password: '',
+  confirmPassword: '',
+  role: '',
+});
+
+const step2Form = ref({
   relationship: null,
   gender: '',
   dateOfBirth: '',
   nationality: null,
-  phone: '',
-  numberOfChildren: 1,
-  childrenNames: [''],
+  address1: '',
+  address2: '',
+  address3: '',
   city: '',
   postcode: '',
   state: null,
   status: '',
 });
 
-watch(() => form.value.numberOfChildren, (newCount) => {
-  const count = parseInt(newCount) || 0;
-  const current = form.value.childrenNames.length;
+const relationshipOptions = ref([]);
+const nationalityOptions = ref([]);
+const stateOptions = ref([]);
+const roleOptions = ref([]);
 
-  if (count > current) {
-    for (let i = current; i < count; i++) {
-      form.value.childrenNames.push('');
+watch(() => step1Form.value.username, async (newVal) => {
+  usernameError.value = '';
+  if (!newVal) return;
+  try {
+    const res = await fetch(`/api/parents/checkUsername?username=${encodeURIComponent(newVal)}`);
+    const result = await res.json();
+    if (result.statusCode === 409) {
+      usernameError.value = 'Username already exists !';
     }
-  } else if (count < current) {
-    form.value.childrenNames.splice(count);
+  } catch (err) {
+    console.error('Username check error:', err);
+    usernameError.value = 'Could not check username';
   }
 });
+
+watch(
+  [() => step1Form.value.password, () => step1Form.value.confirmPassword],
+  ([password, confirmPassword]) => {
+    confirmPasswordError.value =
+      !confirmPassword ? '' : password !== confirmPassword ? 'Passwords do not match' : '';
+  }
+);
 
 onMounted(async () => {
   try {
-    const [relRes, natRes, stateRes] = await Promise.all([
+    const [relRes, natRes, stateRes, roleRes] = await Promise.all([
       fetch('/api/parents/lookupRelationship'),
       fetch('/api/parents/lookupNationality'),
-      fetch('/api/parents/lookupState')
+      fetch('/api/parents/lookupState'),
+      fetch('/api/parents/lookupRole'),
     ]);
-
-    const relJson = await relRes.json();
-    const natJson = await natRes.json();
-    const stateJson = await stateRes.json();
-
-    const relData = relJson ?? [];
-    const natData = natJson ?? [];
-    const stateData = stateJson ?? [];
-
-
-    console.log('relData:', relData);
-    console.log('natData:', natData);
-    console.log('stateData:', stateData);
 
     relationshipOptions.value = [
       { label: '-- Please select --', value: '' },
-      ...relData
-        .filter(item => item.lookupID !== undefined && item.lookupID !== null)
-        .map(item => ({
-          label: item.title,
-          value: item.lookupID
-        }))
+      ...await relRes.json().then(data => data.map(i => ({ label: i.title, value: i.lookupID })))
     ];
-
     nationalityOptions.value = [
       { label: '-- Please select --', value: '' },
-      ...natData
-        .filter(item => item.lookupID !== undefined && item.lookupID !== null)
-        .map(item => ({
-          label: item.title,
-          value: item.lookupID
-        }))
+      ...await natRes.json().then(data => data.map(i => ({ label: i.title, value: i.lookupID })))
     ];
-
     stateOptions.value = [
       { label: '-- Please select --', value: '' },
-      ...stateData
-        .filter(item => item.lookupID !== undefined && item.lookupID !== null)
-        .map(item => ({
-          label: item.title,
-          value: item.lookupID
-        }))
+      ...await stateRes.json().then(data => data.map(i => ({ label: i.title, value: i.lookupID })))
     ];
-
+    roleOptions.value = [
+      { label: '-- Please select --', value: '' },
+      ...await roleRes.json().then(data => data.map(i => ({ label: i.roleName, value: i.roleID })))
+    ];
   } catch (err) {
-    console.error('Failed to fetch dropdowns:', err);
+    console.error('Dropdown fetch error:', err);
   }
 });
 
-async function saveParentFromAddPage() {
-  const requiredFields = {
-    relationship: 'Relationship',
-    gender: 'Gender',
-    dateOfBirth: 'Date of Birth',
-    nationality: 'Nationality',
-    phone: 'Phone',
-    numberOfChildren: 'Number of Children',
-    city: 'City',
-    postcode: 'Postcode',
-    state: 'State',
-    status: 'Status',
-  };
-
-  // Debugging
-  // console.log("Relationship (value):", form.value.relationship, typeof form.value.relationship);
-  // console.log("Nationality (value):", form.value.nationality, typeof form.value.nationality);
-  // console.log("State (value):", form.value.state, typeof form.value.state);
-
-  // Helper to check if a value is empty
-  const isEmpty = (val) =>
-    val === null || val === undefined || (typeof val === 'string' && val.trim() === '');
-
-  const missingFields = [];
-
-  // Debug: Log all form values
-  // console.log('Form Data:', JSON.stringify(form.value, null, 2));
-  // console.log('Nationality selected:', form.value.nationality);
-
-  // Check required fields
-  for (const [key, label] of Object.entries(requiredFields)) {
-    const value = form.value[key];
-    if (isEmpty(value)) {
-      console.warn(`Missing field: ${label} (key: ${key}) =>`, value);
-      missingFields.push(label);
-    }
+async function handleStep1Submit() {
+  if (usernameError.value) {
+    showMessage('Please fix the username before continuing.', 'error');
+    return;
   }
-
-  // Check for missing children names
-  if (Array.isArray(form.value.childrenNames)) {
-    form.value.childrenNames.forEach((name, index) => {
-      if (isEmpty(name)) {
-        console.warn(`Missing Child Name ${index + 1}:`, name);
-        missingFields.push(`Child Name ${index + 1}`);
-      }
-    });
-  }
-
-  // If any missing, show alert
-  if (missingFields.length > 0) {
-    alert(`Please fill in:\n- ${missingFields.join('\n- ')}`);
+  if (confirmPasswordError.value) {
+    showMessage('Your confirm password does not match with your password.', 'error');
     return;
   }
 
-  // Proceed to save
+  const data = {
+    ...step1Form.value,
+    ...step2Form.value,
+  };
+
   try {
-    const response = await fetch('/api/parents/insert', {
+    const res = await fetch('/api/parents/insert', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form.value),
+      body: JSON.stringify(data),
     });
 
-    const result = await response.json();
+    const result = await res.json();
+
     if (result.statusCode === 200) {
-      alert('Parent added successfully');
-      router.push('/userManagement/parent/parents');
+      registeredIDs.value = {
+        userID: result?.data?.user?.userID,
+        parentID: result?.data?.parent?.parentID,
+      };
+      showMessage('Step 1 registered. Continue additional details.', 'success');
+      showStep2Modal.value = true;
     } else {
-      alert(`Error: ${result.message}`);
+      showMessage(result.message || 'Registration failed', 'error');
     }
   } catch (err) {
-    console.error('Unexpected error:', err);
-    alert('An unexpected error occurred.');
+    console.error('Submit error:', err);
+    showMessage('Unexpected error occurred', 'error');
+  }
+}
+
+async function submitStep2() {
+  const payload = {
+    parentID: registeredIDs.value.parentID,
+    ...step2Form.value,
+  };
+
+  try {
+    const res = await fetch('/api/parents/update', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const result = await res.json();
+    if (result.statusCode === 200) {
+      showMessage('Parent details updated successfully');
+      router.push('/userManagement/parent/parents');
+    } else {
+      showMessage(result.message || 'Update failed', 'error');
+    }
+  } catch (err) {
+    console.error('Step 2 update error:', err);
+    showMessage('Unexpected error occurred', 'error');
   }
 }
 
 </script>
 
+
 <template>
   <div class="p-6">
-    <h1 class="text-2xl font-bold mb-4">Parent Information</h1>
+    <h1 class="text-2xl font-bold mb-4">Parent Registration - Step 1</h1>
 
-    <FormKit
-      type="select"
-      v-model="form.relationship"
-      label="Relationship"
-      :options="relationshipOptions"
-      name="relationship"
-    />
-    <FormKit
-      type="select"
-      v-model="form.gender"
-      label="Gender"
-      :options="['-- Please select --', 'Male', 'Female']"
-    />
-    <FormKit type="date" v-model="form.dateOfBirth" label="Date of Birth" />
-    <FormKit
-        type="select"
-        v-model="form.nationality"
-        label="Nationality"
-        :options="nationalityOptions"
-        name="nationality"
-    />
-    <FormKit type="number" v-model="form.phone" label="Phone" />
-    <FormKit
-      type="number"
-      v-model="form.numberOfChildren"
-      label="Number of Children"
-      min="1"
-    />
-
-    <div v-for="(name, index) in form.childrenNames" :key="index">
+    <!-- Step 1 Form -->
+    <FormKit type="form" :actions="false">
       <FormKit
         type="text"
-        v-model="form.childrenNames[index]"
-        :label="`Child Name ${index + 1}`"
+        name="parentUsername"
+        v-model="step1Form.username"
+        label="Username"
+        validation="required"
+        validation-visibility="live"
+        autocomplete="off"
+        placeholder="Enter Username"
       />
-    </div>
+      <p v-if="usernameError" class="text-red-500 text-sm mt-1 mb-2">{{ usernameError }}</p>
 
-    <FormKit type="text" v-model="form.city" label="City" />
-    <FormKit type="text" v-model="form.postcode" label="Postcode" />
-    <FormKit
+      <FormKit
+        type="text"
+        name="parentFullname"
+        v-model="step1Form.fullname"
+        label="Fullname"
+        validation="required"
+        placeholder="Enter Fullname"
+      />
+      <FormKit
+        type="text"
+        name="parentEmail"
+        v-model="step1Form.email"
+        label="Email"
+        validation="required"
+        placeholder="Enter Email"
+      />
+      <FormKit
+        type="text"
+        name="parentIC"
+        v-model="step1Form.ic"
+        label="IC / MyKid / Passport"
+        validation="required"
+        placeholder="Example: 123456789012"
+      />
+      <FormKit
+        type="number"
+        name="parentPhone"
+        v-model="step1Form.phone"
+        label="Phone"
+        validation="required"
+        placeholder="Example: 0123456789"
+      />
+
+      <!-- Password Field -->
+      <FormKit
+        :type="togglePasswordVisibility ? 'text' : 'password'"
+        name="registerPassword"
+        v-model="step1Form.password"
+        label="Password"
+        validation="required"
+        autocomplete="new-password"
+        placeholder="Enter Password"
+      >
+        <template #suffix>
+          <div class="h-full px-3 flex items-center cursor-pointer"
+               @click="togglePasswordVisibility = !togglePasswordVisibility">
+            <Icon
+              :name="togglePasswordVisibility ? 'ion:eye-off-outline' : 'ion:eye-outline'"
+              size="19"
+            />
+          </div>
+        </template>
+      </FormKit>
+
+      <!-- Confirm Password Field -->
+      <FormKit
+        :type="togglePasswordVisibility2 ? 'text' : 'password'"
+        name="registerConfirmPassword"
+        v-model="step1Form.confirmPassword"
+        label="Confirm Password"
+        validation="required|matchesPassword"
+        autocomplete="new-password"
+        placeholder="Reenter Password"
+        :validation-rules="{
+          matchesPassword: (value) => {
+            return value === step1Form.password || 'Passwords do not match';
+          }
+        }"
+      >
+        <template #suffix>
+          <div class="h-full px-3 flex items-center cursor-pointer"
+               @click="togglePasswordVisibility2 = !togglePasswordVisibility2">
+            <Icon
+              :name="togglePasswordVisibility2 ? 'ion:eye-off-outline' : 'ion:eye-outline'"
+              size="19"
+            />
+          </div>
+        </template>
+      </FormKit>
+      <p v-if="confirmPasswordError" class="text-red-500 text-sm mt-1 mb-2">{{ confirmPasswordError }}</p>
+
+      <FormKit
         type="select"
-        v-model="form.state"
-        label="State"
-        :options="stateOptions"
-        name="state"
-    />
-    <FormKit
-      type="select"
-      v-model="form.status"
-      label="Status"
-      :options="['-- Please select --', 'Active', 'Inactive']"
-    />
+        name="parentRole"
+        v-model="step1Form.role"
+        label="Role"
+        validation="required"
+        :options="roleOptions"
+      />
 
-    <div class="flex gap-4 mt-4">
-      <div class="w-1/2">
-        <rs-button class="w-full" @click="saveParentFromAddPage">Save</rs-button>
+      <div class="flex justify-end mt-4">
+        <rs-button @click="handleStep1Submit">Submit & Continue</rs-button>
       </div>
-      <div class="w-1/2">
-        <rs-button
-          class="w-full bg-gray-200 hover:bg-gray-400 text-gray-800"
-          variant="ghost"
-          @click="router.back()"
-        >
-          Cancel
-        </rs-button>
+
+      <!-- Feedback message -->
+      <div v-if="message" class="mb-4 p-3 rounded text-white"
+           :class="messageType === 'success' ? 'bg-green-500' : 'bg-red-500'">
+        {{ message }}
       </div>
+    </FormKit>
+
+    <!-- Step 2 Modal -->
+    <rs-modal
+      v-model="showStep2Modal"
+      title="Additional Parent Info"
+      :overlay-close="false"
+      :hide-footer="true"
+    >
+      <FormKit type="form" :actions="false" autocomplete="off">
+        <div v-if="message" class="mb-4 p-3 rounded text-white"
+             :class="messageType === 'success' ? 'bg-green-500' : 'bg-red-500'">
+          {{ message }}
+        </div>
+
+        <FormKit
+          type="select"
+          v-model="step2Form.relationship"
+          name="relationship"
+          label="Relationship"
+          :options="relationshipOptions"
+          validation="required"
+        />
+        <FormKit
+          type="select"
+          v-model="step2Form.gender"
+          name="gender"
+          label="Gender"
+          :options="['-- Please select --', 'Male', 'Female']"
+          validation="required"
+        />
+        <FormKit
+          type="date"
+          v-model="step2Form.dateOfBirth"
+          name="dateOfBirth"
+          label="Date of Birth"
+          validation="required"
+        />
+        <FormKit
+          type="select"
+          v-model="step2Form.nationality"
+          name="nationality"
+          label="Nationality"
+          :options="nationalityOptions"
+          validation="required"
+        />
+        <FormKit
+          type="text"
+          v-model="step2Form.address1"
+          name="address1"
+          label="Address Line 1"
+          validation="required"
+        />
+        <FormKit
+          type="text"
+          v-model="step2Form.address2"
+          name="address2"
+          label="Address Line 2"
+        />
+        <FormKit
+          type="text"
+          v-model="step2Form.address3"
+          name="address3"
+          label="Address Line 3"
+        />
+
+        <FormKit
+          type="text"
+          v-model="step2Form.city"
+          name="city"
+          label="City"
+          validation="required"
+        />
+        <FormKit
+          type="text"
+          v-model="step2Form.postcode"
+          name="postcode"
+          label="Postcode"
+          validation="required"
+        />
+        <FormKit
+          type="select"
+          v-model="step2Form.state"
+          name="state"
+          label="State"
+          :options="stateOptions"
+          validation="required"
+        />
+        <FormKit
+          type="select"
+          v-model="step2Form.status"
+          name="status"
+          label="Status"
+          :options="['-- Please select --', 'Active', 'Inactive']"
+          validation="required"
+        />
+
+        <div class="flex justify-end gap-2 mt-4">
+          <rs-button @click="submitStep2">Submit</rs-button>
+          <rs-button variant="outline" @click="showStep2Modal = false">Update Later</rs-button>
+          <rs-button variant="ghost" @click="showStep2Modal = false">Cancel</rs-button>
+        </div>
+      </FormKit>
+    </rs-modal>
+    <div v-if="message" class="mb-4 p-3 rounded text-white"
+          :class="messageType === 'success' ? 'bg-green-500' : 'bg-red-500'">
+      {{ message }}
     </div>
   </div>
 </template>

@@ -1,14 +1,16 @@
-<!-- Added by: Firzana Huda 24 June 2025 -->
 <script setup>
 import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { useRoute } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 
-const route = useRoute();
-const parentID = ref(null);
 const router = useRouter();
-const availableSessionOptions = ref([]); 
+const route = useRoute();
 
+const parentID = ref(route.query.parentID);
+const userID = ref(route.query.userID);
+const children = ref([]);
+const showAddForm = ref(false);
+
+const availableSessionOptions = ref([]);
 const form = ref({
   nickname: null,
   gender: '',
@@ -19,123 +21,141 @@ const form = ref({
   status: '',
 });
 
-onMounted(() => {
-  parentID.value = route.query.parentID;
-});
-
-onMounted(async () => {
+// Fetch existing children for this parent
+async function fetchChildren() {
   try {
-    const availRes = await fetch('/api/parents/lookupAvailSession');
-    const availJson = await availRes.json();
-    const availData = availJson ?? [];
+    const [childRes, sessionRes] = await Promise.all([
+      fetch(`/api/parents/manageChild/listChild?parentID=${parentID.value}`),
+      fetch('/api/parents/lookupAvailSession')
+    ]);
+    const childData = await childRes.json();
+    const sessionData = await sessionRes.json();
+
+    const sessionMap = Object.fromEntries(sessionData.map(s => [s.lookupID, s.title]));
+
+    if (childData.statusCode === 200) {
+      children.value = childData.data.map(c => ({
+        ...c,
+        diagnosedDate: new Date(c.diagnosedDate).toISOString().split('T')[0],
+        availableSessionName: sessionMap[c.availableSession] || 'Unknown'
+      }));
+    }
 
     availableSessionOptions.value = [
       { label: '-- Please select --', value: '' },
-      ...availData
-        .filter(item => item.lookupID !== undefined && item.lookupID !== null)
-        .map(item => ({
-          label: item.title,
-          value: item.lookupID
-        }))
+      ...sessionData.map(s => ({ label: s.title, value: s.lookupID }))
     ];
-
   } catch (err) {
-    console.error('Failed to fetch dropdowns:', err);
+    console.error('Failed to load children:', err);
   }
-});
+}
 
-async function saveChildFromAddPage() {
-  const requiredFields = {
-    nickname: 'Nickname',
-    gender: 'Gender',
-    dateOfBirth: 'Date of Birth',
-    autismDiagnose: 'Autism Diagnose',
-    diagnosedDate: 'Diagnosed Date',
-    availableSession: 'Available Session',
-    status: 'Status',
-  };
-
-  const isEmpty = (val) =>
-    val === null || val === undefined || (typeof val === 'string' && val.trim() === '');
-
-  const missingFields = [];
-
-  for (const [key, label] of Object.entries(requiredFields)) {
-    const value = form.value[key];
-    if (isEmpty(value)) {
-      missingFields.push(label);
-    }
-  }
-
-  if (missingFields.length > 0) {
-    alert(`Please fill in:\n- ${missingFields.join('\n- ')}`);
-    return;
-  }
-
+// Save new child
+async function saveChild() {
   try {
+    console.log('Saving child with:', {
+      ...form.value,
+      parentID: parseInt(parentID.value),
+      userID: parseInt(userID.value),
+    });
+
     const response = await fetch('/api/parents/manageChild/insertChild', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...form.value,
-        parentID: parseInt(parentID.value),
-      }),
+      body: JSON.stringify({ ...form.value, parentID: parseInt(parentID.value), userID: parseInt(userID.value) })
     });
 
     const result = await response.json();
     if (result.statusCode === 200) {
       alert('Child added successfully');
-      router.push('/userManagement/parent/parents');
+      showAddForm.value = false;
+      form.value = {
+        nickname: null,
+        gender: '',
+        dateOfBirth: '',
+        autismDiagnose: null,
+        diagnosedDate: '',
+        availableSession: '',
+        status: '',
+      };
+      await fetchChildren(); // Refresh table
     } else {
       alert(`Error: ${result.message}`);
     }
   } catch (err) {
-    console.error('Unexpected error:', err);
-    alert('An unexpected error occurred.');
+    alert('Failed to add child.');
   }
 }
+
+onMounted(fetchChildren);
 </script>
 
 <template>
   <div class="p-6">
-    <h1 class="text-2xl font-bold mb-4">Patient Information</h1>
+    <h1 class="text-2xl font-bold mb-4">Manage Children for Parent {{ fullName }}</h1>
 
-    <FormKit type="text" v-model="form.nickname" label="Nickname" />
-    <FormKit
-      type="select"
-      v-model="form.gender"
-      label="Gender"
-      :options="['-- Please select --', 'Male', 'Female']"
-    />
-    <FormKit type="date" v-model="form.dateOfBirth" label="Date of Birth" />
-    <FormKit type="text" v-model="form.autismDiagnose" label="Autism Diagnose" />
-    <FormKit type="date" v-model="form.diagnosedDate" label="Diagnosed Date" />
-    <FormKit
+    <!-- Child List -->
+    <div class="card p-4 mb-4">
+      <div class="flex justify-between items-center mb-3">
+        <h2 class="text-lg font-semibold">Existing Children</h2>
+        <rs-button @click="showAddForm = true">
+          <Icon name="material-symbols:add" class="mr-1" /> Add Child
+        </rs-button>
+      </div>
+
+      <table class="min-w-full border border-gray-300 text-sm">
+        <thead class="bg-gray-100">
+          <tr>
+            <th class="px-3 py-2 border">Child ID</th>
+            <th class="px-3 py-2 border">Nickname</th>
+            <th class="px-3 py-2 border">Gender</th>
+            <th class="px-3 py-2 border">Diagnosed Date</th>
+            <th class="px-3 py-2 border">Session</th>
+            <th class="px-3 py-2 border">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="child in children" :key="child.childID">
+            <td class="px-3 py-2 border">{{ child.childID }}</td>
+            <td class="px-3 py-2 border">{{ child.nickname }}</td>
+            <td class="px-3 py-2 border">{{ child.gender }}</td>
+            <td class="px-3 py-2 border">{{ child.diagnosedDate }}</td>
+            <td class="px-3 py-2 border">{{ child.availableSessionName }}</td>
+            <td class="px-3 py-2 border">{{ child.status }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Add Child Form -->
+    <div v-if="showAddForm" class="card p-4 border border-gray-200">
+      <h2 class="text-lg font-semibold mb-2">Add New Child</h2>
+      <FormKit type="text" v-model="form.nickname" label="Nickname" />
+      <FormKit
+        type="select"
+        v-model="form.gender"
+        label="Gender"
+        :options="['-- Please select --', 'Male', 'Female']"
+      />
+      <FormKit type="date" v-model="form.dateOfBirth" label="Date of Birth" />
+      <FormKit type="text" v-model="form.autismDiagnose" label="Autism Diagnose" />
+      <FormKit type="date" v-model="form.diagnosedDate" label="Diagnosed Date" />
+      <FormKit
         type="select"
         v-model="form.availableSession"
         label="Available Session"
         :options="availableSessionOptions"
-        name="availableSession"
-    />
-    <FormKit
-      type="select"
-      v-model="form.status"
-      label="Status"
-      :options="['-- Please select --', 'Active', 'Inactive']"
-    />
+      />
+      <FormKit
+        type="select"
+        v-model="form.status"
+        label="Status"
+        :options="['-- Please select --', 'Active', 'Inactive']"
+      />
 
-    <div class="flex gap-4 mt-4">
-      <div class="w-1/2">
-        <rs-button class="w-full" @click="saveChildFromAddPage">Save</rs-button>
-      </div>
-      <div class="w-1/2">
-        <rs-button
-          class="w-full bg-gray-200 hover:bg-gray-400 text-gray-800"
-          variant="ghost"
-          @click="router.back()"
-        >
-          Cancel
-        </rs-button>
+      <div class="flex gap-4 mt-4">
+        <rs-button class="w-full" @click="saveChild">Save</rs-button>
+        <rs-button variant="ghost" class="w-full bg-gray-200" @click="showAddForm = false">Cancel</rs-button>
       </div>
     </div>
   </div>

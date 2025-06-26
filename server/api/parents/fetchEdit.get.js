@@ -12,6 +12,16 @@ export default defineEventHandler(async (event) => {
   try {
     const parent = await prisma.user_parents.findUnique({
       where: { parent_id: parentID },
+      include: {
+        user: {
+          select: {
+            userFullName: true,
+            userEmail: true,
+            userPhone: true,
+            userIC: true,
+          },
+        },
+      },
     });
 
     if (!parent) {
@@ -21,28 +31,26 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    const childrenNames = [
-      parent.parent_add1,
-      parent.parent_add2,
-      parent.parent_add3,
-    ].filter(name => !!name);
-
     return {
       statusCode: 200,
       message: 'Success',
       data: {
+        parentID: parent.parent_id,
+        fullName: parent.user?.userFullName || '',
+        email: parent.user?.userEmail || '',
+        ic: parent.user?.userIC || '',
+        phone: parent.user?.userPhone || '',
         relationship: parent.parent_relationship,
         gender: parent.parent_gender,
         dateOfBirth: parent.parent_dob,
         nationality: parent.parent_nationality,
-        phone: parent.parent_phone,
-        numberOfChildren: childrenNames.length,
-        childrenNames,
+        addressLine1: parent.parent_add1 || '',
+        addressLine2: parent.parent_add2 || '',
+        addressLine3: parent.parent_add3 || '',
         city: parent.parent_city,
         postcode: parent.parent_postcode,
         state: parent.parent_state,
         status: parent.parent_status,
-        parentID: parent.parent_id,
       },
     };
   } catch (err) {
@@ -53,4 +61,3 @@ export default defineEventHandler(async (event) => {
     };
   }
 });
-  

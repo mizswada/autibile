@@ -1,85 +1,111 @@
-// Added by: Firzana Huda 24 June 2025
+import sha256 from "crypto-js/sha256.js";
+
 export default defineEventHandler(async (event) => {
   try {
-    // Extract userID from the session context
     const { userID } = event.context.user || {};
     if (!userID) {
-      return {
-        statusCode: 401,
-        message: "Unauthorized: Missing user session",
-      };
+      return { statusCode: 401, message: "Unauthorized: Missing user session" };
     }
 
     const body = await readBody(event);
 
     const {
-      relationship,     
+      username,
+      fullname,
+      email,
+      ic,
+      password,
+      confirmPassword,
+      role,
+      relationship,
       gender,
       dateOfBirth,
-      nationality,       
+      nationality,
       phone,
-      numberOfChildren,
-      childrenNames,     
+      address1,
+      address2,
+      address3,
       city,
       postcode,
-      state,             
+      state,
       status,
     } = body;
 
-    // Basic validation
-    if (
-        relationship === undefined || relationship === null || relationship === '' ||
-        !gender || !dateOfBirth ||
-        nationality === undefined || nationality === null || nationality === '' ||
-        !phone || !city || !postcode ||
-        state === undefined || state === null || state === '' ||
-        !status
-      ) {
-        return {
-          statusCode: 400,
-          message: "Missing required fields",
-        };
-      }
-      
+    if (!username || !fullname || !email || !ic || !password || !role || !phone) {
+      return {
+        statusCode: 400,
+        message: "Missing required user fields",
+      };
+    }
 
-    // Map child names (limit to 3)
-    const childName1 = childrenNames?.[0] || null;
-    const childName2 = childrenNames?.[1] || null;
-    const childName3 = childrenNames?.[2] || null;
+    const hashedPassword = sha256(password).toString();
 
-    // Save to DB
-    const saved = await prisma.user_parents.create({
+    // Step 1: Create user and link to parentID
+    const user = await prisma.user.create({
       data: {
-        user_id: parseInt(userID), // ← user ID from session
-        parent_relationship: parseInt(relationship),
-        parent_gender: gender,
-        parent_dob: new Date(dateOfBirth),
-        parent_nationality: parseInt(nationality),
-        parent_phone: phone.toString(),
-        parent_add1: childName1,
-        parent_add2: childName2,
-        parent_add3: childName3,
-        parent_city: city,
-        parent_postcode: postcode,
-        parent_state: parseInt(state),
-        parent_status: status,
-        created_at: new Date(),
+        userUsername: username,
+        userFullName: fullname,
+        userEmail: email,
+        userIC: ic,
+        userPhone: phone,
+        userStatus: 'Active',
+        userPassword: hashedPassword, // hash in real world
+        userCreatedDate: new Date(),
+        userModifiedDate: new Date(),
       },
     });
 
+    const userrole = await prisma.userrole.create({
+      data: {
+        userRoleUserID: user.userID,
+        userRoleRoleID: parseInt(role),
+        userRoleCreatedDate: new Date(),
+      },
+    });
+
+
+    const parent = await prisma.user_parents.create({
+      data: {
+        user: {
+          connect: { userID: user.userID },
+        },
+        lookup_user_parents_parent_relationshipTolookup: relationship
+          ? { connect: { lookupID: parseInt(relationship) } }
+          : undefined,
+        lookup_user_parents_parent_nationalityTolookup: nationality
+          ? { connect: { lookupID: parseInt(nationality) } }
+          : undefined,
+        lookup_user_parents_parent_stateTolookup: state
+          ? { connect: { lookupID: parseInt(state) } }
+          : undefined,
+    
+        parent_gender: gender || '',
+        parent_dob: dateOfBirth ? new Date(dateOfBirth) : new Date(),
+        parent_phone: phone || '',
+        parent_add1: address1 || '',
+        parent_add2: address2 || '',
+        parent_add3: address3 || '',
+        parent_city: city || '',
+        parent_postcode: postcode || '',
+        parent_status: status || '',
+        created_at: new Date(),
+      },
+    });
+    
+
     return {
       statusCode: 200,
-      message: "Parent added successfully",
-      data: saved,
+      message: "Parent created successfully",
+      data: {
+        user,
+        parent,
+      },
     };
-
   } catch (error) {
-    console.error("Error inserting parent:", error);
+    console.error("Error creating user/parent:", error);
     return {
       statusCode: 500,
       message: "Internal server error",
     };
   }
 });
-
-  

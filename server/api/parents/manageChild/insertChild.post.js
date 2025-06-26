@@ -1,16 +1,8 @@
-// Added by: Firzana Huda 24 June 2025
 export default defineEventHandler(async (event) => {
   try {
-    // Extract userID from the session context
-    const { userID } = event.context.user || {};
-    if (!userID) {
-      return {
-        statusCode: 401,
-        message: "Unauthorized: Missing user session",
-      };
-    }
-
     const body = await readBody(event);
+console.log("Raw body:", body);
+
 
     const {
       nickname,
@@ -21,23 +13,25 @@ export default defineEventHandler(async (event) => {
       availableSession,
       status,
       parentID,
+      userID, // <-- Use this instead
     } = body;
 
-    // Basic validation
     if (
-        !nickname || !gender || !dateOfBirth || !autismDiagnose || !diagnosedDate 
-        || !availableSession || !status || !parentID
-      ) {
-        return {
-          statusCode: 400,
-          message: "Missing required fields",
-        };
-      }
+      !nickname || !gender || !dateOfBirth || !autismDiagnose ||
+      !diagnosedDate || !availableSession || !status || !parentID || !userID
+    ) {
+      return {
+        statusCode: 400,
+        message: "Missing required fields",
+      };
+    }
 
-    // Save to DB
+    console.log(body);
+
+    // Save to DB using the parent's userID
     const saved = await prisma.user_patients.create({
       data: {
-        user_id: parseInt(userID),
+        user_id: parseInt(userID), // <-- Parent's user ID
         nickname,
         gender,
         dob: new Date(dateOfBirth),
@@ -48,13 +42,10 @@ export default defineEventHandler(async (event) => {
         created_at: new Date(),
       },
     });
-    console.log("Saved patient:", saved);
-    // Get the ID of the newly inserted patient
-    const patientID = saved.patient_id;
-    console.log("patientID", patientID);
 
-    // Save relationship to user_parent_patient
-    const savedRelations = await prisma.user_parent_patient.create({
+    const patientID = saved.patient_id;
+
+    await prisma.user_parent_patient.create({
       data: {
         parent_id: parseInt(parentID),
         patient_id: patientID,
@@ -75,5 +66,3 @@ export default defineEventHandler(async (event) => {
     };
   }
 });
-
-  

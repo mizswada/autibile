@@ -1,8 +1,4 @@
 // Added by: Firzana Huda 24 June 2025
-import sha256 from "crypto-js/sha256.js";
-import jwt from "jsonwebtoken";
-
-const ENV = useRuntimeConfig();
 
 export default defineEventHandler(async (event) => {
   try {
@@ -16,17 +12,30 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    // Update user details (from `user` table)
+    await prisma.user.updateMany({
+      where: {
+        userID: parseInt(parentID), // assumes userID === parentID (adjust if needed)
+      },
+      data: {
+        userFullName: body.fullName,
+        userEmail: body.email,
+        userPhone: body.phone,
+        userIC: body.ic,
+      },
+    });
+
+    // Update parent-specific details (from `user_parents` table)
     const updated = await prisma.user_parents.update({
-      where: { parent_id: parentID },
+      where: { parent_id: parseInt(parentID) },
       data: {
         parent_relationship: parseInt(body.relationship),
         parent_gender: body.gender,
         parent_dob: new Date(body.dateOfBirth),
         parent_nationality: parseInt(body.nationality),
-        parent_phone: body.phone,
-        parent_add1: body.childrenNames?.[0] || null,
-        parent_add2: body.childrenNames?.[1] || null,
-        parent_add3: body.childrenNames?.[2] || null,
+        parent_add1: body.addressLine1,
+        parent_add2: body.addressLine2,
+        parent_add3: body.addressLine3,
         parent_city: body.city,
         parent_postcode: body.postcode,
         parent_state: parseInt(body.state),

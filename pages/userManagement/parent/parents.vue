@@ -3,23 +3,16 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
-
 const data = ref([]);
-
 const showModalDelete = ref(false);
 const showModalDeleteForm = ref({});
 
 const columns = [
   { name: 'parentID', label: 'ID' },
-  { name: 'parentRelationship', label: 'Relationship' },
-  { name: 'parentGender', label: 'Gender' },
-  { name: 'parentDateOfBirth', label: 'Date of Birth' },
-  { name: 'parentNationality', label: 'Nationality' },
-  { name: 'parentPhone', label: 'Phone' },
-  { name: 'parentChildrenNames', label: 'Children Names' },
-  { name: 'parentCity', label: 'City' },
-  { name: 'parentPostcode', label: 'Postcode' },
-  { name: 'parentState', label: 'State' },
+  { name: 'fullName', label: 'Full Name' },
+  { name: 'email', label: 'Email' },
+  { name: 'phoneNumber', label: 'Phone' },
+  { name: 'icNumber', label: 'IC' },
   { name: 'action', label: 'Actions' }
 ];
 
@@ -35,13 +28,10 @@ async function deleteParent() {
       method: 'DELETE',
     });
 
-
     const result = await res.json();
 
     if (result.statusCode === 200) {
-      // Remove deleted item from table without refetching
-      data.value = data.value.filter(p => p.parentID !== showModalDeleteForm.value.parentID);
-
+      data.value = data.value.filter(p => p.parentID !== parentID);
       alert('Parent deleted successfully');
     } else {
       alert(`Error: ${result.message}`);
@@ -56,39 +46,27 @@ async function deleteParent() {
 
 onMounted(async () => {
   try {
-    const [parentRes, relRes, natRes, stateRes] = await Promise.all([
-      fetch('/api/parents/listParents'),
-      fetch('/api/parents/lookupRelationship'),
-      fetch('/api/parents/lookupNationality'),
-      fetch('/api/parents/lookupState'),
-    ]);
-
-    const result = await parentRes.json();
-    const relData = await relRes.json();
-    const natData = await natRes.json();
-    const stateData = await stateRes.json();
-
-    // Convert lookup arrays to maps for quick lookup
-    const relMap = Object.fromEntries(relData.map(item => [item.lookupID, item.title]));
-    const natMap = Object.fromEntries(natData.map(item => [item.lookupID, item.title]));
-    const stateMap = Object.fromEntries(stateData.map(item => [item.lookupID, item.title]));
+    const res = await fetch('/api/parents/listParents');
+    const result = await res.json();
 
     if (result.statusCode === 200) {
-      data.value = result.data.map(p => {
-        const childNames = [p.parent_add1, p.parent_add2, p.parent_add3]
-          .filter(name => !!name && name.trim() !== '')
-          .join(', ');
+      console.log('Fetched parent list:', result.data); // ✅ log raw data
 
+      data.value = result.data.map(p => {
         return {
-          parentID: p.parent_id,
-          parentRelationship: relMap[p.parent_relationship] || `Unknown (${p.parent_relationship})`,
-          parentNationality: natMap[p.parent_nationality] || `Unknown (${p.parent_nationality})`,
-          parentPhone: p.parent_phone,
-          parentCity: p.parent_city,
-          parentChildrenNames: childNames,
+          userID: p.userID, // check if this is undefined
+          parentID: p.parentID,
+          fullName: p.fullName || '',
+          email: p.email || '',
+          phoneNumber: p.phone || '',
+          icNumber: p.ic || '',
           action: 'edit',
+          status: p.status || '',
         };
       });
+
+      console.log('Mapped parent data:', data.value); // ✅ log mapped data
+
     } else {
       console.error('Failed to load parents:', result.message);
     }
@@ -97,17 +75,89 @@ onMounted(async () => {
   }
 });
 
+
+async function toggleStatus(rowData) {
+  const newStatus = rowData.status === 'Active' ? 'Inactive' : 'Active';
+
+  try {
+    const res = await fetch('/api/parents/updateStatus', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        parentID: rowData.parentID,
+        status: newStatus,
+      }),
+    });
+
+    const result = await res.json();
+
+    if (result.statusCode === 200) {
+      // Update local data state
+      const target = data.value.find(p => p.parentID === rowData.parentID);
+      if (target) target.status = newStatus;
+    } else {
+      alert(`Error updating status: ${result.message}`);
+    }
+  } catch (err) {
+    console.error('Status update error:', err);
+    alert('An error occurred while updating status.');
+  }
+}
+
 </script>
+
+<style scoped>
+.toggle-checkbox {
+  width: 42px;
+  height: 22px;
+  appearance: none;
+  background-color: #ddd;
+  border-radius: 12px;
+  position: relative;
+  outline: none;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.toggle-checkbox:checked {
+  background-color: #10b981; /* Tailwind emerald-500 */
+}
+
+.toggle-checkbox::before {
+  content: "";
+  width: 18px;
+  height: 18px;
+  background: white;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  border-radius: 50%;
+  transition: transform 0.3s ease;
+}
+
+.toggle-checkbox:checked::before {
+  transform: translateX(20px);
+}
+
+</style>
+
+
 <template>
   <div class="mb-4">
     <h1 class="text-2xl font-bold">Parents Information</h1>
     <div class="card p-4 mt-4">
-      <div class="flex justify-end items-center mb-4">
-        <rs-button @click="$router.push('/userManagement/parent/addParents')">
-          <Icon name="material-symbols:add" class="mr-1"></Icon>
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-2 md:gap-4">
+        <div class="text-sm text-orange-600 bg-orange-50 border border-orange-200 px-3 py-2 rounded-md flex items-center">
+          <Icon name="material-symbols:warning" class="mr-2 text-orange-500" />
+          Please update children information via the Action column.
+        </div>
+
+        <rs-button @click="$router.push('/userManagement/parent/addParents')" class="flex items-center gap-2">
+          <Icon name="material-symbols:add" />
           Add Parent
         </rs-button>
       </div>
+
 
       <rs-table
         :data="data"
@@ -116,32 +166,46 @@ onMounted(async () => {
         :options-advanced="{ sortable: true, responsive: true, filterable: false }"
         advanced
       >
-
         <template v-slot:action="data">
-          <div class="flex justify-center items-center space-x-4">
-             <!-- Edit Button -->
-              <Icon
-                name="material-symbols:edit-outline-rounded"
-                class="text-primary hover:text-primary/90 cursor-pointer"
-                size="22"
-                @click="$router.push({ path: '/userManagement/parent/editParent', query: { parentID: data.value.parentID } })"
-              />
+          <div class="flex justify-center items-center space-x-3 text-gray-600">
+            
+            <!-- Edit Icon -->
+            <span class="relative group cursor-pointer" @click="$router.push({ path: '/userManagement/parent/editParent', query: { parentID: data.value.parentID } })">
+              <Icon name="material-symbols:edit" size="22" />
+            </span>
 
-              <!-- Delete Button -->
-              <Icon
-                name="material-symbols:close-rounded"
-                class="text-primary hover:text-primary/90 cursor-pointer"
-                size="22"
-                @click="openModalDelete(data.value)"
-              />
+            <!-- Add Child Icon -->
+            <span
+              class="relative group cursor-pointer"
+              @click="
+                () => {
+                  console.log('Going to Add Child with:', data.value);
+                  $router.push({
+                    path: '/userManagement/parent/addChild',
+                    query: {
+                      parentID: data.value.parentID,
+                      userID: data.value.userID
+                    }
+                  });
+                }
+              "
+            >
+              <Icon name="material-symbols:group-add-rounded" size="22" />
+            </span>
 
-              <!-- Add Child Button -->
-              <rs-button @click="$router.push({ path: '/userManagement/parent/addChild', query: { parentID: data.value.parentID } })">
-                <Icon name="material-symbols:add" class="mr-1"></Icon>
-                Add Child
-              </rs-button>
           </div>
         </template>
+
+
+        <template v-slot:status="row">
+          <input
+            type="checkbox"
+            class="toggle-checkbox"
+            :checked="row.value.status === 'Active'"
+            @change="toggleStatus(row.value)"
+          />
+        </template>
+
       </rs-table>
     </div>
   </div>

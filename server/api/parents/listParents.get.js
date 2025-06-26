@@ -1,4 +1,5 @@
 // Added by: Firzana Huda 24 June 2025
+
 export default defineEventHandler(async (event) => {
   try {
     const { userID } = event.context.user;
@@ -21,22 +22,45 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    // Join user_parents with user and lookup tables
     const parents = await prisma.user_parents.findMany({
       orderBy: { created_at: 'desc' },
+      include: {
+        user: {
+          select: {
+            userFullName: true,
+            userEmail: true,
+            userPhone: true,
+            userIC: true,
+          },
+        },
+      },
     });
+
+    // Format response
+    const formattedParents = parents.map(p => ({
+      parentID: p.parent_id,
+      userID: p.user_id,
+      fullName: p.user?.userFullName || '',
+      email: p.user?.userEmail || '',
+      phone: p.user?.userPhone || '',
+      ic: p.user?.userIC || '',
+      status: p.parent_status || '',
+    }));
+
+    console.log(formattedParents);
 
     return {
       statusCode: 200,
       message: 'Success',
-      data: parents,
+      data: formattedParents,
     };
 
   } catch (error) {
-      console.error('GET /api/parents/listParents error:', error);
-      return {
-        statusCode: 500,
-        message: 'Internal Server Error',
-      };
-    }
+    console.error('GET /api/parents/listParents error:', error);
+    return {
+      statusCode: 500,
+      message: 'Internal Server Error',
+    };
+  }
 });
-  
