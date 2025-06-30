@@ -26,7 +26,7 @@ const step1Form = ref({
   phone: '',
   password: '',
   confirmPassword: '',
-  role: '2',
+  role: '3',
 });
 
 const step2Form = ref({
@@ -181,7 +181,7 @@ async function submitStep2() {
 
 <template>
   <div class="p-6">
-    <h1 class="text-2xl font-bold mb-4">Parent Registration - Step 1</h1>
+    <h1 class="text-2xl font-bold mb-4">Practitioner Registration - Step 1</h1>
 
     <!-- Step 1 Form -->
     <FormKit type="form" :actions="false">

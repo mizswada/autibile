@@ -254,9 +254,9 @@ function handleSignatureUpload(fileList) {
   <div class="mb-4">
     <h1 class="text-2xl font-bold">Practitioner Management</h1>
     <div class="flex justify-end mb-2">
-      <rs-button @click="openAddModal">
-        <Icon name="material-symbols:add" class="mr-1" />
-        Add Practitioner
+      <rs-button @click="$router.push('/userManagement/addPractitioners')" class="flex items-center gap-2">
+        <Icon name="material-symbols:add" />
+          Add Practitioner
       </rs-button>
     </div>
     <div class="card p-4 mt-4">
@@ -316,7 +316,7 @@ function handleSignatureUpload(fileList) {
       </rs-table>
 
     </div>
-    <rs-modal
+    <!-- <rs-modal
       :title="isEdit ? 'Edit Practitioner' : 'Add Practitioner'"
       ok-title="Save"
       cancel-title="Cancel"
@@ -376,6 +376,6 @@ function handleSignatureUpload(fileList) {
         />
       </div>
 
-    </rs-modal>
+    </rs-modal> -->
   </div>
 </template>

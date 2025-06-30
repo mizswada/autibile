@@ -28,6 +28,7 @@ export default defineEventHandler(async (event) => {
       include: {
         user: {
           select: {
+            userUsername: true,
             userFullName: true,
             userEmail: true,
             userPhone: true,
@@ -41,6 +42,7 @@ export default defineEventHandler(async (event) => {
     const formattedParents = parents.map(p => ({
       parentID: p.parent_id,
       userID: p.user_id,
+      username: p.user?.userUsername || '',
       fullName: p.user?.userFullName || '',
       email: p.user?.userEmail || '',
       phone: p.user?.userPhone || '',

@@ -111,7 +111,7 @@ async function saveChild() {
 
     if (result.statusCode === 200) {
      alert('Child updated successfully');
-     router.push({ path: '/userManagement/parent/addChild', query: { parentID: parentID.value, userID: userID.value } })
+     router.push({ path: '/userManagement/parent/manageChild' })
      //router.push('/userManagement/parent/addChild');
     } else {
      alert(`Error: ${result.message}`);

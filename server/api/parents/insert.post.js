@@ -40,7 +40,7 @@ export default defineEventHandler(async (event) => {
 
     const hashedPassword = sha256(password).toString();
 
-    // Step 1: Create user and link to parentID
+    // Step 1: Create user
     const user = await prisma.user.create({
       data: {
         userUsername: username,
@@ -49,7 +49,7 @@ export default defineEventHandler(async (event) => {
         userIC: ic,
         userPhone: phone,
         userStatus: 'Active',
-        userPassword: hashedPassword, // hash in real world
+        userPassword: hashedPassword,
         userCreatedDate: new Date(),
         userModifiedDate: new Date(),
       },
@@ -63,7 +63,7 @@ export default defineEventHandler(async (event) => {
       },
     });
 
-
+    // Step 2: Create parent linked to user
     const parent = await prisma.user_parents.create({
       data: {
         user: {
@@ -91,7 +91,10 @@ export default defineEventHandler(async (event) => {
         created_at: new Date(),
       },
     });
-    
+
+    // ✅ Log after creation for debugging
+    console.log('Created user:', user);
+    console.log('Created parent:', parent);
 
     return {
       statusCode: 200,
@@ -101,6 +104,7 @@ export default defineEventHandler(async (event) => {
         parent,
       },
     };
+
   } catch (error) {
     console.error("Error creating user/parent:", error);
     return {

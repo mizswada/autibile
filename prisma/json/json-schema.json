@@ -986,6 +986,12 @@
         "patient_id": {
           "type": "integer"
         },
+        "patient_ic": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "nickname": {
           "type": [
             "string",

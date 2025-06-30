@@ -1,48 +1,99 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
-const data = ref([]);
-const showModalDelete = ref(false);
-const showModalDeleteForm = ref({});
+const rawData = ref([]); // store full data including IDs
+const showConfirmToggleModal = ref(false);
+const pendingToggleData = ref(null);
+const showViewModal = ref(false);
+const viewData = ref(null);
+const relationshipOptions = ref([]);
+const nationalityOptions = ref([]);
+const stateOptions = ref([]);
+
+onMounted(async () => {
+  try {
+    const [parentRes, relRes, natRes, stateRes] = await Promise.all([
+      fetch('/api/parents/listParents'),
+      fetch('/api/parents/lookupRelationship'),
+      fetch('/api/parents/lookupNationality'),
+      fetch('/api/parents/lookupState'),
+    ]);
+
+    const parentResult = await parentRes.json();
+    const relData = await relRes.json();
+    const natData = await natRes.json();
+    const stateData = await stateRes.json();
+
+    if (parentResult.statusCode === 200) {
+      rawData.value = parentResult.data.map(p => ({
+        userID: p.userID,
+        parentID: p.parentID,
+        username: p.username || '',
+        fullName: p.fullName || '',
+        email: p.email || '',
+        phoneNumber: p.phone || '',
+        icNumber: p.ic || '',
+        status: p.status || '',
+      }));
+    } else {
+      console.error('Failed to load parents:', parentResult.message);
+    }
+
+    relationshipOptions.value = relData.map(item => ({
+      label: item.title,
+      value: item.lookupID
+    }));
+    nationalityOptions.value = natData.map(item => ({
+      label: item.title,
+      value: item.lookupID
+    }));
+    stateOptions.value = stateData.map(item => ({
+      label: item.title,
+      value: item.lookupID
+    }));
+
+  } catch (err) {
+    console.error('Fetch error:', err);
+  }
+});
+
+function getLookupTitle(options, id) {
+  const item = options.find(opt => opt.value === id);
+  return item ? item.label : '';
+}
+
+async function viewParentDetails(rowData) {
+  const original = getOriginalData(rowData.username);
+  if (!original) return;
+
+  try {
+    const res = await fetch(`/api/parents/fetchEdit?parentID=${original.parentID}`);
+    const result = await res.json();
+
+    if (result.statusCode === 200) {
+      viewData.value = result.data;
+      showViewModal.value = true;
+    } else {
+      alert(`Error fetching details: ${result.message}`);
+    }
+  } catch (err) {
+    console.error('View parent error:', err);
+    alert('An error occurred while fetching parent details.');
+  }
+}
+
 
 const columns = [
-  { name: 'parentID', label: 'ID' },
+  { name: 'username', label: 'Username' },
   { name: 'fullName', label: 'Full Name' },
   { name: 'email', label: 'Email' },
   { name: 'phoneNumber', label: 'Phone' },
   { name: 'icNumber', label: 'IC' },
+  { name: 'status', label: 'Status' },
   { name: 'action', label: 'Actions' }
 ];
-
-function openModalDelete(value) {
-  showModalDeleteForm.value = { ...value };
-  showModalDelete.value = true;
-}
-
-async function deleteParent() {
-  try {
-    const parentID = showModalDeleteForm.value.parentID;
-    const res = await fetch(`/api/parents/delete?parentID=${parentID}`, {
-      method: 'DELETE',
-    });
-
-    const result = await res.json();
-
-    if (result.statusCode === 200) {
-      data.value = data.value.filter(p => p.parentID !== parentID);
-      alert('Parent deleted successfully');
-    } else {
-      alert(`Error: ${result.message}`);
-    }
-  } catch (err) {
-    console.error('Delete error:', err);
-    alert('An error occurred while deleting.');
-  } finally {
-    showModalDelete.value = false;
-  }
-}
 
 onMounted(async () => {
   try {
@@ -50,23 +101,16 @@ onMounted(async () => {
     const result = await res.json();
 
     if (result.statusCode === 200) {
-      console.log('Fetched parent list:', result.data); // ✅ log raw data
-
-      data.value = result.data.map(p => {
-        return {
-          userID: p.userID, // check if this is undefined
-          parentID: p.parentID,
-          fullName: p.fullName || '',
-          email: p.email || '',
-          phoneNumber: p.phone || '',
-          icNumber: p.ic || '',
-          action: 'edit',
-          status: p.status || '',
-        };
-      });
-
-      console.log('Mapped parent data:', data.value); // ✅ log mapped data
-
+      rawData.value = result.data.map(p => ({
+        userID: p.userID,
+        parentID: p.parentID,
+        username: p.username || '',
+        fullName: p.fullName || '',
+        email: p.email || '',
+        phoneNumber: p.phone || '',
+        icNumber: p.ic || '',
+        status: p.status || '',
+      }));
     } else {
       console.error('Failed to load parents:', result.message);
     }
@@ -75,8 +119,38 @@ onMounted(async () => {
   }
 });
 
+// ✅ tableData with only display columns
+const tableData = computed(() =>
+  rawData.value.map(p => ({
+    username: p.username,
+    fullName: p.fullName,
+    email: p.email,
+    phoneNumber: p.phoneNumber,
+    icNumber: p.icNumber,
+    status: p.status,
+    action: 'edit' // dummy for action slot
+  }))
+);
 
-async function toggleStatus(rowData) {
+function getOriginalData(username) {
+  return rawData.value.find(p => p.username === username);
+}
+
+function confirmToggleStatus(rowData) {
+  const original = getOriginalData(rowData.username);
+  if (original) {
+    pendingToggleData.value = original;
+    showConfirmToggleModal.value = true;
+  }
+}
+
+function cancelToggleStatus() {
+  pendingToggleData.value = null;
+  showConfirmToggleModal.value = false;
+}
+
+async function performToggleStatus() {
+  const rowData = pendingToggleData.value;
   const newStatus = rowData.status === 'Active' ? 'Inactive' : 'Active';
 
   try {
@@ -92,8 +166,7 @@ async function toggleStatus(rowData) {
     const result = await res.json();
 
     if (result.statusCode === 200) {
-      // Update local data state
-      const target = data.value.find(p => p.parentID === rowData.parentID);
+      const target = rawData.value.find(p => p.parentID === rowData.parentID);
       if (target) target.status = newStatus;
     } else {
       alert(`Error updating status: ${result.message}`);
@@ -101,46 +174,12 @@ async function toggleStatus(rowData) {
   } catch (err) {
     console.error('Status update error:', err);
     alert('An error occurred while updating status.');
+  } finally {
+    showConfirmToggleModal.value = false;
+    pendingToggleData.value = null;
   }
 }
-
 </script>
-
-<style scoped>
-.toggle-checkbox {
-  width: 42px;
-  height: 22px;
-  appearance: none;
-  background-color: #ddd;
-  border-radius: 12px;
-  position: relative;
-  outline: none;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-
-.toggle-checkbox:checked {
-  background-color: #10b981; /* Tailwind emerald-500 */
-}
-
-.toggle-checkbox::before {
-  content: "";
-  width: 18px;
-  height: 18px;
-  background: white;
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  border-radius: 50%;
-  transition: transform 0.3s ease;
-}
-
-.toggle-checkbox:checked::before {
-  transform: translateX(20px);
-}
-
-</style>
-
 
 <template>
   <div class="mb-4">
@@ -158,68 +197,194 @@ async function toggleStatus(rowData) {
         </rs-button>
       </div>
 
-
       <rs-table
-        :data="data"
+        :data="tableData"
         :columns="columns"
         :options="{ variant: 'default', striped: true, borderless: true }"
         :options-advanced="{ sortable: true, responsive: true, filterable: false }"
         advanced
       >
-        <template v-slot:action="data">
+        <template v-slot:action="row">
           <div class="flex justify-center items-center space-x-3 text-gray-600">
-            
+            <!-- View Icon -->
+            <span
+              class="relative group cursor-pointer"
+              @click="() => viewParentDetails(row.value)"
+            >
+              <Icon name="material-symbols:visibility" size="22" />
+            </span>
+
             <!-- Edit Icon -->
-            <span class="relative group cursor-pointer" @click="$router.push({ path: '/userManagement/parent/editParent', query: { parentID: data.value.parentID } })">
+            <span
+              class="relative group cursor-pointer"
+              @click="() => {
+                const original = getOriginalData(row.value.username);
+                if (original) {
+                  $router.push({ path: '/userManagement/parent/editParent', query: { parentID: original.parentID } });
+                }
+              }"
+            >
               <Icon name="material-symbols:edit" size="22" />
             </span>
 
             <!-- Add Child Icon -->
             <span
               class="relative group cursor-pointer"
-              @click="
-                () => {
-                  console.log('Going to Add Child with:', data.value);
+              @click="() => {
+                const original = getOriginalData(row.value.username);
+                if (original) {
                   $router.push({
                     path: '/userManagement/parent/addChild',
-                    query: {
-                      parentID: data.value.parentID,
-                      userID: data.value.userID
-                    }
+                    query: { parentID: original.parentID, userID: original.userID }
                   });
                 }
-              "
+              }"
             >
               <Icon name="material-symbols:group-add-rounded" size="22" />
             </span>
-
           </div>
         </template>
-
 
         <template v-slot:status="row">
           <input
             type="checkbox"
             class="toggle-checkbox"
             :checked="row.value.status === 'Active'"
-            @change="toggleStatus(row.value)"
+            @click.prevent="confirmToggleStatus(row.value)"
           />
         </template>
-
       </rs-table>
     </div>
   </div>
 
   <rs-modal
-    title="Delete Confirmation"
+    title="Confirmation"
     ok-title="Yes"
     cancel-title="No"
-    :ok-callback="deleteParent"
-    v-model="showModalDelete"
+    :ok-callback="performToggleStatus"
+    :cancel-callback="cancelToggleStatus"
+    v-model="showConfirmToggleModal"
     :overlay-close="false"
   >
     <p>
-      Are you sure you want to delete this parent (ID: {{ showModalDeleteForm.parentID }})?
+      Are you sure you want to
+      <span v-if="pendingToggleData?.status === 'Active'">deactivate</span>
+      <span v-else>activate</span>
+      this parent (Username: {{ pendingToggleData?.username }})?
     </p>
   </rs-modal>
+
+  <rs-modal
+    title="Parent Details"
+    v-model="showViewModal"
+    :overlay-close="true"
+    size="xl"
+  >
+    <div v-if="viewData" class="space-y-6">
+      <!-- Basic Info -->
+      <div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
+          <div class="flex">
+            <span class="w-40 font-medium">Full Name</span>
+            <span class="flex-1 break-words whitespace-pre-line">: {{ viewData.fullName }}</span>
+          </div>
+          <div class="flex">
+            <span class="w-40 font-medium">Email</span>
+            <span class="flex-1 break-words whitespace-pre-line">: {{ viewData.email }}</span>
+          </div>
+          <div class="flex">
+            <span class="w-40 font-medium">IC</span>
+            <span class="flex-1 break-words whitespace-pre-line">: {{ viewData.ic }}</span>
+          </div>
+          <div class="flex">
+            <span class="w-40 font-medium">Phone</span>
+            <span class="flex-1 break-words whitespace-pre-line">: {{ viewData.phone }}</span>
+          </div>
+          <div class="flex">
+            <span class="w-40 font-medium">Relationship</span>
+            <span class="flex-1 break-words whitespace-pre-line">: {{ getLookupTitle(relationshipOptions, viewData.relationship) }}</span>
+          </div>
+          <div class="flex">
+            <span class="w-40 font-medium">Gender</span>
+            <span class="flex-1 break-words whitespace-pre-line">: {{ viewData.gender }}</span>
+          </div>
+          <div class="flex">
+            <span class="w-40 font-medium">Date of Birth</span>
+            <span class="flex-1 break-words whitespace-pre-line">: {{ viewData.dateOfBirth ? new Date(viewData.dateOfBirth).toISOString().split('T')[0] : '' }}</span>
+          </div>
+          <div class="flex">
+            <span class="w-40 font-medium">Nationality</span>
+            <span class="flex-1 break-words whitespace-pre-line">: {{ getLookupTitle(nationalityOptions, viewData.nationality) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Address Info -->
+      <div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
+          <div class="flex">
+            <span class="w-40 font-medium">Address Line 1</span>
+            <span class="flex-1 break-words whitespace-pre-line">: {{ viewData.addressLine1 }}</span>
+          </div>
+          <div class="flex">
+            <span class="w-40 font-medium">Address Line 2</span>
+            <span class="flex-1 break-words whitespace-pre-line">: {{ viewData.addressLine2 }}</span>
+          </div>
+          <div class="flex">
+            <span class="w-40 font-medium">Address Line 3</span>
+            <span class="flex-1 break-words whitespace-pre-line">: {{ viewData.addressLine3 }}</span>
+          </div>
+          <div class="flex">
+            <span class="w-40 font-medium">City</span>
+            <span class="flex-1 break-words whitespace-pre-line">: {{ viewData.city }}</span>
+          </div>
+          <div class="flex">
+            <span class="w-40 font-medium">Postcode</span>
+            <span class="flex-1 break-words whitespace-pre-line"  >: {{ viewData.postcode }}</span>
+          </div>
+          <div class="flex">
+            <span class="w-40 font-medium">State</span>
+            <span class="flex-1 break-words whitespace-pre-line">: {{ getLookupTitle(stateOptions, viewData.state) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- modal content here -->
+    <template #footer>
+      <rs-button @click="showViewModal = false">Close</rs-button>
+    </template>
+  </rs-modal>
+
+
 </template>
+
+<style scoped>
+.toggle-checkbox {
+  width: 42px;
+  height: 22px;
+  appearance: none;
+  background-color: #ddd;
+  border-radius: 12px;
+  position: relative;
+  outline: none;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+.toggle-checkbox:checked {
+  background-color: #10b981;
+}
+.toggle-checkbox::before {
+  content: "";
+  width: 18px;
+  height: 18px;
+  background: white;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  border-radius: 50%;
+  transition: transform 0.3s ease;
+}
+.toggle-checkbox:checked::before {
+  transform: translateX(20px);
+}
+</style>

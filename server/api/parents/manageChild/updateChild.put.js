@@ -6,6 +6,7 @@ export default defineEventHandler(async (event) => {
       childID,
       nickname,
       gender,
+      icNumber,
       dateOfBirth,
       autismDiagnose,
       diagnosedDate,
@@ -23,6 +24,7 @@ export default defineEventHandler(async (event) => {
         data: {
           nickname,
           gender,
+          patient_ic: icNumber,
           dob: new Date(dateOfBirth),
           autism_diagnose: autismDiagnose,
           diagnosed_on: new Date(diagnosedDate),
