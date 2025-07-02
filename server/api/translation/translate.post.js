@@ -3,8 +3,6 @@ export default defineEventHandler(async (event) => {
     const body = await readBody(event);
     const { text, from, to } = body;
   
-    console.log('Received:', { text, from, to });
-  
     if (!text || !from || !to) {
       return {
         statusCode: 400,
@@ -24,11 +22,8 @@ export default defineEventHandler(async (event) => {
         },
       });
   
-      console.log('LibreTranslate response:', response);
-  
       return { translatedText: response.translatedText };
     } catch (error) {
-      console.error('Translation error:', error);
       return {
         statusCode: 500,
         message: 'Translation failed.',

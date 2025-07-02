@@ -1,9 +1,9 @@
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event);
-    console.log("Raw body:", body);
 
     const {
+      fullname,
       nickname,
       gender,
       icNumber,
@@ -34,13 +34,13 @@ export default defineEventHandler(async (event) => {
     let patientID;
 
     if (existingPatient) {
-      console.log("Existing patient found:", existingPatient.patient_id);
       patientID = existingPatient.patient_id;
     } else {
       // Insert new patient if not exists
       const saved = await prisma.user_patients.create({
         data: {
           user_id: parseInt(userID), // parent's user ID
+          fullname,
           nickname,
           gender,
           patient_ic: icNumber,
@@ -90,7 +90,6 @@ export default defineEventHandler(async (event) => {
     };
 
   } catch (error) {
-    console.error("Error inserting child:", error);
     return {
       statusCode: 500,
       message: "Internal server error",

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 
 const router = useRouter();
@@ -13,6 +13,10 @@ const showSearchICForm = ref(false);
 const searchIC = ref('');
 const searchResults = ref([]);
 const selectedUser = ref(null);
+const isLoading = ref(false);
+const isSubmitting = ref(false);
+const isSearching = ref(false);
+const isTogglingStatus = ref(false);
 
 const showConfirmToggleModal = ref(false);
 const pendingToggleChild = ref(null);
@@ -23,6 +27,9 @@ const sessionMap = ref({});
 const message = ref('');
 const messageType = ref('success');
 
+// Custom validation for IC number
+const icError = ref('');
+
 function showMessage(msg, type = 'success') {
   message.value = msg;
   messageType.value = type;
@@ -30,6 +37,7 @@ function showMessage(msg, type = 'success') {
 }
 
 const form = ref({
+  fullname: '',
   nickname: null,
   gender: '',
   icNumber: '',
@@ -40,8 +48,26 @@ const form = ref({
   status: '',
 });
 
+// IC validation
+watch(() => form.value.icNumber, (newVal) => {
+  icError.value = '';
+  if (!newVal) return;
+  
+  if (newVal.toString().length !== 12) {
+    icError.value = 'IC number must be exactly 12 digits';
+  }
+});
+
+// Validate IC when searching
+watch(() => searchIC.value, (newVal) => {
+  if (newVal && newVal.length !== 12) {
+    showMessage('IC number must be exactly 12 digits', 'error');
+  }
+});
+
 // Fetch children and session data
 async function fetchChildren() {
+  isLoading.value = true;
   try {
     const [childRes, sessionRes] = await Promise.all([
       fetch(`/api/parents/manageChild/listChild?parentID=${parentID.value}`),
@@ -71,12 +97,22 @@ async function fetchChildren() {
   } catch (err) {
     console.error('Failed to load children:', err);
     showMessage('Failed to load children.', 'error');
+  } finally {
+    isLoading.value = false;
   }
 }
 
 onMounted(fetchChildren);
 
 async function saveChild() {
+  // Validate IC number
+  if (form.value.icNumber.toString().length !== 12) {
+    icError.value = 'IC number must be exactly 12 digits';
+    showMessage('IC number must be exactly 12 digits.', 'error');
+    return;
+  }
+
+  isSubmitting.value = true;
   try {
     const response = await fetch('/api/parents/manageChild/insertChild', {
       method: 'POST',
@@ -89,6 +125,7 @@ async function saveChild() {
       alert('Child added successfully', 'success');
       showAddForm.value = false;
       form.value = {
+        fullname: '',
         nickname: null,
         gender: '',
         icNumber: '',
@@ -105,6 +142,8 @@ async function saveChild() {
   } catch (err) {
     console.error('Save child error:', err);
     showMessage('Failed to add child.', 'error');
+  } finally {
+    isSubmitting.value = false;
   }
 }
 
@@ -121,6 +160,7 @@ function cancelToggleStatus() {
 async function performToggleStatus() {
   const child = pendingToggleChild.value;
   const newStatus = child.status === 'Active' ? 'Inactive' : 'Active';
+  isTogglingStatus.value = true;
 
   try {
     const res = await fetch('/api/parents/manageChild/updateStatusChild', {
@@ -142,10 +182,18 @@ async function performToggleStatus() {
   } finally {
     showConfirmToggleModal.value = false;
     pendingToggleChild.value = null;
+    isTogglingStatus.value = false;
   }
 }
 
 async function searchICNumber() {
+  // Validate search IC
+  if (searchIC.value.length !== 12) {
+    showMessage('IC number must be exactly 12 digits', 'error');
+    return;
+  }
+
+  isSearching.value = true;
   try {
     const res = await fetch(`/api/parents/manageChild/searchIc?icNumber=${searchIC.value}`);
     const data = await res.json();
@@ -165,6 +213,8 @@ async function searchICNumber() {
   } catch (err) {
     console.error('Search IC error:', err);
     showMessage('Error searching IC number.', 'error');
+  } finally {
+    isSearching.value = false;
   }
 }
 
@@ -174,13 +224,15 @@ function selectUser(user) {
 
 async function addSelectedUserAsChild() {
   if (!selectedUser.value) return showMessage('No user selected', 'error');
+  isSubmitting.value = true;
 
   try {
     const response = await fetch('/api/parents/manageChild/insertChild', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        nickname: selectedUser.value.fullname,
+        fullname: selectedUser.value.fullname || selectedUser.value.nickname,
+        nickname: selectedUser.value.nickname,
         gender: selectedUser.value.gender || '',
         icNumber: selectedUser.value.icNumber,
         dateOfBirth: selectedUser.value.dateOfBirth || '',
@@ -209,6 +261,8 @@ async function addSelectedUserAsChild() {
   } catch (err) {
     console.error('Add child error:', err);
     showMessage('Failed to add child.', 'error');
+  } finally {
+    isSubmitting.value = false;
   }
 }
 
@@ -241,9 +295,17 @@ function closeSearchICForm() {
         </div>
       </div>
 
-      <table class="min-w-full border border-gray-300 text-sm">
+      <div v-if="isLoading" class="flex justify-center my-8">
+        <div class="flex flex-col items-center">
+          <Icon name="line-md:loading-twotone-loop" size="48" class="text-primary mb-2" />
+          <span>Loading children data...</span>
+        </div>
+      </div>
+
+      <table v-else class="min-w-full border border-gray-300 text-sm">
         <thead class="bg-gray-100">
           <tr>
+            <th class="px-3 py-2 border">Full Name</th>
             <th class="px-3 py-2 border">Nickname</th>
             <th class="px-3 py-2 border">Gender</th>
             <th class="px-3 py-2 border">IC Number</th>
@@ -256,6 +318,7 @@ function closeSearchICForm() {
         </thead>
         <tbody>
           <tr v-for="child in children" :key="child.childID">
+            <td class="px-3 py-2 border">{{ child.fullname || '-' }}</td>
             <td class="px-3 py-2 border">{{ child.nickname }}</td>
             <td class="px-3 py-2 border">{{ child.gender }}</td>
             <td class="px-3 py-2 border">{{ child.icNumber }}</td>
@@ -287,9 +350,11 @@ function closeSearchICForm() {
     <div v-if="showAddForm" class="card p-4 border border-gray-200">
       <h2 class="text-lg font-semibold mb-2">Add New Child</h2>
       <FormKit type="form" :actions="false">
+        <FormKit type="text" v-model="form.fullname" label="Full Name" validation="required" validation-visibility="live"/>
         <FormKit type="text" v-model="form.nickname" label="Nickname" validation="required" validation-visibility="live"/>
         <FormKit type="select" v-model="form.gender" label="Gender" :options="['-- Please select --', 'Male', 'Female']" validation="required"  />
-        <FormKit type="text" v-model="form.icNumber" label="IC Number" validation="required" />
+        <FormKit type="text" v-model="form.icNumber" label="IC Number" validation="required" placeholder="Enter 12 digit IC number" />
+        <p v-if="icError" class="text-red-500 text-sm mt-1 mb-2">{{ icError }}</p>
         <FormKit type="date" v-model="form.dateOfBirth" label="Date of Birth" validation="required" />
         <FormKit type="text" v-model="form.autismDiagnose" label="Autism Diagnose" validation="required"/>
         <FormKit type="date" v-model="form.diagnosedDate" label="Diagnosed Date" validation="required"  />
@@ -297,8 +362,13 @@ function closeSearchICForm() {
         <FormKit type="select" v-model="form.status" label="Status" :options="['-- Please select --', 'Active', 'Inactive']" validation="required" />
 
         <div class="flex gap-4 mt-4">
-          <rs-button class="w-full" @click="saveChild">Save</rs-button>
-          <rs-button variant="ghost" class="w-full bg-gray-200" @click="showAddForm = false">Cancel</rs-button>
+          <rs-button class="w-full" @click="saveChild" :disabled="isSubmitting">
+            <div class="flex items-center justify-center">
+              <Icon v-if="isSubmitting" name="line-md:loading-twotone-loop" class="mr-2" />
+              <span>{{ isSubmitting ? 'Saving...' : 'Save' }}</span>
+            </div>
+          </rs-button>
+          <rs-button variant="ghost" class="w-full bg-gray-200" @click="showAddForm = false" :disabled="isSubmitting">Cancel</rs-button>
         </div>
       </FormKit>
     </div>
@@ -316,10 +386,15 @@ function closeSearchICForm() {
 
       <h2 class="text-lg font-semibold mb-2">Search User Patient by IC Number</h2>
 
-      <FormKit type="text" v-model="searchIC" label="IC Number" placeholder="Example: 1234567890 ( Without '-' )"  />
+      <FormKit type="text" v-model="searchIC" label="IC Number" placeholder="Enter exactly 12 digits"  />
       <div class="flex gap-4 mt-2">
-        <rs-button class="w-full" @click="searchICNumber">Search</rs-button>
-        <rs-button variant="ghost" class="w-full bg-gray-200" @click="closeSearchICForm">Cancel</rs-button>
+        <rs-button class="w-full" @click="searchICNumber" :disabled="isSearching">
+          <div class="flex items-center justify-center">
+            <Icon v-if="isSearching" name="line-md:loading-twotone-loop" class="mr-2" />
+            <span>{{ isSearching ? 'Searching...' : 'Search' }}</span>
+          </div>
+        </rs-button>
+        <rs-button variant="ghost" class="w-full bg-gray-200" @click="closeSearchICForm" :disabled="isSearching">Cancel</rs-button>
       </div>
 
       <!-- Results -->
@@ -327,6 +402,7 @@ function closeSearchICForm() {
         <table class="min-w-full border border-gray-300 text-sm rounded-lg overflow-hidden shadow">
           <thead class="bg-gray-200 text-gray-700 uppercase tracking-wider">
             <tr>
+              <th class="px-4 py-2 border">Full Name</th>
               <th class="px-4 py-2 border">Nickname</th>
               <th class="px-4 py-2 border">Gender</th>
               <th class="px-4 py-2 border">IC Number</th>
@@ -339,7 +415,8 @@ function closeSearchICForm() {
           </thead>
           <tbody>
             <tr v-for="u in searchResults" :key="u.userID" class="hover:bg-gray-100">
-              <td class="px-4 py-2 border text-center">{{ u.fullname }}</td>
+              <td class="px-4 py-2 border text-center">{{ u.fullname || '-' }}</td>
+              <td class="px-4 py-2 border text-center">{{ u.nickname }}</td>
               <td class="px-4 py-2 border text-center">{{ u.gender }}</td>
               <td class="px-4 py-2 border text-center">{{ u.icNumber }}</td>
               <td class="px-4 py-2 border text-center">{{ u.diagnosedDate }}</td>
@@ -347,7 +424,12 @@ function closeSearchICForm() {
               <td class="px-4 py-2 border text-center">{{ u.availableSessionName }}</td>
               <td class="px-4 py-2 border text-center">{{ u.status }}</td>
               <td class="px-4 py-2 border text-center">
-                <rs-button @click="selectUser(u); addSelectedUserAsChild()">Add as Child</rs-button>
+                <rs-button @click="selectUser(u); addSelectedUserAsChild()" :disabled="isSubmitting">
+                  <div class="flex items-center justify-center">
+                    <Icon v-if="isSubmitting" name="line-md:loading-twotone-loop" class="mr-2" />
+                    <span>{{ isSubmitting ? 'Adding...' : 'Add as Child' }}</span>
+                  </div>
+                </rs-button>
               </td>
             </tr>
           </tbody>
@@ -376,6 +458,11 @@ function closeSearchICForm() {
         <span v-else>activate</span>
         this child (Nickname: {{ pendingToggleChild?.nickname }})?
       </p>
+
+      <div v-if="isTogglingStatus" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
+        <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
+        <span>Updating status...</span>
+      </div>
     </rs-modal>
   </div>
 </template>

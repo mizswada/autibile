@@ -59,8 +59,6 @@ export default defineEventHandler(async (event) => {
         ...q,
         questionnaires_questions: questionsMap[q.questionnaire_id] || [],
       }));
-
-      console.log(mergedData);
   
       return {
         statusCode: 200,

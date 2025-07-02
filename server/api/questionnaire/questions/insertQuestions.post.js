@@ -33,7 +33,6 @@ export default defineEventHandler(async (event) => {
           message: "Missing required fields",
         };
       }
-      console.log(body);
 
       // Save to DB
       const saved = await prisma.questionnaires_questions.create({

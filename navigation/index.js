@@ -89,6 +89,10 @@ export default [
             path: "/userManagement/practitioners",
           },
           {
+            title: "Admin Management",
+            path: "/userManagement/admin/adminPage",
+          },
+          {
             title: "Users Approval",
             path: "/userManagement/userApproval",
           },

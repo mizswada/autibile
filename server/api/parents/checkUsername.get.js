@@ -12,7 +12,6 @@ export default defineEventHandler(async (event) => {
       where: { userUsername: username },
     });
   
-    console.log(user);
     if (user) {
       return {
         statusCode: 409,

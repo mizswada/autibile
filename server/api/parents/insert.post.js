@@ -80,7 +80,7 @@ export default defineEventHandler(async (event) => {
           : undefined,
     
         parent_gender: gender || '',
-        parent_dob: dateOfBirth ? new Date(dateOfBirth) : new Date(),
+        parent_dob: dateOfBirth ? new Date(dateOfBirth) : null,
         parent_phone: phone || '',
         parent_add1: address1 || '',
         parent_add2: address2 || '',
@@ -92,10 +92,6 @@ export default defineEventHandler(async (event) => {
       },
     });
 
-    // ✅ Log after creation for debugging
-    console.log('Created user:', user);
-    console.log('Created parent:', parent);
-
     return {
       statusCode: 200,
       message: "Parent created successfully",
@@ -106,7 +102,6 @@ export default defineEventHandler(async (event) => {
     };
 
   } catch (error) {
-    console.error("Error creating user/parent:", error);
     return {
       statusCode: 500,
       message: "Internal server error",

@@ -11,8 +11,46 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    // Find the practitioner first to get the associated user_id
+    const practitioner = await prisma.user_practitioners.findUnique({
+      where: { practitioner_id: parseInt(practitionerID) },
+      select: { user_id: true }
+    });
+
+    if (!practitioner) {
+      return {
+        statusCode: 404,
+        message: 'Practitioner not found',
+      };
+    }
+
+    // Only update user information if all required fields are present
+    if (body.fullName && body.email && body.phone && body.ic) {
+      await prisma.user.update({
+        where: { userID: practitioner.user_id },
+        data: {
+          userFullName: body.fullName,
+          userEmail: body.email,
+          userPhone: body.phone,
+          userIC: body.ic,
+        },
+      });
+    }
+
+    // Process signature properly
+    let signatureValue = null;
+    if (body.signature) {
+      // Check if it's an array or object
+      if (typeof body.signature === 'object') {
+        // If it's an array or object, we'll ignore it
+      } else {
+        // If it's a string, use it
+        signatureValue = body.signature;
+      }
+    }
+
     const updated = await prisma.user_practitioners.update({
-      where: { practitioner_id: practitionerID },
+      where: { practitioner_id: parseInt(practitionerID) },
       data: {
         type: body.type,
         registration_no: body.registrationNo,
@@ -20,7 +58,8 @@ export default defineEventHandler(async (event) => {
         department: body.department,
         qualifications: body.qualification,
         experience_years: parseInt(body.experience),
-        signature: body.signature,
+        ...(signatureValue !== null && { signature: signatureValue }),
+        status: body.status || 'Active', // Default to Active if not provided
       },
     });
 

@@ -9,6 +9,7 @@ const route = useRoute();
 const relationshipOptions = ref([]);
 const nationalityOptions = ref([]);
 const stateOptions = ref([]);
+const isSubmitting = ref(false);
 
 const form = ref({
   fullName: '',
@@ -97,6 +98,8 @@ onMounted(async () => {
 });
 
 async function updateParent() {
+  isSubmitting.value = true;
+  
   try {
     const response = await fetch('/api/parents/update', {
       method: 'PUT',
@@ -114,6 +117,8 @@ async function updateParent() {
   } catch (err) {
     console.error('Unexpected error:', err);
     alert('An unexpected error occurred.');
+  } finally {
+    isSubmitting.value = false;
   }
 }
 
@@ -188,7 +193,13 @@ async function updateParent() {
 
       <div class="flex gap-4 mt-6">
         <div class="w-1/2">
-          <rs-button class="w-full" @click="updateParent">Update</rs-button>
+          <rs-button class="w-full" @click="updateParent" :disabled="isSubmitting">
+            <span v-if="isSubmitting">
+              <Icon name="line-md:loading-twotone-loop" class="mr-2" />
+              Updating...
+            </span>
+            <span v-else>Update</span>
+          </rs-button>
         </div>
 
         <div class="w-1/2">

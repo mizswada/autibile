@@ -1,52 +1,69 @@
-// Added by: Firzana Huda 24 June 2025
 export default defineEventHandler(async (event) => {
-    try {
-      const { userID } = event.context.user;
-  
-      if (!userID) {
-        return {
-          statusCode: 401,
-          message: 'Unauthorized',
-        };
-      }
-  
-      const validatedUser = await prisma.user.findFirst({
-        where: { userID: parseInt(userID) },
-      });
-  
-      if (!validatedUser) {
-        return {
-          statusCode: 401,
-          message: 'Unauthorized',
-        };
-      }
-  
-      const practitioners = await prisma.user_practitioners.findMany({
-        orderBy: { created_at: 'desc' },
-        select: {
-          practitioner_id: true,
-          type: true,
-          registration_no: true,
-          specialty: true,
-          department: true,
-          qualifications: true,
-          experience_years: true,
-          signature: true,
-        }
-      });
-  
+  try {
+    const { userID } = event.context.user;
+
+    if (!userID) {
       return {
-        statusCode: 200,
-        message: 'Success',
-        data: practitioners,
+        statusCode: 401,
+        message: 'Unauthorized',
       };
-  
-    } catch (error) {
-        console.error('GET /api/practitioners/listPractitioners error:', error);
-        return {
-          statusCode: 500,
-          message: 'Internal Server Error',
-        };
-      }
-  });
-    
+    }
+
+    const validatedUser = await prisma.user.findFirst({
+      where: { userID: parseInt(userID) },
+    });
+
+    if (!validatedUser) {
+      return {
+        statusCode: 401,
+        message: 'Unauthorized',
+      };
+    }
+
+    const practitioners = await prisma.user_practitioners.findMany({
+      orderBy: { created_at: 'desc' },
+      include: {
+        user: {
+          select: {
+            userUsername: true,
+            userFullName: true,
+            userEmail: true,
+            userPhone: true,
+            userIC: true,
+          },
+        },
+      },
+    });
+
+    const formattedPractitioners = practitioners.map(p => ({
+      practitionerID: p.practitioner_id,
+      userID: p.user_id,
+      username: p.user?.userUsername || '',
+      fullName: p.user?.userFullName || '',
+      email: p.user?.userEmail || '',
+      type: p.type || '',
+      registrationNo: p.registration_no || '',
+      phone: p.user?.userPhone || '',
+      ic: p.user?.userIC || '',
+      specialty: p.specialty || '',
+      department: p.department || '',
+      qualification: p.qualifications || '',
+      experience: p.experience_years || '',
+      signature: p.signature || '',
+      status: p.status || '',
+    }));
+
+    return {
+      statusCode: 200,
+      message: 'Success',
+      data: formattedPractitioners,
+    };
+
+  } catch (error) {
+    console.error('GET /api/practitioners/listPractitioners error:', error);
+    return {
+      statusCode: 500,
+      message: 'Internal Server Error',
+    };
+  }
+});

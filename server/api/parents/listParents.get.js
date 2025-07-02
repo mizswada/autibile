@@ -1,5 +1,3 @@
-// Added by: Firzana Huda 24 June 2025
-
 export default defineEventHandler(async (event) => {
   try {
     const { userID } = event.context.user;
@@ -49,8 +47,6 @@ export default defineEventHandler(async (event) => {
       ic: p.user?.userIC || '',
       status: p.parent_status || '',
     }));
-
-    console.log(formattedParents);
 
     return {
       statusCode: 200,

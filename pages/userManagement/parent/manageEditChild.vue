@@ -9,8 +9,11 @@ const router = useRouter();
 const childID = ref(route.query.childID); 
 const parentID = ref(route.query.parentID);
 const userID = ref(route.query.userID);
+const isLoading = ref(false);
+const isSubmitting = ref(false);
 
 const form = ref({
+  fullname: '',
   nickname: '',
   gender: '',
   icNumber: '',
@@ -24,8 +27,9 @@ const form = ref({
 const availableSessionOptions = ref([]);
 
 onMounted(async () => {
-  // 1. Load dropdown options
+  isLoading.value = true;
   try {
+    // 1. Load dropdown options
     const availRes = await fetch('/api/parents/lookupAvailSession');
     const availJson = await availRes.json();
     const availData = availJson ?? [];
@@ -39,13 +43,9 @@ onMounted(async () => {
           value: item.lookupID,
         })),
     ];
-  } catch (err) {
-    console.error('Failed to fetch dropdowns:', err);
-  }
 
-  // 2. If editing, load existing child data
-  if (childID.value) {
-    try {
+    // 2. If editing, load existing child data
+    if (childID.value) {
       const res = await fetch(`/api/parents/manageChild/fetchEditChild?childID=${childID.value}`);
       const result = await res.json();
 
@@ -53,6 +53,7 @@ onMounted(async () => {
         const child = result.data;
 
         form.value = {
+          fullname: child.fullname || '',
           nickname: child.nickname,
           gender: child.gender,
           icNumber: child.patient_ic,
@@ -65,15 +66,18 @@ onMounted(async () => {
       } else {
         alert('Failed to load child details.');
       }
-    } catch (err) {
-      console.error('Error loading child:', err);
-      alert('Error loading child data.');
     }
+  } catch (err) {
+    console.error('Error loading data:', err);
+    alert('Error loading child data.');
+  } finally {
+    isLoading.value = false;
   }
 });
 
 async function saveChild() {
   const requiredFields = {
+    fullname: 'Full Name',
     nickname: 'Nickname',
     gender: 'Gender',
     icNumber: 'IC Number',
@@ -96,8 +100,8 @@ async function saveChild() {
     return;
   }
 
+  isSubmitting.value = true;
   try {
-
     const response = await fetch('/api/parents/manageChild/updateChild', {
      method: 'PUT',
      headers: { 'Content-Type': 'application/json' },
@@ -111,15 +115,15 @@ async function saveChild() {
 
     if (result.statusCode === 200) {
      alert('Child updated successfully');
-     router.push({ path: '/userManagement/parent/manageChild' })
-     //router.push('/userManagement/parent/addChild');
+     router.push({ path: '/userManagement/parent/manageChild' });
     } else {
      alert(`Error: ${result.message}`);
     }
-
   } catch (err) {
      console.error('Unexpected error:', err);
      alert('An unexpected error occurred.');
+  } finally {
+    isSubmitting.value = false;
   }
 }
 </script>
@@ -130,42 +134,58 @@ async function saveChild() {
       {{ childID ? 'Edit Child' : 'Add Child' }}
     </h1>
 
-    <FormKit type="text" v-model="form.nickname" label="Nickname" />
-    <FormKit
-      type="select"
-      v-model="form.gender"
-      label="Gender"
-      :options="['-- Please select --', 'Male', 'Female']"
-    />
-    <FormKit type="number" v-model="form.icNumber" label="IC Number" />
-    <FormKit type="date" v-model="form.dateOfBirth" label="Date of Birth" />
-    <FormKit type="text" v-model="form.autismDiagnose" label="Autism Diagnose" />
-    <FormKit type="date" v-model="form.diagnosedDate" label="Diagnosed Date" />
-    <FormKit
-      type="select"
-      v-model="form.availableSession"
-      label="Available Session"
-      :options="availableSessionOptions"
-    />
-    <FormKit
-      type="select"
-      v-model="form.status"
-      label="Status"
-      :options="['-- Please select --', 'Active', 'Inactive']"
-    />
-
-    <div class="flex gap-4 mt-4">
-      <div class="w-1/2">
-        <rs-button class="w-full" @click="saveChild">Save</rs-button>
+    <div v-if="isLoading" class="flex justify-center my-8">
+      <div class="flex flex-col items-center">
+        <Icon name="line-md:loading-twotone-loop" size="48" class="text-primary mb-2" />
+        <span>Loading child data...</span>
       </div>
-      <div class="w-1/2">
-        <rs-button
-          class="w-full bg-gray-200 hover:bg-gray-400 text-gray-800"
-          variant="ghost"
-          @click="router.back()"
-        >
-          Cancel
-        </rs-button>
+    </div>
+
+    <div v-else>
+      <FormKit type="text" v-model="form.fullname" label="Full Name" />
+      <FormKit type="text" v-model="form.nickname" label="Nickname" />
+      <FormKit
+        type="select"
+        v-model="form.gender"
+        label="Gender"
+        :options="['-- Please select --', 'Male', 'Female']"
+      />
+      <FormKit type="number" v-model="form.icNumber" label="IC Number" />
+      <FormKit type="date" v-model="form.dateOfBirth" label="Date of Birth" />
+      <FormKit type="text" v-model="form.autismDiagnose" label="Autism Diagnose" />
+      <FormKit type="date" v-model="form.diagnosedDate" label="Diagnosed Date" />
+      <FormKit
+        type="select"
+        v-model="form.availableSession"
+        label="Available Session"
+        :options="availableSessionOptions"
+      />
+      <FormKit
+        type="select"
+        v-model="form.status"
+        label="Status"
+        :options="['-- Please select --', 'Active', 'Inactive']"
+      />
+
+      <div class="flex gap-4 mt-4">
+        <div class="w-1/2">
+          <rs-button class="w-full" @click="saveChild" :disabled="isSubmitting">
+            <div class="flex items-center justify-center">
+              <Icon v-if="isSubmitting" name="line-md:loading-twotone-loop" class="mr-2" />
+              <span>{{ isSubmitting ? 'Updating...' : 'Save' }}</span>
+            </div>
+          </rs-button>
+        </div>
+        <div class="w-1/2">
+          <rs-button
+            class="w-full bg-gray-200 hover:bg-gray-400 text-gray-800"
+            variant="ghost"
+            @click="router.back()"
+            :disabled="isSubmitting"
+          >
+            Cancel
+          </rs-button>
+        </div>
       </div>
     </div>
   </div>

@@ -246,8 +246,8 @@ model user_parents {
   parent_id                                       Int                   @id @default(autoincrement())
   user_id                                         Int
   parent_relationship                             Int?
-  parent_gender                                   String                @db.VarChar(50)
-  parent_dob                                      DateTime              @db.Date
+  parent_gender                                   String?               @db.VarChar(50)
+  parent_dob                                      DateTime?             @db.Date
   parent_nationality                              Int?
   parent_phone                                    String                @db.VarChar(15)
   parent_add1                                     String                @db.VarChar(100)
@@ -276,6 +276,7 @@ model user_patients {
   patient_id              Int                       @id @default(autoincrement())
   user_id                 Int?
   patient_ic              String?                   @db.VarChar(50)
+  fullname                String?                   @db.VarChar(250)
   nickname                String?                   @db.VarChar(50)
   gender                  String?                   @db.VarChar(50)
   dob                     DateTime?                 @db.Date
@@ -299,13 +300,14 @@ model user_patients {
 model user_practitioners {
   practitioner_id  Int              @id @default(autoincrement())
   user_id          Int?
-  type             String           @db.VarChar(50)
-  registration_no  String           @db.VarChar(50)
-  specialty        String           @db.VarChar(255)
-  department       String           @db.VarChar(255)
-  qualifications   String           @db.VarChar(255)
-  experience_years Int
+  type             String?          @db.VarChar(50)
+  registration_no  String?          @db.VarChar(50)
+  specialty        String?          @db.VarChar(255)
+  department       String?          @db.VarChar(255)
+  qualifications   String?          @db.VarChar(255)
+  experience_years Int?
   signature        String?          @db.LongText
+  status           String?          @db.VarChar(50)
   created_at       DateTime         @db.Timestamp(0)
   updated_at       DateTime         @default(now()) @db.Timestamp(0)
   deleted_at       DateTime?        @db.Timestamp(0)

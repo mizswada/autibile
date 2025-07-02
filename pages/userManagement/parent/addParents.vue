@@ -11,6 +11,14 @@ const togglePasswordVisibility = ref(false);
 const togglePasswordVisibility2 = ref(false);
 const confirmPasswordError = ref('');
 const registeredIDs = ref({ userID: null, parentID: null });
+const isSubmittingStep1 = ref(false);
+const isSubmittingStep2 = ref(false);
+
+// Custom validation messages
+const emailError = ref('');
+const phoneError = ref('');
+const icError = ref('');
+const passwordError = ref('');
 
 function showMessage(msg, type = 'success') {
   message.value = msg;
@@ -58,7 +66,6 @@ watch(() => step1Form.value.username, async (newVal) => {
       usernameError.value = 'Username already exists !';
     }
   } catch (err) {
-    console.error('Username check error:', err);
     usernameError.value = 'Could not check username';
   }
 });
@@ -70,6 +77,65 @@ watch(
       !confirmPassword ? '' : password !== confirmPassword ? 'Passwords do not match' : '';
   }
 );
+
+// Email validation
+watch(() => step1Form.value.email, (newVal) => {
+  emailError.value = '';
+  if (!newVal) return;
+  
+  // Check if email contains @ and .com
+  if (!newVal.includes('@') || !newVal.includes('.')) {
+    emailError.value = 'Please enter a valid email address (must include @ and a domain)';
+  }
+});
+
+// Phone validation
+watch(() => step1Form.value.phone, (newVal) => {
+  phoneError.value = '';
+  if (!newVal) return;
+  
+  const phoneLength = newVal.toString().length;
+  if (phoneLength < 10 || phoneLength > 11) {
+    phoneError.value = 'Phone number must be 10-11 digits';
+  }
+});
+
+// IC validation
+watch(() => step1Form.value.ic, (newVal) => {
+  icError.value = '';
+  if (!newVal) return;
+  
+  if (newVal.toString().length !== 12) {
+    icError.value = 'IC number must be exactly 12 digits';
+  }
+});
+
+// Password validation
+watch(() => step1Form.value.password, (newVal) => {
+  passwordError.value = '';
+  if (!newVal) return;
+  
+  if (newVal.length < 8) {
+    passwordError.value = 'Password must be at least 8 characters long';
+  }
+  
+  // Check confirmation password match when password changes
+  if (step1Form.value.confirmPassword && step1Form.value.confirmPassword !== newVal) {
+    confirmPasswordError.value = 'Passwords do not match';
+  } else {
+    confirmPasswordError.value = '';
+  }
+});
+
+// Confirm password validation
+watch(() => step1Form.value.confirmPassword, (newVal) => {
+  confirmPasswordError.value = '';
+  if (!newVal) return;
+  
+  if (newVal !== step1Form.value.password) {
+    confirmPasswordError.value = 'Passwords do not match';
+  }
+});
 
 onMounted(async () => {
   try {
@@ -102,14 +168,49 @@ onMounted(async () => {
 });
 
 async function handleStep1Submit() {
-  if (usernameError.value) {
-    showMessage('Please fix the username before continuing.', 'error');
+  // Check for validation errors
+  if (usernameError.value || emailError.value || phoneError.value || icError.value || passwordError.value || confirmPasswordError.value) {
+    showMessage('Please fix all validation errors before submitting.', 'error');
     return;
   }
-  if (confirmPasswordError.value) {
-    showMessage('Your confirm password does not match with your password.', 'error');
+  
+  // Validate email
+  if (!step1Form.value.email.includes('@') || !step1Form.value.email.includes('.')) {
+    emailError.value = 'Please enter a valid email address (must include @ and a domain)';
+    showMessage('Please enter a valid email address.', 'error');
     return;
   }
+  
+  // Validate phone
+  const phoneLength = step1Form.value.phone.toString().length;
+  if (phoneLength < 10 || phoneLength > 11) {
+    phoneError.value = 'Phone number must be 10-11 digits';
+    showMessage('Phone number must be 10-11 digits.', 'error');
+    return;
+  }
+  
+  // Validate IC
+  if (step1Form.value.ic.toString().length !== 12) {
+    icError.value = 'IC number must be exactly 12 digits';
+    showMessage('IC number must be exactly 12 digits.', 'error');
+    return;
+  }
+
+  // Validate password length
+  if (step1Form.value.password.length < 8) {
+    passwordError.value = 'Password must be at least 8 characters long';
+    showMessage('Password must be at least 8 characters long.', 'error');
+    return;
+  }
+
+  // Validate password confirmation
+  if (step1Form.value.password !== step1Form.value.confirmPassword) {
+    confirmPasswordError.value = 'Passwords do not match';
+    showMessage('Passwords do not match.', 'error');
+    return;
+  }
+
+  isSubmittingStep1.value = true;
 
   const data = {
     ...step1Form.value,
@@ -130,15 +231,15 @@ async function handleStep1Submit() {
         userID: result?.data?.user?.userID,
         parentID: result?.data?.parent?.parent_id,
       };
-      console.log('Registered IDs after step 1:', registeredIDs.value); // ✅ add this
       showMessage('Step 1 registered. Continue additional details.', 'success');
       showStep2Modal.value = true;
     } else {
       showMessage(result.message || 'Registration failed', 'error');
     }
   } catch (err) {
-    console.error('Submit error:', err);
     showMessage('Unexpected error occurred', 'error');
+  } finally {
+    isSubmittingStep1.value = false;
   }
 }
 
@@ -148,14 +249,14 @@ async function submitStep2() {
     return;
   }
 
+  isSubmittingStep2.value = true;
+
   const payload = {
     parentID: registeredIDs.value.parentID,
     ...step2Form.value,
   };
 
   try {
-    console.log('Submitting Step 2 with payload:', payload);
-
     const res = await fetch('/api/parents/update', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -170,11 +271,11 @@ async function submitStep2() {
       showMessage(result.message || 'Update failed', 'error');
     }
   } catch (err) {
-    console.error('Step 2 update error:', err);
     showMessage('Unexpected error occurred', 'error');
+  } finally {
+    isSubmittingStep2.value = false;
   }
 }
-
 
 </script>
 
@@ -191,19 +292,17 @@ async function submitStep2() {
         v-model="step1Form.username"
         label="Username"
         validation="required"
-        validation-visibility="live"
-        autocomplete="off"
         placeholder="Enter Username"
       />
       <p v-if="usernameError" class="text-red-500 text-sm mt-1 mb-2">{{ usernameError }}</p>
-
+      
       <FormKit
         type="text"
         name="parentFullname"
         v-model="step1Form.fullname"
         label="Fullname"
         validation="required"
-        placeholder="Enter Fullname"
+        placeholder="Enter Full Name"
       />
       <FormKit
         type="text"
@@ -213,6 +312,8 @@ async function submitStep2() {
         validation="required"
         placeholder="Enter Email"
       />
+      <p v-if="emailError" class="text-red-500 text-sm mt-1 mb-2">{{ emailError }}</p>
+      
       <FormKit
         type="text"
         name="parentIC"
@@ -221,14 +322,17 @@ async function submitStep2() {
         validation="required"
         placeholder="Example: 123456789012"
       />
+      <p v-if="icError" class="text-red-500 text-sm mt-1 mb-2">{{ icError }}</p>
+      
       <FormKit
-        type="number"
+        type="text"
         name="parentPhone"
         v-model="step1Form.phone"
         label="Phone"
         validation="required"
         placeholder="Example: 0123456789"
       />
+      <p v-if="phoneError" class="text-red-500 text-sm mt-1 mb-2">{{ phoneError }}</p>
 
       <!-- Password Field -->
       <FormKit
@@ -238,7 +342,7 @@ async function submitStep2() {
         label="Password"
         validation="required"
         autocomplete="new-password"
-        placeholder="Enter Password"
+        placeholder="Enter Password (min 8 characters)"
       >
         <template #suffix>
           <div class="h-full px-3 flex items-center cursor-pointer"
@@ -250,6 +354,7 @@ async function submitStep2() {
           </div>
         </template>
       </FormKit>
+      <p v-if="passwordError" class="text-red-500 text-sm mt-1 mb-2">{{ passwordError }}</p>
 
       <!-- Confirm Password Field -->
       <FormKit
@@ -288,7 +393,13 @@ async function submitStep2() {
       />
 
       <div class="flex justify-end mt-4">
-        <rs-button @click="handleStep1Submit">Submit & Continue</rs-button>
+        <rs-button @click="handleStep1Submit" :disabled="isSubmittingStep1">
+          <span v-if="isSubmittingStep1">
+            <Icon name="line-md:loading-twotone-loop" class="mr-2" />
+            Submitting...
+          </span>
+          <span v-else>Submit & Continue</span>
+        </rs-button>
       </div>
 
       <!-- Feedback message -->
@@ -305,6 +416,18 @@ async function submitStep2() {
       :overlay-close="false"
       :hide-footer="true"
     >
+      <!-- Update Later button at the top -->
+      <div class="flex justify-end mb-4">
+        <rs-button 
+          variant="warning" 
+          class="bg-amber-500 hover:bg-amber-600 text-white" 
+          @click="router.push('/userManagement/parent/parents')"
+        >
+          <Icon name="material-symbols:update" class="mr-1" />
+          Update Later
+        </rs-button>
+      </div>
+
       <FormKit type="form" :actions="false" autocomplete="off">
         <div v-if="message" class="mb-4 p-3 rounded text-white"
              :class="messageType === 'success' ? 'bg-green-500' : 'bg-red-500'">
@@ -394,8 +517,13 @@ async function submitStep2() {
         />
 
         <div class="flex justify-end gap-2 mt-4">
-          <rs-button @click="submitStep2">Submit</rs-button>
-          <rs-button variant="outline" @click="showStep2Modal = false">Update Later</rs-button>
+          <rs-button @click="submitStep2" :disabled="isSubmittingStep2">
+            <span v-if="isSubmittingStep2">
+              <Icon name="line-md:loading-twotone-loop" class="mr-2" />
+              Submitting...
+            </span>
+            <span v-else>Submit</span>
+          </rs-button>
           <rs-button variant="ghost" @click="showStep2Modal = false">Cancel</rs-button>
         </div>
       </FormKit>

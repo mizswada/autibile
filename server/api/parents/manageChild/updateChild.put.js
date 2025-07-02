@@ -4,6 +4,7 @@ export default defineEventHandler(async (event) => {
   
     const {
       childID,
+      fullname,
       nickname,
       gender,
       icNumber,
@@ -22,6 +23,7 @@ export default defineEventHandler(async (event) => {
       await prisma.user_patients.update({
         where: { patient_id: parseInt(childID) },
         data: {
+          fullname,
           nickname,
           gender,
           patient_ic: icNumber,

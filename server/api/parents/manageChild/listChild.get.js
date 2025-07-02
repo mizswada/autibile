@@ -39,6 +39,7 @@ export default defineEventHandler(async (event) => {
         childID: c.patient_id,
         parentID: r.parent_id,
         parentUsername: p.user?.userUsername || '', // <-- add parent username here
+        fullname: c.fullname || '',
         nickname: c.nickname,
         icNumber: c.patient_ic,
         gender: c.gender,

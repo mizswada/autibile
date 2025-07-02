@@ -10,7 +10,16 @@ const messageType = ref('success');
 const togglePasswordVisibility = ref(false);
 const togglePasswordVisibility2 = ref(false);
 const confirmPasswordError = ref('');
-const registeredIDs = ref({ userID: null, parentID: null });
+const registeredIDs = ref({ userID: null, practitionerID: null });
+const isSubmittingStep1 = ref(false);
+const isSubmittingStep2 = ref(false);
+const isLoading = ref(false);
+
+// Custom validation messages
+const emailError = ref('');
+const phoneError = ref('');
+const icError = ref('');
+const passwordError = ref('');
 
 function showMessage(msg, type = 'success') {
   message.value = msg;
@@ -30,22 +39,15 @@ const step1Form = ref({
 });
 
 const step2Form = ref({
-  relationship: null,
-  gender: '',
-  dateOfBirth: '',
-  nationality: null,
-  address1: '',
-  address2: '',
-  address3: '',
-  city: '',
-  postcode: '',
-  state: null,
-  status: '',
+  type: '',
+  registrationNo: '',
+  specialty: '',
+  department: '',
+  qualification: '',
+  experience_years: null,
+  signature: '',
 });
 
-const relationshipOptions = ref([]);
-const nationalityOptions = ref([]);
-const stateOptions = ref([]);
 const roleOptions = ref([]);
 
 watch(() => step1Form.value.username, async (newVal) => {
@@ -58,7 +60,6 @@ watch(() => step1Form.value.username, async (newVal) => {
       usernameError.value = 'Username already exists !';
     }
   } catch (err) {
-    console.error('Username check error:', err);
     usernameError.value = 'Could not check username';
   }
 });
@@ -71,45 +72,127 @@ watch(
   }
 );
 
+// Email validation
+watch(() => step1Form.value.email, (newVal) => {
+  emailError.value = '';
+  if (!newVal) return;
+  
+  // Check if email contains @ and .com
+  if (!newVal.includes('@') || !newVal.includes('.')) {
+    emailError.value = 'Please enter a valid email address (must include @ and a domain)';
+  }
+});
+
+// Phone validation
+watch(() => step1Form.value.phone, (newVal) => {
+  phoneError.value = '';
+  if (!newVal) return;
+  
+  const phoneLength = newVal.toString().length;
+  if (phoneLength < 10 || phoneLength > 11) {
+    phoneError.value = 'Phone number must be 10-11 digits';
+  }
+});
+
+// IC validation
+watch(() => step1Form.value.ic, (newVal) => {
+  icError.value = '';
+  if (!newVal) return;
+  
+  if (newVal.toString().length !== 12) {
+    icError.value = 'IC number must be exactly 12 digits';
+  }
+});
+
+// Password validation
+watch(() => step1Form.value.password, (newVal) => {
+  passwordError.value = '';
+  if (!newVal) return;
+  
+  if (newVal.length < 8) {
+    passwordError.value = 'Password must be at least 8 characters long';
+  }
+  
+  // Check confirmation password match when password changes
+  if (step1Form.value.confirmPassword && step1Form.value.confirmPassword !== newVal) {
+    confirmPasswordError.value = 'Passwords do not match';
+  } else {
+    confirmPasswordError.value = '';
+  }
+});
+
+// Confirm password validation
+watch(() => step1Form.value.confirmPassword, (newVal) => {
+  confirmPasswordError.value = '';
+  if (!newVal) return;
+  
+  if (newVal !== step1Form.value.password) {
+    confirmPasswordError.value = 'Passwords do not match';
+  }
+});
+
 onMounted(async () => {
+  isLoading.value = true;
   try {
-    const [relRes, natRes, stateRes, roleRes] = await Promise.all([
-      fetch('/api/parents/lookupRelationship'),
-      fetch('/api/parents/lookupNationality'),
-      fetch('/api/parents/lookupState'),
+    const [roleRes] = await Promise.all([
       fetch('/api/parents/lookupRole'),
     ]);
 
-    relationshipOptions.value = [
-      { label: '-- Please select --', value: '' },
-      ...await relRes.json().then(data => data.map(i => ({ label: i.title, value: i.lookupID })))
-    ];
-    nationalityOptions.value = [
-      { label: '-- Please select --', value: '' },
-      ...await natRes.json().then(data => data.map(i => ({ label: i.title, value: i.lookupID })))
-    ];
-    stateOptions.value = [
-      { label: '-- Please select --', value: '' },
-      ...await stateRes.json().then(data => data.map(i => ({ label: i.title, value: i.lookupID })))
-    ];
     roleOptions.value = [
       { label: '-- Please select --', value: '' },
       ...await roleRes.json().then(data => data.map(i => ({ label: i.roleName, value: i.roleID })))
     ];
   } catch (err) {
-    console.error('Dropdown fetch error:', err);
+    showMessage('Failed to load role options. Please refresh the page.', 'error');
+  } finally {
+    isLoading.value = false;
   }
 });
 
 async function handleStep1Submit() {
-  if (usernameError.value) {
-    showMessage('Please fix the username before continuing.', 'error');
+  // Check for validation errors
+  if (usernameError.value || emailError.value || phoneError.value || icError.value || passwordError.value || confirmPasswordError.value) {
+    showMessage('Please fix all validation errors before submitting.', 'error');
     return;
   }
-  if (confirmPasswordError.value) {
-    showMessage('Your confirm password does not match with your password.', 'error');
+  
+  // Validate email
+  if (!step1Form.value.email.includes('@') || !step1Form.value.email.includes('.')) {
+    emailError.value = 'Please enter a valid email address (must include @ and a domain)';
+    showMessage('Please enter a valid email address.', 'error');
     return;
   }
+  
+  // Validate phone
+  const phoneLength = step1Form.value.phone.toString().length;
+  if (phoneLength < 10 || phoneLength > 11) {
+    phoneError.value = 'Phone number must be 10-11 digits';
+    showMessage('Phone number must be 10-11 digits.', 'error');
+    return;
+  }
+  
+  // Validate IC
+  if (step1Form.value.ic.toString().length !== 12) {
+    icError.value = 'IC number must be exactly 12 digits';
+    showMessage('IC number must be exactly 12 digits.', 'error');
+    return;
+  }
+  
+  // Validate password length
+  if (step1Form.value.password.length < 8) {
+    passwordError.value = 'Password must be at least 8 characters long';
+    showMessage('Password must be at least 8 characters long.', 'error');
+    return;
+  }
+  
+  // Validate password confirmation
+  if (step1Form.value.password !== step1Form.value.confirmPassword) {
+    confirmPasswordError.value = 'Passwords do not match';
+    showMessage('Passwords do not match.', 'error');
+    return;
+  }
+  
+  isSubmittingStep1.value = true;
 
   const data = {
     ...step1Form.value,
@@ -117,7 +200,7 @@ async function handleStep1Submit() {
   };
 
   try {
-    const res = await fetch('/api/parents/insert', {
+    const res = await fetch('/api/practitioners/insert', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -128,35 +211,58 @@ async function handleStep1Submit() {
     if (result.statusCode === 200) {
       registeredIDs.value = {
         userID: result?.data?.user?.userID,
-        parentID: result?.data?.parent?.parent_id,
+        practitionerID: result?.data?.practitioner?.practitioner_id,
       };
-      console.log('Registered IDs after step 1:', registeredIDs.value); // ✅ add this
       showMessage('Step 1 registered. Continue additional details.', 'success');
       showStep2Modal.value = true;
     } else {
       showMessage(result.message || 'Registration failed', 'error');
     }
   } catch (err) {
-    console.error('Submit error:', err);
     showMessage('Unexpected error occurred', 'error');
+  } finally {
+    isSubmittingStep1.value = false;
   }
 }
 
 async function submitStep2() {
-  if (!registeredIDs.value.parentID) {
-    showMessage('Parent ID is missing. Please re-register.', 'error');
+  if (!registeredIDs.value.practitionerID) {
+    showMessage('Practitioner ID is missing. Please re-register.', 'error');
     return;
   }
+  
+  isSubmittingStep2.value = true;
 
   const payload = {
-    parentID: registeredIDs.value.parentID,
-    ...step2Form.value,
+    practitionerID: registeredIDs.value.practitionerID,
+    userID: registeredIDs.value.userID,
+    type: step2Form.value.type,
+    registrationNo: step2Form.value.registrationNo,
+    specialty: step2Form.value.specialty,
+    department: step2Form.value.department,
+    qualification: step2Form.value.qualification,
+    experience: parseInt(step2Form.value.experience_years),
+    signature: step2Form.value.signature || null,
   };
 
-  try {
-    console.log('Submitting Step 2 with payload:', payload);
+  // The signature should already be a base64 string from handleSignatureUpload
+  // If it's still a File object, we need to handle that case
+  if (step2Form.value.signature instanceof File) {
+    try {
+      const toBase64 = file => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+      });
+      payload.signature = await toBase64(step2Form.value.signature);
+    } catch (error) {
+      payload.signature = null;
+    }
+  }
 
-    const res = await fetch('/api/parents/update', {
+  try {
+    const res = await fetch('/api/practitioners/update', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -164,17 +270,34 @@ async function submitStep2() {
 
     const result = await res.json();
     if (result.statusCode === 200) {
-      showMessage('Parent details updated successfully');
-      router.push('/userManagement/parent/parents');
+      showMessage('Practitioner details updated successfully');
+      router.push('/userManagement/practitioners');
     } else {
       showMessage(result.message || 'Update failed', 'error');
     }
   } catch (err) {
-    console.error('Step 2 update error:', err);
     showMessage('Unexpected error occurred', 'error');
+  } finally {
+    isSubmittingStep2.value = false;
   }
 }
 
+function handleSignatureUpload(fileList) {
+  const file = fileList?.[0]?.file || fileList?.[0];
+  if (file instanceof File) {
+    // Convert file to base64 immediately to avoid issues
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      step2Form.value.signature = reader.result;
+    };
+    reader.onerror = error => {
+      step2Form.value.signature = '';
+    };
+  } else {
+    step2Form.value.signature = '';
+  }
+}
 
 </script>
 
@@ -183,128 +306,175 @@ async function submitStep2() {
   <div class="p-6">
     <h1 class="text-2xl font-bold mb-4">Practitioner Registration - Step 1</h1>
 
+    <!-- Feedback message -->
+    <div v-if="message" class="mb-4 p-3 rounded text-white"
+         :class="messageType === 'success' ? 'bg-green-500' : 'bg-red-500'">
+      {{ message }}
+    </div>
+
+    <!-- Loading indicator -->
+    <div v-if="isLoading" class="flex justify-center my-8">
+      <div class="flex flex-col items-center">
+        <Icon name="line-md:loading-twotone-loop" size="48" class="text-primary mb-2" />
+        <span>Loading form data...</span>
+      </div>
+    </div>
+
     <!-- Step 1 Form -->
-    <FormKit type="form" :actions="false">
-      <FormKit
-        type="text"
-        name="parentUsername"
-        v-model="step1Form.username"
-        label="Username"
-        validation="required"
-        validation-visibility="live"
-        autocomplete="off"
-        placeholder="Enter Username"
-      />
-      <p v-if="usernameError" class="text-red-500 text-sm mt-1 mb-2">{{ usernameError }}</p>
-
-      <FormKit
-        type="text"
-        name="parentFullname"
-        v-model="step1Form.fullname"
-        label="Fullname"
-        validation="required"
-        placeholder="Enter Fullname"
-      />
-      <FormKit
-        type="text"
-        name="parentEmail"
-        v-model="step1Form.email"
-        label="Email"
-        validation="required"
-        placeholder="Enter Email"
-      />
-      <FormKit
-        type="text"
-        name="parentIC"
-        v-model="step1Form.ic"
-        label="IC / MyKid / Passport"
-        validation="required"
-        placeholder="Example: 123456789012"
-      />
-      <FormKit
-        type="number"
-        name="parentPhone"
-        v-model="step1Form.phone"
-        label="Phone"
-        validation="required"
-        placeholder="Example: 0123456789"
-      />
-
-      <!-- Password Field -->
-      <FormKit
-        :type="togglePasswordVisibility ? 'text' : 'password'"
-        name="registerPassword"
-        v-model="step1Form.password"
-        label="Password"
-        validation="required"
-        autocomplete="new-password"
-        placeholder="Enter Password"
-      >
-        <template #suffix>
-          <div class="h-full px-3 flex items-center cursor-pointer"
-               @click="togglePasswordVisibility = !togglePasswordVisibility">
-            <Icon
-              :name="togglePasswordVisibility ? 'ion:eye-off-outline' : 'ion:eye-outline'"
-              size="19"
+    <div v-else class="card p-4">
+      <FormKit type="form" :actions="false">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <FormKit
+              type="text"
+              name="username"
+              v-model="step1Form.username"
+              label="Username"
+              validation="required"
+              validation-visibility="live"
+              autocomplete="off"
+              placeholder="Enter username"
             />
+            <p v-if="usernameError" class="text-red-500 text-sm mt-1">{{ usernameError }}</p>
           </div>
-        </template>
-      </FormKit>
 
-      <!-- Confirm Password Field -->
-      <FormKit
-        :type="togglePasswordVisibility2 ? 'text' : 'password'"
-        name="registerConfirmPassword"
-        v-model="step1Form.confirmPassword"
-        label="Confirm Password"
-        validation="required|matchesPassword"
-        autocomplete="new-password"
-        placeholder="Reenter Password"
-        :validation-rules="{
-          matchesPassword: (value) => {
-            return value === step1Form.password || 'Passwords do not match';
-          }
-        }"
-      >
-        <template #suffix>
-          <div class="h-full px-3 flex items-center cursor-pointer"
-               @click="togglePasswordVisibility2 = !togglePasswordVisibility2">
-            <Icon
-              :name="togglePasswordVisibility2 ? 'ion:eye-off-outline' : 'ion:eye-outline'"
-              size="19"
+          <FormKit
+            type="text"
+            name="fullname"
+            v-model="step1Form.fullname"
+            label="Fullname"
+            validation="required"
+            placeholder="Enter fullname"
+          />
+
+          <div>
+            <FormKit
+              type="text"
+              name="email"
+              v-model="step1Form.email"
+              label="Email"
+              validation="required"
+              placeholder="Enter email"
             />
+            <p v-if="emailError" class="text-red-500 text-sm mt-1">{{ emailError }}</p>
           </div>
-        </template>
+
+          <div>
+            <FormKit
+              type="text"
+              name="ic"
+              v-model="step1Form.ic"
+              label="IC / MyKid / Passport"
+              validation="required"
+              placeholder="Enter identification number"
+            />
+            <p v-if="icError" class="text-red-500 text-sm mt-1">{{ icError }}</p>
+          </div>
+
+          <div>
+            <FormKit
+              type="text"
+              name="phone"
+              v-model="step1Form.phone"
+              label="Phone"
+              validation="required"
+              placeholder="Enter phone number"
+            />
+            <p v-if="phoneError" class="text-red-500 text-sm mt-1">{{ phoneError }}</p>
+          </div>
+
+          <!-- Password Field -->
+          <FormKit
+            :type="togglePasswordVisibility ? 'text' : 'password'"
+            name="password"
+            v-model="step1Form.password"
+            label="Password"
+            validation="required|length:8"
+            autocomplete="new-password"
+            placeholder="Enter password"
+          >
+            <template #suffix>
+              <div class="h-full px-3 flex items-center cursor-pointer"
+                   @click="togglePasswordVisibility = !togglePasswordVisibility">
+                <Icon
+                  :name="togglePasswordVisibility ? 'ion:eye-off-outline' : 'ion:eye-outline'"
+                  size="19"
+                />
+              </div>
+            </template>
+          </FormKit>
+
+          <!-- Confirm Password Field -->
+          <FormKit
+            :type="togglePasswordVisibility2 ? 'text' : 'password'"
+            name="confirmPassword"
+            v-model="step1Form.confirmPassword"
+            label="Confirm Password"
+            validation="required|confirmed:password"
+            autocomplete="new-password"
+            placeholder="Confirm password"
+            :validation-rules="{
+              confirmed: (value) => value === step1Form.password || 'Passwords do not match'
+            }"
+          >
+            <template #suffix>
+              <div class="h-full px-3 flex items-center cursor-pointer"
+                   @click="togglePasswordVisibility2 = !togglePasswordVisibility2">
+                <Icon
+                  :name="togglePasswordVisibility2 ? 'ion:eye-off-outline' : 'ion:eye-outline'"
+                  size="19"
+                />
+              </div>
+            </template>
+          </FormKit>
+
+          <FormKit
+            type="select"
+            name="role"
+            v-model="step1Form.role"
+            label="Role"
+            validation="required"
+            :options="roleOptions"
+          />
+        </div>
+
+        <div class="flex justify-end mt-6">
+          <div class="flex gap-2">
+            <rs-button variant="ghost" @click="router.push('/userManagement/practitioners')">
+              Cancel
+            </rs-button>
+            <rs-button @click="handleStep1Submit" :disabled="isSubmittingStep1">
+              <span v-if="isSubmittingStep1">
+                <Icon name="line-md:loading-twotone-loop" class="mr-2" />
+                Submitting...
+              </span>
+              <span v-else>Submit & Continue</span>
+            </rs-button>
+          </div>
+        </div>
       </FormKit>
-      <p v-if="confirmPasswordError" class="text-red-500 text-sm mt-1 mb-2">{{ confirmPasswordError }}</p>
-
-      <FormKit
-        type="select"
-        name="parentRole"
-        v-model="step1Form.role"
-        label="Role"
-        validation="required"
-        :options="roleOptions"
-      />
-
-      <div class="flex justify-end mt-4">
-        <rs-button @click="handleStep1Submit">Submit & Continue</rs-button>
-      </div>
-
-      <!-- Feedback message -->
-      <div v-if="message" class="mb-4 p-3 rounded text-white"
-           :class="messageType === 'success' ? 'bg-green-500' : 'bg-red-500'">
-        {{ message }}
-      </div>
-    </FormKit>
+    </div>
 
     <!-- Step 2 Modal -->
     <rs-modal
       v-model="showStep2Modal"
-      title="Additional Parent Info"
+      title="Additional Practitioner Info"
       :overlay-close="false"
       :hide-footer="true"
+      size="xl"
     >
+      <!-- Update Later button at the top -->
+      <div class="flex justify-end mb-4">
+        <rs-button 
+          variant="warning" 
+          class="bg-amber-500 hover:bg-amber-600 text-white" 
+          @click="router.push('/userManagement/practitioners')"
+        >
+          <Icon name="material-symbols:update" class="mr-1" />
+          Update Later
+        </rs-button>
+      </div>
+      
       <FormKit type="form" :actions="false" autocomplete="off">
         <div v-if="message" class="mb-4 p-3 rounded text-white"
              :class="messageType === 'success' ? 'bg-green-500' : 'bg-red-500'">
@@ -313,96 +483,75 @@ async function submitStep2() {
 
         <FormKit
           type="select"
-          v-model="step2Form.relationship"
-          name="relationship"
-          label="Relationship"
-          :options="relationshipOptions"
+          v-model="step2Form.type"
+          name="type"
+          label="Practitioner Type"
+          :options="['-- Select Type --', 'Doctor', 'Therapist', 'Nurse', 'Other']"
           validation="required"
-        />
-        <FormKit
-          type="select"
-          v-model="step2Form.gender"
-          name="gender"
-          label="Gender"
-          :options="['-- Please select --', 'Male', 'Female']"
-          validation="required"
-        />
-        <FormKit
-          type="date"
-          v-model="step2Form.dateOfBirth"
-          name="dateOfBirth"
-          label="Date of Birth"
-          validation="required"
-        />
-        <FormKit
-          type="select"
-          v-model="step2Form.nationality"
-          name="nationality"
-          label="Nationality"
-          :options="nationalityOptions"
-          validation="required"
-        />
-        <FormKit
-          type="text"
-          v-model="step2Form.addressLine1"
-          name="address1"
-          label="Address Line 1"
-          validation="required"
-        />
-        <FormKit
-          type="text"
-          v-model="step2Form.addressLine2"
-          name="address2"
-          label="Address Line 2"
-        />
-        <FormKit
-          type="text"
-          v-model="step2Form.addressLine3"
-          name="address3"
-          label="Address Line 3"
         />
 
         <FormKit
           type="text"
-          v-model="step2Form.city"
-          name="city"
-          label="City"
+          v-model="step2Form.registrationNo"
+          name="registrationNo"
+          label="Registration Number"
           validation="required"
         />
+
         <FormKit
           type="text"
-          v-model="step2Form.postcode"
-          name="postcode"
-          label="Postcode"
+          v-model="step2Form.specialty"
+          name="specialty"
+          label="Specialty"
+        />
+
+        <FormKit
+          type="text"
+          v-model="step2Form.department"
+          name="department"
+          label="Department"
+        />
+
+        <FormKit
+          type="text"
+          v-model="step2Form.qualification"
+          name="qualification"
+          label="Qualifications"
           validation="required"
         />
+
         <FormKit
-          type="select"
-          v-model="step2Form.state"
-          name="state"
-          label="State"
-          :options="stateOptions"
+          type="number"
+          v-model="step2Form.experience_years"
+          name="experience_years"
+          label="Years of Experience"
           validation="required"
         />
+
         <FormKit
-          type="select"
-          v-model="step2Form.status"
-          name="status"
-          label="Status"
-          :options="['-- Please select --', 'Active', 'Inactive']"
-          validation="required"
+          type="file"
+          v-model="step2Form.signature"
+          name="signature"
+          label="Signature (Optional)"
+          accept="image/*"
+          @input="handleSignatureUpload"
         />
 
         <div class="flex justify-end gap-2 mt-4">
-          <rs-button @click="submitStep2">Submit</rs-button>
-          <rs-button variant="outline" @click="showStep2Modal = false">Update Later</rs-button>
+          <rs-button @click="submitStep2" :disabled="isSubmittingStep2">
+            <span v-if="isSubmittingStep2">
+              <Icon name="line-md:loading-twotone-loop" class="mr-2" />
+              Submitting...
+            </span>
+            <span v-else>Submit</span>
+          </rs-button>
           <rs-button variant="ghost" @click="showStep2Modal = false">Cancel</rs-button>
         </div>
       </FormKit>
     </rs-modal>
-    <div v-if="message" class="mb-4 p-3 rounded text-white"
-          :class="messageType === 'success' ? 'bg-green-500' : 'bg-red-500'">
-      {{ message }}
-    </div>
   </div>
 </template>
+
+<style scoped>
+/* Add custom styles here if needed */
+</style>

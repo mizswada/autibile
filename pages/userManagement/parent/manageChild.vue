@@ -9,9 +9,17 @@ const showModalDelete = ref(false);
 const showModalDeleteForm = ref({});
 const showConfirmToggleModal = ref(false);
 const pendingToggleChild = ref(null);
+const isLoading = ref(false);
+const isTogglingStatus = ref(false);
+const message = ref('');
+const messageType = ref('success');
+const showConfirmRemoveModal = ref(false);
+const pendingRemoveChild = ref(null);
+const isRemovingChild = ref(false);
 
 const columns = [
   { name: 'parentUsername', label: 'Parent Username' },
+  { name: 'fullname', label: 'Full Name' },
   { name: 'nickname', label: 'Nickname' },
   { name: 'gender', label: 'Gender' },
   { name: 'autismDiagnose', label: 'Autism Diagnose' },
@@ -20,6 +28,12 @@ const columns = [
   { name: 'status', label: 'Status' },
   { name: 'action', label: 'Actions' }
 ];
+
+function showMessage(msg, type = 'success') {
+  message.value = msg;
+  messageType.value = type;
+  setTimeout(() => (message.value = ''), 3000);
+}
 
 function confirmToggleStatus(child) {
   pendingToggleChild.value = child;
@@ -34,6 +48,7 @@ function cancelToggleStatus() {
 async function performToggleStatus() {
   const child = pendingToggleChild.value;
   const newStatus = child.status === 'Active' ? 'Inactive' : 'Active';
+  isTogglingStatus.value = true;
 
   try {
     const res = await fetch('/api/parents/manageChild/updateStatusChild', {
@@ -55,10 +70,49 @@ async function performToggleStatus() {
   } finally {
     showConfirmToggleModal.value = false;
     pendingToggleChild.value = null;
+    isTogglingStatus.value = false;
+  }
+}
+
+function confirmRemoveChild(child) {
+  pendingRemoveChild.value = child;
+  showConfirmRemoveModal.value = true;
+}
+
+function cancelRemoveChild() {
+  pendingRemoveChild.value = null;
+  showConfirmRemoveModal.value = false;
+}
+
+async function performRemoveChild() {
+  const child = pendingRemoveChild.value;
+  isRemovingChild.value = true;
+
+  try {
+    const res = await fetch(`/api/parents/manageChild/removeChildFromParent?childID=${child.childID}&parentID=${child.parentID}`, {
+      method: 'DELETE',
+    });
+
+    const result = await res.json();
+    if (result.statusCode === 200) {
+      // Remove child from list
+      rawData.value = rawData.value.filter(c => !(c.childID === child.childID && c.parentID === child.parentID));
+      showMessage('Child removed from parent successfully', 'success');
+    } else {
+      showMessage(`Error removing child: ${result.message}`, 'error');
+    }
+  } catch (err) {
+    console.error('Remove child error:', err);
+    showMessage('An error occurred while removing the child.', 'error');
+  } finally {
+    showConfirmRemoveModal.value = false;
+    pendingRemoveChild.value = null;
+    isRemovingChild.value = false;
   }
 }
 
 onMounted(async () => {
+  isLoading.value = true;
   try {
     const [childRes, availRes] = await Promise.all([
       fetch('/api/parents/manageChild/listChild'),
@@ -76,6 +130,7 @@ onMounted(async () => {
         childID: p.childID,
         childIC: p.icNumber, // ensure your API returns ic field as 'ic'
         parentUsername: p.parentUsername,
+        fullname: p.fullname || '',
         nickname: p.nickname,
         gender: p.gender,
         autismDiagnose: p.autismDiagnose,
@@ -88,12 +143,15 @@ onMounted(async () => {
     }
   } catch (err) {
     console.error('Fetch error:', err);
+  } finally {
+    isLoading.value = false;
   }
 });
 
 const tableData = computed(() =>
   rawData.value.map(p => ({
     parentUsername: p.parentUsername,
+    fullname: p.fullname,
     childIC: p.childIC,
     nickname: p.nickname,
     autismDiagnose: p.autismDiagnose,
@@ -114,7 +172,21 @@ function getOriginalData(childIC) {
   <div class="mb-4">
     <h1 class="text-2xl font-bold">Patients / Children Information</h1>
     <div class="card p-4 mt-4">
+      <!-- Feedback message -->
+      <div v-if="message" class="mb-4 p-3 rounded text-white"
+           :class="messageType === 'success' ? 'bg-green-500' : 'bg-red-500'">
+        {{ message }}
+      </div>
+      
+      <div v-if="isLoading" class="flex justify-center my-8">
+        <div class="flex flex-col items-center">
+          <Icon name="line-md:loading-twotone-loop" size="48" class="text-primary mb-2" />
+          <span>Loading children data...</span>
+        </div>
+      </div>
+
       <rs-table
+        v-else
         :data="tableData"
         :columns="columns"
         :options="{ variant: 'default', striped: true, borderless: true }"
@@ -148,12 +220,25 @@ function getOriginalData(childIC) {
                 }
               }"
             />
+            <Icon
+              name="material-symbols:delete-outline"
+              class="text-red-500 hover:text-red-600 cursor-pointer"
+              size="22"
+              @click="() => {
+                const original = getOriginalData(row.value.childIC);
+                if (original) {
+                  confirmRemoveChild(original);
+                }
+              }"
+            />
           </div>
         </template>
       </rs-table>
 
 
     </div>
+    
+    <!-- Toggle Status Modal -->
     <rs-modal
       title="Confirmation"
       ok-title="Yes"
@@ -169,8 +254,35 @@ function getOriginalData(childIC) {
         <span v-else>activate</span>
         this child (Nickname: {{ pendingToggleChild?.nickname }})?
       </p>
+
+      <div v-if="isTogglingStatus" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
+        <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
+        <span>Updating status...</span>
+      </div>
     </rs-modal>
 
+    <!-- Remove Child Modal -->
+    <rs-modal
+      title="Remove Child"
+      ok-title="Remove"
+      cancel-title="Cancel"
+      :ok-callback="performRemoveChild"
+      :cancel-callback="cancelRemoveChild"
+      v-model="showConfirmRemoveModal"
+      :overlay-close="false"
+    >
+      <p>
+        Are you sure you want to remove this child ({{ pendingRemoveChild?.nickname }}) from this parent?
+      </p>
+      <p class="text-sm text-orange-600 mt-2">
+        This will only remove the association between the parent and child. The child's record will still exist in the system.
+      </p>
+
+      <div v-if="isRemovingChild" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
+        <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
+        <span>Removing child association...</span>
+      </div>
+    </rs-modal>
   </div>
 
 </template>

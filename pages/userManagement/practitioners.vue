@@ -1,12 +1,24 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
+import { useRouter } from 'vue-router';
 
-const practitioners = ref([]);
+const router = useRouter();
 
+const rawData = ref([]); // full data including practitionerID
 const showModal = ref(false);
 const isEdit = ref(false);
-const editId = ref(null);
+const editData = ref(null); // store full data of practitioner for modal
+const showConfirmToggleModal = ref(false);
+const pendingToggleData = ref(null);
+const isLoading = ref(false);
+const isSubmitting = ref(false);
+const isToggling = ref(false);
+
 const form = ref({
+  fullName: '',
+  email: '',
+  phone: '',
+  ic: '',
   type: '',
   registrationNo: '',
   specialty: '',
@@ -14,7 +26,120 @@ const form = ref({
   qualification: '',
   experience: '',
   signature: '',
+  status: '',
 });
+
+const isEditing = ref(false);
+
+function enableEdit() {
+  isEditing.value = true;
+}
+
+function cancelEdit() {
+  isEditing.value = false;
+  openEditModal(editData.value); // reload original data to discard changes
+}
+
+// Status toggle functions
+function confirmToggleStatus(row) {
+  const original = getOriginalData(row.username);
+  if (original) {
+    pendingToggleData.value = original;
+    showConfirmToggleModal.value = true;
+  }
+}
+
+function cancelToggleStatus() {
+  pendingToggleData.value = null;
+  showConfirmToggleModal.value = false;
+}
+
+async function performToggleStatus() {
+  const rowData = pendingToggleData.value;
+  const newStatus = rowData.status === 'Active' ? 'Inactive' : 'Active';
+  isToggling.value = true;
+
+  try {
+    const response = await $fetch('/api/practitioners/updateStatus', {
+      method: 'PUT',
+      body: {
+        practitionerID: rowData.practitionerID,
+        status: newStatus,
+      },
+    });
+
+    if (response.statusCode === 200) {
+      const target = rawData.value.find(p => p.practitionerID === rowData.practitionerID);
+      if (target) target.status = newStatus;
+      alert(`Status updated to ${newStatus}`);
+    } else {
+      console.error('Failed to update status:', response.message);
+      alert(`Update failed: ${response.message}`);
+    }
+  } catch (error) {
+    console.error('API error:', error);
+    alert('An error occurred while updating status.');
+  } finally {
+    showConfirmToggleModal.value = false;
+    pendingToggleData.value = null;
+    isToggling.value = false;
+  }
+}
+
+onMounted(async () => {
+  await loadPractitioners();
+});
+
+async function loadPractitioners() {
+  isLoading.value = true;
+  try {
+    const response = await $fetch('/api/practitioners/listPractitioners');
+    if (response.statusCode === 200) {
+      rawData.value = response.data.map(p => ({
+        practitionerID: p.practitionerID,
+        userID: p.userID,
+        username: p.username || '',
+        fullName: p.fullName || '',
+        email: p.email || '',
+        phone: p.phone || '',
+        ic: p.ic || '',
+        type: p.type || '',
+        registrationNo: p.registrationNo || '',
+        specialty: p.specialty || '',
+        department: p.department || '',
+        qualification: p.qualification || '',
+        experience: p.experience || '',
+        signature: p.signature || '',
+        status: p.status || '',
+      }));
+    } else {
+      console.error('Failed to fetch practitioners:', response.message);
+    }
+  } catch (error) {
+    console.error('Error loading practitioners:', error);
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+// ✅ Only display needed fields
+const tableData = computed(() =>
+  rawData.value.map(p => ({
+    username: p.username,
+    fullName: p.fullName,
+    email: p.email,
+    phone: p.phone,
+    ic: p.ic,
+    type: p.type,
+    registrationNo: p.registrationNo,
+    status: p.status,
+    action: 'edit'
+  }))
+);
+
+function getOriginalData(username) {
+  return rawData.value.find(p => p.username === username);
+}
 
 function openAddModal() {
   form.value = {
@@ -27,231 +152,119 @@ function openAddModal() {
     signature: '',
   };
   isEdit.value = false;
-  editId.value = null;
+  editData.value = null;
   showModal.value = true;
 }
 
-function openEditModal(practitioner) {
-  if (!practitioner) {
-    console.error('Practitioner not found');
-    return;
-  }
-
-  console.log('Opening modal with practitioner:', practitioner);
+function openEditModal(row) {
+  const original = getOriginalData(row.username);
+  if (!original) return;
 
   form.value = {
-    type: practitioner.type || '',
-    registrationNo: practitioner.registrationNo || '',
-    specialty: practitioner.specialty || '',
-    department: practitioner.department || '',
-    qualification: practitioner.qualification || '',
-    experience: practitioner.experience?.toString().replace(/\D/g, '') || '',
-    signature: practitioner.signature || '',
+    fullName: original.fullName || '',
+    email: original.email || '',
+    phone: original.phone || '',
+    ic: original.ic || '',
+    type: original.type || '',
+    registrationNo: original.registrationNo || '',
+    specialty: original.specialty || '',
+    department: original.department || '',
+    qualification: original.qualification || '',
+    experience: original.experience?.toString().replace(/\D/g, '') || '',
+    signature: original.signature || '', 
+    status: original.status || '',
   };
 
   isEdit.value = true;
-  editId.value = practitioner.id;
+  editData.value = original;
+  isEditing.value = false; // Reset editing mode when opening modal
   showModal.value = true;
 }
 
-
-
-onMounted(async () => {
-  await loadPractitioners();
-});
-
-async function loadPractitioners() {
-  try {
-    const response = await $fetch('/api/practitioners/listPractitioners');
-
-    if (response.statusCode === 200) {
-      practitioners.value = response.data.map(p => {
-        const practitionerData = {
-          id: p.practitioner_id,
-          type: p.type,
-          registrationNo: p.registration_no,
-          specialty: p.specialty,
-          department: p.department,
-          qualification: p.qualifications,
-          experience: `${p.experience_years} Year${p.experience_years > 1 ? 's' : ''}`,
-          signature: p.signature,
-          action: 'edit',
-        };
-
-        return practitionerData;
-      });
-    } else {
-      console.error('Failed to fetch practitioners:', response.message);
-    }
-  } catch (error) {
-    console.error('Error loading practitioners:', error);
-  }
-}
-
 async function savePractitioner() {
-  const isEmpty = (val) =>
-    val === null || val === undefined || (typeof val === 'string' && val.trim() === '');
-
-  const requiredFields = {
-    type: 'Practitioner Type',
-    registrationNo: 'Registration No',
-    specialty: 'Specialty',
-    department: 'Department',
-    qualification: 'Qualification',
-    experience: 'Experience',
-  };
-
-  const missingFields = [];
-
-  for (const [key, label] of Object.entries(requiredFields)) {
-    const value = form.value[key];
-    if (isEmpty(value)) {
-      missingFields.push(label);
-    }
-  }
-
-  if (missingFields.length > 0) {
-    alert(`Please fill in:\n- ${missingFields.join('\n- ')}`);
-    return;
-  }
-
-  // Build payload
   const payload = {
+    fullName: form.value.fullName,
+    email: form.value.email,
+    phone: form.value.phone,
+    ic: form.value.ic,
     type: form.value.type,
     registrationNo: form.value.registrationNo,
     specialty: form.value.specialty,
     department: form.value.department,
     qualification: form.value.qualification,
-    experience: parseInt(form.value.experience),
-    signature: '',
+    experience: parseInt(form.value.experience) || 0,
+    signature: form.value.signature,
+    status: form.value.status,
+    userID: editData.value?.userID, 
   };
 
-  console.log('Current form.signature:', form.value.signature);
-  console.log('Is file?', form.value.signature instanceof File);
-
-  // Convert file to base64 if necessary
-  if (form.value.signature instanceof File) {
-    console.log('[Conversion] Detected file input, converting to base64...');
-    const file = form.value.signature;
-    const toBase64 = file =>
-      new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = error => reject(error);
-      });
-
-    try {
-      payload.signature = await toBase64(file);
-    } catch (error) {
-      console.error('Error reading file:', error);
-      return;
-    }
-  } else {
-    payload.signature = form.value.signature;
-  }
-
-
+  isSubmitting.value = true;
   try {
-    // After setting payload.signature
-    console.log('Final payload before sending to API:', payload);
     if (isEdit.value) {
-      // Call PUT to update
       const response = await $fetch('/api/practitioners/update', {
         method: 'PUT',
         body: {
-          practitionerID: editId.value,
+          practitionerID: editData.value.practitionerID, // use hidden ID
           ...payload,
         },
       });
 
       if (response.statusCode === 200) {
-        // Update local list
-        const index = practitioners.value.findIndex(p => p.id === editId.value);
-        if (index !== -1) {
-          practitioners.value[index] = {
-            ...practitioners.value[index],
-            ...payload,
-            experience: `${payload.experience} Year${payload.experience > 1 ? 's' : ''}`,
-          };
-        }
+        await loadPractitioners();
         alert('Practitioner updated successfully');
         showModal.value = false;
+        isEditing.value = false; // exit editing mode after save
       } else {
         console.error('Failed to update:', response.message);
+        alert(`Update failed: ${response.message}`);
       }
     } else {
-      // Log the payload before sending to API
-      console.log('[Insert] Final payload before API call:', payload);
-
-      // Call POST to insert
-      const response = await $fetch('/api/practitioners/insert', {
-        method: 'POST',
-        body: payload,
-      });
-
-      if (response.statusCode === 200) {
-        const newP = response.data;
-
-        practitioners.value.push({
-          id: newP.practitioner_id,
-          type: newP.type,
-          registrationNo: newP.registration_no,
-          specialty: newP.specialty,
-          department: newP.department,
-          qualification: newP.qualifications,
-          experience: `${newP.experience_years} Year${newP.experience_years > 1 ? 's' : ''}`,
-          signature: newP.signature,
-          action: 'edit',
-        });
-
-        alert('Practitioner added successfully');
-        showModal.value = false;
-      } else {
-        console.error('Failed to save:', response.message);
-      }
+      // Your add API (if implemented) would go here
     }
   } catch (error) {
     console.error('API error:', error);
+    alert('An error occurred while saving practitioner.');
+  } finally {
+    isSubmitting.value = false;
   }
 }
 
-async function deletePractitioner(id) {
-  if (!confirm('Are you sure you want to delete this practitioner?')) return;
-
-  try {
-    const res = await fetch(`/api/practitioners/delete?practitionerID=${id}`, {
-      method: 'DELETE',
-    });
-
-    const response = await res.json(); 
-    if (response.statusCode === 200) {
-      practitioners.value = practitioners.value.filter(p => p.id !== id);
-      alert('Practitioner deleted successfully');
-    } else {
-      console.error('Failed to delete:', response.message);
-      alert('Failed to delete practitioner.');
-    }
-  } catch (error) {
-    console.error('Delete API error:', error);
-    alert('An error occurred while deleting the practitioner.');
-  }
-}
-
-function handleSignatureUpload(fileList) {
+async function handleSignatureUpload(fileList) {
   const file = fileList?.[0]?.file || fileList?.[0];
   if (file instanceof File) {
-    form.value.signature = file;
-    console.log('[File Upload] File assigned to form.signature:', file);
+    form.value.signature = await fileToBase64(file);
   } else {
-    console.warn('[File Upload] No valid file received:', fileList);
+    console.warn('No valid file in handleSignatureUpload', fileList);
   }
 }
+
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = error => reject(error);
+  });
+}
+
+// Watch for modal closing to reset editing state
+function onModalClosed() {
+  isEditing.value = false;
+  showModal.value = false; // This will ensure the modal closes
+}
+
+// Add watcher for modal state
+watch(() => showModal.value, (newVal) => {
+  if (!newVal) {
+    isEditing.value = false;
+  }
+});
 
 </script>
 
 <template>
-  <div class="mb-4">
+  <div>
     <h1 class="text-2xl font-bold">Practitioner Management</h1>
     <div class="flex justify-end mb-2">
       <rs-button @click="$router.push('/userManagement/addPractitioners')" class="flex items-center gap-2">
@@ -259,123 +272,196 @@ function handleSignatureUpload(fileList) {
           Add Practitioner
       </rs-button>
     </div>
-    <div class="card p-4 mt-4">
-      <rs-table
-        :data="practitioners"
-        :columns="[
-          { name: 'type', label: 'Type' },
-          { name: 'registrationNo', label: 'Registration No' },
-          { name: 'specialty', label: 'Specialty' },
-          { name: 'department', label: 'Department' },
-          { name: 'qualification', label: 'Qualification' },
-          { name: 'experience', label: 'Experience' },
-          { name: 'signature', label: 'Signature', slot: true },
-          { name: 'action', label: 'Actions', slot: true }
-        ]"
-        :options="{ borderless: true }"
-        advanced
-      >
-        <!-- Render signature as <img> -->
-        <template #signature="slotProps">
-          <div>
-            <!-- Show image preview for image types -->
-            <img
-              v-if="typeof slotProps.value.signature === 'string' && slotProps.value.signature.startsWith('data:image')"
-              :src="slotProps.value.signature"
-              alt="Signature"
-              class="max-h-16 object-contain border rounded"
-            />
 
-            <!-- Show download link for other file types -->
-            <a
-              v-else-if="typeof slotProps.value.signature === 'string' && slotProps.value.signature.startsWith('data:')"
-              :href="slotProps.value.signature"
-              download="signature"
-              class="text-blue-600 underline"
-            >
-              Download file
-            </a>
-
-            <!-- Show fallback if nothing -->
-            <span v-else class="text-gray-400 italic">No signature</span>
-          </div>
-        </template>
-
-
-
-        <template #action="slotProps">
-          <div class="flex gap-2">
-            <rs-button size="sm" @click="() => openEditModal(slotProps.value)">
-              <Icon name="material-symbols:edit-outline-rounded" />
-            </rs-button>
-            <rs-button size="sm" variant="danger" @click="() => deletePractitioner(slotProps.value.id)">
-              <Icon name="material-symbols:delete-outline" />
-            </rs-button>
-          </div>
-        </template>
-      </rs-table>
-
+    <div v-if="isLoading" class="flex justify-center my-8">
+      <div class="flex flex-col items-center">
+        <Icon name="line-md:loading-twotone-loop" size="48" class="text-primary mb-2" />
+        <span>Loading practitioners...</span>
+      </div>
     </div>
-    <!-- <rs-modal
-      :title="isEdit ? 'Edit Practitioner' : 'Add Practitioner'"
+
+    <rs-table 
+      v-else
+      :data="tableData" 
+      :columns="[
+        { name: 'username', label: 'Username' },
+        { name: 'fullName', label: 'Full Name' },
+        { name: 'email', label: 'Email' },
+        { name: 'phone', label: 'Phone' },
+        { name: 'ic', label: 'IC' },
+        { name: 'type', label: 'Practitioner Type' },
+        { name: 'registrationNo', label: 'Registration No' },
+        { name: 'status', label: 'Status', slot: true },
+        { name: 'action', label: 'Actions', slot: true },
+      ]" advanced>
+      <template #status="row">
+        <input
+          type="checkbox"
+          class="toggle-checkbox"
+          :checked="row.value.status === 'Active'"
+          @click.prevent="confirmToggleStatus(row.value)"
+        />
+      </template>
+      
+      <template #action="row">
+        <div class="flex gap-2">
+          <!-- Edit Icon -->
+          <span
+            class="relative group cursor-pointer"
+            @click="() => openEditModal(row.value)"
+          >
+            <Icon name="material-symbols:edit" size="22" />
+          </span>
+        </div>
+      </template>
+    </rs-table>
+
+    <rs-modal
+      :title="isEdit ? 'Practitioner Details' : 'Add Practitioner'"
       ok-title="Save"
       cancel-title="Cancel"
       :ok-callback="savePractitioner"
+      :cancel-callback="() => onModalClosed()"
       v-model="showModal"
-      :overlay-close="false"
+      size="xl"
     >
-      <div class="grid grid-cols-2 gap-4">
-        <FormKit
-          type="select"
-          v-model="form.type"
-          name="type"
-          label="Practitioner Type"
-          :options="[
-            { label: '-- Please select --', value: '' },
-            { label: 'Doctor', value: 'Doctor' },
-            { label: 'Therapist', value: 'Therapist' }
-          ]"
-        />
-        <FormKit
-          type="text"
-          v-model="form.registrationNo"
-          name="registrationNo"
-          label="Registration No"
-        />
-        <FormKit
-          type="text"
-          v-model="form.specialty"
-          name="specialty"
-          label="Specialty"
-        />
-        <FormKit
-          type="text"
-          v-model="form.department"
-          name="department"
-          label="Department"
-        />
-        <FormKit
-          type="text"
-          v-model="form.qualification"
-          name="qualification"
-          label="Qualification"
-        />
-        <FormKit
-          type="text"
-          v-model="form.experience"
-          name="experience"
-          label="Experience"
-          placeholder="e.g. 5"
-        />
-        <FormKit
-          type="file"
-          name="signature"
-          label="Signature"
-          accept="image/*"
-          @input="handleSignatureUpload"
-        />
+      <!-- Action buttons for edit/view toggle -->
+      <div class="flex justify-end mb-4">
+        <rs-button class="flex items-center gap-2" v-if="!isEditing && isEdit" @click="enableEdit"> <Icon name="material-symbols:edit" />Edit Details</rs-button>
+        <rs-button class="flex items-center gap-2" v-else-if="isEditing" @click="cancelEdit"> <Icon name="material-symbols:cancel" />Cancel</rs-button>
       </div>
 
-    </rs-modal> -->
+      <!-- Side by side grid layout -->
+      <div class="grid grid-cols-2 gap-6">
+        <!-- Display each field with beautified design -->
+        <div v-for="field in [
+          { label: 'Full Name', key: 'fullName' },
+          { label: 'Email', key: 'email' },
+          { label: 'Phone', key: 'phone' },
+          { label: 'IC', key: 'ic' },
+          { label: 'Practitioner Type', key: 'type' },
+          { label: 'Registration No', key: 'registrationNo' },
+          { label: 'Specialty', key: 'specialty' },
+          { label: 'Department', key: 'department' },
+          { label: 'Qualification', key: 'qualification' },
+          { label: 'Experience', key: 'experience' },
+          { label: 'Status', key: 'status' },
+        ]" :key="field.key" class="flex flex-col gap-1">
+          <label class="text-gray-600 text-sm">{{ field.label }}</label>
+
+          <div v-if="!isEditing" class="bg-gray-50 border border-gray-200 rounded px-3 py-2">
+            {{ form[field.key] || '-' }}
+          </div>
+
+          <FormKit
+            v-else
+            :type="field.key === 'status' ? 'select' : (field.key === 'type' ? 'select' : 'text')"
+            v-model="form[field.key]"
+            :name="field.key"
+            :placeholder="field.label"
+            :options="field.key === 'status' ? ['-- Please select --', 'Active', 'Inactive'] : 
+                     (field.key === 'type' ? ['-- Please select --', 'Doctor', 'Therapist'] : undefined)"
+          />
+        </div>
+
+        <!-- Signature upload and preview spans full width -->
+        <div class="col-span-2">
+          <label class="text-gray-600 text-sm">Signature</label>
+          <div v-if="!isEditing" class="bg-gray-50 border border-gray-200 rounded px-3 py-2">
+            <!-- Show image or download link -->
+            <div v-if="form.signature">
+              <img
+                v-if="typeof form.signature === 'string' && form.signature.startsWith('data:image')"
+                :src="form.signature"
+                alt="Signature Preview"
+                class="max-h-32 rounded border"
+              />
+              <embed
+                v-else-if="typeof form.signature === 'string' && form.signature.startsWith('data:application/pdf')"
+                :src="form.signature"
+                type="application/pdf"
+                width="100%"
+                height="500px"
+              />
+              <a
+                v-else-if="typeof form.signature === 'string' && form.signature.startsWith('data:')"
+                :href="form.signature"
+                download="file"
+                class="text-blue-600 underline"
+              >
+                Download file
+              </a>
+            </div>
+            <span v-else class="text-gray-400 italic">No signature uploaded</span>
+          </div>
+
+          <FormKit
+            v-else
+            type="file"
+            name="signature"
+            label="Upload Signature"
+            accept="image/*,application/pdf"
+            @input="handleSignatureUpload"
+          />
+        </div>
+      </div>
+
+      <div v-if="isSubmitting" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
+        <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
+        <span>Updating practitioner details...</span>
+      </div>
+    </rs-modal>
+    
+    <rs-modal
+      title="Confirmation"
+      ok-title="Yes"
+      cancel-title="No"
+      :ok-callback="performToggleStatus"
+      :cancel-callback="cancelToggleStatus"
+      v-model="showConfirmToggleModal"
+      :overlay-close="false"
+    >
+      <p>
+        Are you sure you want to
+        <span v-if="pendingToggleData?.status === 'Active'">deactivate</span>
+        <span v-else>activate</span>
+        this practitioner (Username: {{ pendingToggleData?.username }})?
+      </p>
+      
+      <div v-if="isToggling" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
+        <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
+        <span>Updating status...</span>
+      </div>
+    </rs-modal>
   </div>
 </template>
+<style scoped>
+.toggle-checkbox {
+  width: 42px;
+  height: 22px;
+  appearance: none;
+  background-color: #ddd;
+  border-radius: 12px;
+  position: relative;
+  outline: none;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+.toggle-checkbox:checked {
+  background-color: #10b981;
+}
+.toggle-checkbox::before {
+  content: "";
+  width: 18px;
+  height: 18px;
+  background: white;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  border-radius: 50%;
+  transition: transform 0.3s ease;
+}
+.toggle-checkbox:checked::before {
+  transform: translateX(20px);
+}
+</style>

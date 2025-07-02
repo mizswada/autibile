@@ -891,10 +891,16 @@
           "type": "integer"
         },
         "parent_gender": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "parent_dob": {
-          "type": "string",
+          "type": [
+            "string",
+            "null"
+          ],
           "format": "date-time"
         },
         "parent_phone": {
@@ -987,6 +993,12 @@
           "type": "integer"
         },
         "patient_ic": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fullname": {
           "type": [
             "string",
             "null"
@@ -1097,24 +1109,48 @@
           "type": "integer"
         },
         "type": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "registration_no": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "specialty": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "department": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "qualifications": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "experience_years": {
-          "type": "integer"
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "signature": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
           "type": [
             "string",
             "null"
