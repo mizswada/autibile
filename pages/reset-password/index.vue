@@ -4,6 +4,41 @@ definePageMeta({
   layout: "empty",
   middleware: ["dashboard"],
 });
+
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+
+const email = ref('')
+const password = ref('')
+const confirmPassword = ref('')
+const loading = ref(false)
+const error = ref('')
+const success = ref('')
+
+const router = useRouter()
+
+async function onSubmit() {
+  error.value = ''
+  success.value = ''
+  loading.value = true
+  try {
+    const res = await $fetch('/api/auth/resetPassword', {
+      method: 'POST',
+      body: { email: email.value, password: password.value, confirmPassword: confirmPassword.value }
+    })
+    if (res.status === 200) {
+      success.value = res.message
+      setTimeout(() => {
+        router.push('/login')
+      }, 1500)
+    } else {
+      error.value = res.message || 'Reset failed'
+    }
+  } catch (e) {
+    error.value = e.data?.message || 'An error occurred'
+  }
+  loading.value = false
+}
 </script>
 
 <template>
@@ -25,15 +60,37 @@ definePageMeta({
           Please fill in the form to reset your password.
         </p>
         <div class="grid grid-cols-1">
-          <FormKit label="Email" type="email" outer-class="text-left" />
-          <FormKit label="Password" type="password" outer-class="text-left" />
+          <FormKit
+            label="Email"
+            type="email"
+            outer-class="text-left"
+            v-model="email"
+          />
+          <FormKit
+            label="Password"
+            type="password"
+            outer-class="text-left"
+            v-model="password"
+          />
           <FormKit
             label="Re-enter Password"
             type="password"
             outer-class="text-left"
+            v-model="confirmPassword"
           />
-          <NuxtLink to="/login">
-            <FormKit type="button" input-class="w-full">Reset Password</FormKit>
+          <div v-if="error" class="text-red-500 mb-2">{{ error }}</div>
+          <div v-if="success" class="text-green-600 mb-2">{{ success }}</div>
+          <FormKit
+            type="button"
+            input-class="w-full"
+            :disabled="loading"
+            @click="onSubmit"
+          >
+            <span v-if="loading">Resetting...</span>
+            <span v-else>Reset Password</span>
+          </FormKit>
+          <NuxtLink to="/login" class="block mt-4 text-blue-500 underline">
+            Back to Login
           </NuxtLink>
         </div>
       </rs-card>

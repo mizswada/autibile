@@ -13,57 +13,58 @@ export default [
     header: "Apps & Pages",
     description: "Wonderful apps",
     child: [
-      {
-        title: "Pages",
-        icon: "ic:outline-insert-drive-file",
-        child: [
-          {
-            title: "Authentication",
-            child: [
-              {
-                title: "Login V1",
-                path: "/auth/login-v1",
-              },
-              {
-                title: "Login V2",
-                path: "/auth/login-v2",
-              },
-              {
-                title: "Register V1",
-                path: "/auth/register-v1",
-              },
-              {
-                title: "Register V2",
-                path: "/auth/register-v2",
-              },
-              {
-                title: "Forgot Password V1",
-                path: "/auth/forgot-password-v1",
-              },
-              {
-                title: "Forgot Password V2",
-                path: "/auth/forgot-password-v2",
-              },
-              {
-                title: "Reset Password V1",
-                path: "/auth/reset-password-v1",
-              },
-              {
-                title: "Reset Password V2",
-                path: "/auth/reset-password-v2",
-              },
-            ],
-          },
-          {
-            title: "Error 404",
-            path: "/error/404",
-          },
-          {
-            title: "Error 500",
-            path: "/error/500",
-          },
-        ],
-      },
+      // Commented by: Firzana Huda 25 June 2025
+      // {
+      //   title: "Pages",
+      //   icon: "ic:outline-insert-drive-file",
+      //   child: [
+      //     {
+      //       title: "Authentication",
+      //       child: [
+      //         {
+      //           title: "Login V1",
+      //           path: "/auth/login-v1",
+      //         },
+      //         {
+      //           title: "Login V2",
+      //           path: "/auth/login-v2",
+      //         },
+      //         {
+      //           title: "Register V1",
+      //           path: "/auth/register-v1",
+      //         },
+      //         {
+      //           title: "Register V2",
+      //           path: "/auth/register-v2",
+      //         },
+      //         {
+      //           title: "Forgot Password V1",
+      //           path: "/auth/forgot-password-v1",
+      //         },
+      //         {
+      //           title: "Forgot Password V2",
+      //           path: "/auth/forgot-password-v2",
+      //         },
+      //         {
+      //           title: "Reset Password V1",
+      //           path: "/auth/reset-password-v1",
+      //         },
+      //         {
+      //           title: "Reset Password V2",
+      //           path: "/auth/reset-password-v2",
+      //         },
+      //       ],
+      //     },
+      //     {
+      //       title: "Error 404",
+      //       path: "/error/404",
+      //     },
+      //     {
+      //       title: "Error 500",
+      //       path: "/error/500",
+      //     },
+      //   ],
+      // },
 
       {
         title: "User Management",
@@ -83,13 +84,13 @@ export default [
           },
         ],
       },
-          {
-            title: "Doctors",
-            path: "/userManagement/doctor",
+           {
+            title: "Practitioners Management",
+            path: "/userManagement/practitioners",
           },
           {
-            title: "Therapists",
-            path: "/userManagement/therapist",
+            title: "Admin Management",
+            path: "/userManagement/admin/adminPage",
           },
           {
             title: "Users Approval",
