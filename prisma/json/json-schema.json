@@ -891,10 +891,16 @@
           "type": "integer"
         },
         "parent_gender": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "parent_dob": {
-          "type": "string",
+          "type": [
+            "string",
+            "null"
+          ],
           "format": "date-time"
         },
         "parent_phone": {
@@ -956,10 +962,24 @@
           ]
         },
         "lookup_user_parents_parent_nationalityTolookup": {
-          "$ref": "#/definitions/lookup"
+          "anyOf": [
+            {
+              "$ref": "#/definitions/lookup"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "lookup_user_parents_parent_stateTolookup": {
-          "$ref": "#/definitions/lookup"
+          "anyOf": [
+            {
+              "$ref": "#/definitions/lookup"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "user": {
           "$ref": "#/definitions/user"
@@ -971,6 +991,18 @@
       "properties": {
         "patient_id": {
           "type": "integer"
+        },
+        "patient_ic": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fullname": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "nickname": {
           "type": [
@@ -1077,24 +1109,48 @@
           "type": "integer"
         },
         "type": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "registration_no": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "specialty": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "department": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "qualifications": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "experience_years": {
-          "type": "integer"
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "signature": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
           "type": [
             "string",
             "null"
