@@ -314,3 +314,14 @@ model user_practitioners {
 
   @@index([user_id], map: "fk_user_id")
 }
+
+model therapyst_center {
+  center_ID       Int       @id @default(autoincrement())
+  center_name     String    @db.VarChar(255)
+  center_phone    String    @db.VarChar(15)
+  center_address  String    @db.Text
+  center_location String    @db.VarChar(255)
+  created_at      DateTime  @db.Timestamp(0)
+  updated_at      DateTime  @db.Timestamp(0)
+  deleted_at      DateTime? @db.Timestamp(0)
+}
