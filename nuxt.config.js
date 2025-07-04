@@ -31,14 +31,14 @@ export default defineNuxtConfig({
     },
   },
   head: {
-    title: "corrad",
+    title: "Autibile",
     meta: [
       { charset: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       {
         hid: "description",
         name: "description",
-        content: "corrad",
+        content: "Autibile",
       },
     ],
     link: [{ rel: "icon", type: "image/x-icon", href: "/favicon.ico" }],
@@ -68,9 +68,9 @@ export default defineNuxtConfig({
       type: "module",
     },
     manifest: {
-      name: "corrad",
-      short_name: "corrad",
-      theme_color: "#202D3B",
+      name: "Autibile",
+      short_name: "Autibile",
+      theme_color: "#99dbfd",
       background_color: "#FAFAFA",
       display: "standalone",
       scope: "./",
