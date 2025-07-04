@@ -472,6 +472,12 @@
             "null"
           ]
         },
+        "header": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "status": {
           "type": [
             "string",
@@ -672,6 +678,12 @@
         "score": {
           "type": [
             "integer",
+            "null"
+          ]
+        },
+        "text_answer": {
+          "type": [
+            "string",
             "null"
           ]
         },
@@ -1224,7 +1236,10 @@
           "format": "date-time"
         },
         "updated_at": {
-          "type": "string",
+          "type": [
+            "string",
+            "null"
+          ],
           "format": "date-time"
         },
         "deleted_at": {
