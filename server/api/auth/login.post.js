@@ -16,9 +16,11 @@ export default defineEventHandler(async (event) => {
 
     const user = await prisma.user.findFirst({
       where: {
-        userUsername: username,
+        userEmail: username,
       },
     });
+
+    // console.log('user',user);
 
     if (!user) {
       return {
