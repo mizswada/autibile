@@ -1,5 +1,3 @@
-import prisma from "@@/server/config/prisma-client"
-
 export default defineEventHandler(async (event) => {
   if (event.method !== 'DELETE') {
     return { status: 405, message: 'Method Not Allowed' }

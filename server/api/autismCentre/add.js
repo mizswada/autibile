@@ -1,5 +1,3 @@
-import prisma from "@@/server/config/prisma-client"
-
 import { DateTime } from "luxon";
  
 export default defineEventHandler(async (event) => {

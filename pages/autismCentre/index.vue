@@ -175,6 +175,13 @@ onMounted(fetchCentres)
         :disabled="modalType == 'edit' ? true : false"
       />
       <FormKit
+        type="text"
+        v-model="showModalForm.center_location"
+        name="location"
+        label="Location"
+        :disabled="modalType == 'edit' ? true : false"
+      />
+      <FormKit
         type="number"
         v-model="showModalForm.center_phone"
         name="contactNumber"

@@ -1,5 +1,3 @@
-import prisma from "@@/server/config/prisma-client"
-
 export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
