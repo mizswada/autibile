@@ -128,8 +128,27 @@ export default [
 
        {
         title: "Manage Questionnaire",
-        icon: "ic:outline-question-answer",
+        icon: "material-symbols:quiz-outline",
         path: "/questionnaire",
+        children: [
+          {
+            title: "Manage Questionnaires",
+            path: "/questionnaire",
+          },
+          {
+            title: "View Responses",
+            path: "/questionnaire/results",
+          },
+          {
+            title: "Take Questionnaire",
+            path: "/questionnaire",
+            click: (router) => {
+              // This will be handled in the questionnaire index page
+              // User will select which questionnaire to take
+              router.push('/questionnaire');
+            }
+          },
+        ],
       },
 
       {

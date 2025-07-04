@@ -472,6 +472,12 @@
             "null"
           ]
         },
+        "header": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "status": {
           "type": [
             "string",
@@ -540,6 +546,12 @@
         "is_required": {
           "type": [
             "boolean",
+            "null"
+          ]
+        },
+        "answer_type": {
+          "type": [
+            "integer",
             "null"
           ]
         },
@@ -666,6 +678,12 @@
         "score": {
           "type": [
             "integer",
+            "null"
+          ]
+        },
+        "text_answer": {
+          "type": [
+            "string",
             "null"
           ]
         },

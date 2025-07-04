@@ -1,21 +1,24 @@
 <script setup>
 import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 
+const router = useRouter();
 const modalErrorMessage = ref('');
 const questionnaires = ref([]);
+const isLoading = ref(true);
 
 const showQuestionnaireModal = ref(false);
 const newQuestionnaire = ref({ name: '', description: '', status: '' });
 const isEditingQuestionnaire = ref(false);
 const editQuestionnaireId = ref(null);
 
-const showQuestionModal = ref(false);
-const currentQuestionnaireId = ref(null);
-const newQuestion = ref({ question: '' });
-const isEditingQuestion = ref(false);
-const editQuestionId = ref(null);
 const message = ref('');
 const messageType = ref('success'); // 'success' or 'error'
+
+// For status toggle
+const showConfirmToggleModal = ref(false);
+const pendingToggleQuestionnaire = ref(null);
+const isTogglingStatus = ref(false);
 
 function showMessage(msg, type = 'success') {
   message.value = msg;
@@ -30,6 +33,7 @@ function showMessage(msg, type = 'success') {
 onMounted(fetchQuestionnaires)
 
 async function fetchQuestionnaires() {
+  isLoading.value = true;
   try {
     const res = await fetch('/api/questionnaire/listQuestionnaires')
     const result = await res.json()
@@ -57,6 +61,8 @@ async function fetchQuestionnaires() {
     }
   } catch (err) {
     console.error('Error loading questionnaires:', err)
+  } finally {
+    isLoading.value = false;
   }
 }
 
@@ -89,149 +95,120 @@ async function saveQuestionnaire() {
   };
 
   try {
-    const res = await fetch('/api/questionnaire/insert', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    let res;
+    let result;
 
-    const result = await res.json();
-
-    if (res.ok && result.data) {
-      questionnaires.value.push({
-        id: result.data.id,
-        name: result.data.title,
-        description: result.data.description,
-        status: result.data.status,
-        questions: [],
-      })
-      showQuestionnaireModal.value = false
-      modalErrorMessage.value = ''
-      showMessage('Questionnaire inserted successfully.', 'success')
-    } else {
-      console.error('Failed to insert questionnaire:', result.message);
-      modalErrorMessage.value = result.message || 'Failed to insert questionnaire.';
-    }
-  } catch (err) {
-    console.error('Error while inserting questionnaire:', err);
-  }
-}
-
-
-async function deleteQuestionnaire(id) {
-  const confirmDelete = confirm('Are you sure you want to delete this questionnaire and all its questions?');
-  if (!confirmDelete) return;
-
-  try {
-    const res = await fetch(`/api/questionnaire/delete?questionnaireID=${id}`, {
-      method: 'DELETE',
-    });
-    const result = await res.json();
-
-    if (res.ok) {
-      questionnaires.value = questionnaires.value.filter(q => q.id !== id);
-      showMessage('Questionnaire deleted successfully.', 'success');
-    } else {
-      showMessage(result.message || 'Failed to delete questionnaire', 'error');
-    }
-  } catch (err) {
-    console.error('Delete error:', err);
-    showMessage('Internal server error', 'error');
-  }
-}
-
-
-
-function openAddQuestionModal(questionnaireId) {
-  currentQuestionnaireId.value = questionnaireId;
-  newQuestion.value = {
-    question_bm: '',
-    question_en: '',
-    requiredQuestion: '',
-    status: '',
-  };
-  isEditingQuestion.value = false;
-  editQuestionId.value = null;
-  showQuestionModal.value = true;
-}
-
-function openEditQuestionModal(questionnaireId, question) {
-  currentQuestionnaireId.value = questionnaireId
-  newQuestion.value = {
-    question_bm: question.question_bm,
-    question_en: question.question_en,
-    requiredQuestion: question.requiredQuestion,
-    status: question.status
-  }
-  isEditingQuestion.value = true
-  editQuestionId.value = question.id
-  showQuestionModal.value = true
-}
-
-async function saveQuestion() {
-  const questionnaire = questionnaires.value.find(q => q.id === currentQuestionnaireId.value);
-  if (!questionnaire) return;
-
-  const payload = {
-    questionnaire_id: currentQuestionnaireId.value,
-    question_bm: newQuestion.value.question_bm,
-    question_en: newQuestion.value.question_en,
-    requiredQuestion: newQuestion.value.requiredQuestion,
-    status: newQuestion.value.status,
-  };
-
-  try {
-    const res = await fetch('/api/questionnaire/questions/insertQuestions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    const result = await res.json();
-
-    if (res.ok && result.data) {
-      showQuestionModal.value = false;
-      modalErrorMessage.value = '';
-      showMessage('Question inserted successfully.', 'success');
-
-      // 🔁 Auto-refresh the full list (to get updated questions)
-      await fetchQuestionnaires();
-    } else {
-      console.error('Failed to insert question:', result.message);
-      modalErrorMessage.value = result.message || 'Failed to insert question.';
-    }
-  } catch (err) {
-    console.error('Error inserting question:', err);
-  }
-}
-
-
-async function deleteQuestion(questionnaireId, questionId) {
-  const confirmDelete = confirm('Are you sure you want to delete this question?');
-  if (!confirmDelete) return;
-
-  try {
-    const res = await fetch(`/api/questionnaire/questions/deleteQuestions?questionID=${questionId}`, {
-      method: 'DELETE',
-    });
-    const result = await res.json();
-
-    if (res.ok) {
-      const questionnaire = questionnaires.value.find(q => q.id === questionnaireId);
-      if (questionnaire) {
-        questionnaire.questions = questionnaire.questions.filter(q => q.id !== questionId);
+    if (isEditingQuestionnaire.value) {
+      // Update existing questionnaire
+      res = await fetch('/api/questionnaire/update', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...payload,
+          questionnaireID: editQuestionnaireId.value
+        }),
+      });
+      
+      result = await res.json();
+      
+      if (res.ok && result.data) {
+        // Update the questionnaire in the local array
+        const index = questionnaires.value.findIndex(q => q.id === editQuestionnaireId.value);
+        if (index !== -1) {
+          questionnaires.value[index] = {
+            ...questionnaires.value[index],
+            name: result.data.title,
+            description: result.data.description,
+            status: result.data.status
+          };
+        }
+        
+        showQuestionnaireModal.value = false;
+        modalErrorMessage.value = '';
+        showMessage('Questionnaire updated successfully.', 'success');
+      } else {
+        console.error('Failed to update questionnaire:', result.message);
+        modalErrorMessage.value = result.message || 'Failed to update questionnaire.';
       }
-      showMessage('Question deleted successfully.', 'success');
     } else {
-      showMessage(result.message || 'Failed to delete question', 'error');
+      // Create new questionnaire
+      res = await fetch('/api/questionnaire/insert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      
+      result = await res.json();
+      
+      if (res.ok && result.data) {
+        questionnaires.value.push({
+          id: result.data.questionnaire_id,
+          name: result.data.title,
+          description: result.data.description,
+          status: result.data.status,
+          questions: [],
+        });
+        
+        showQuestionnaireModal.value = false;
+        modalErrorMessage.value = '';
+        showMessage('Questionnaire inserted successfully.', 'success');
+      } else {
+        console.error('Failed to insert questionnaire:', result.message);
+        modalErrorMessage.value = result.message || 'Failed to insert questionnaire.';
+      }
     }
   } catch (err) {
-    console.error('Delete error:', err);
-    showMessage('Internal server error', 'error');
+    console.error('Error while saving questionnaire:', err);
+    modalErrorMessage.value = 'An unexpected error occurred.';
   }
 }
 
+// Status toggle functions
+function confirmToggleStatus(questionnaire) {
+  pendingToggleQuestionnaire.value = questionnaire;
+  showConfirmToggleModal.value = true;
+}
 
+function cancelToggleStatus() {
+  pendingToggleQuestionnaire.value = null;
+  showConfirmToggleModal.value = false;
+}
+
+async function performToggleStatus() {
+  const questionnaire = pendingToggleQuestionnaire.value;
+  const newStatus = questionnaire.status === 'Active' ? 'Inactive' : 'Active';
+  isTogglingStatus.value = true;
+
+  try {
+    const res = await fetch('/api/questionnaire/updateStatus', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        questionnaireID: questionnaire.id, 
+        status: newStatus 
+      }),
+    });
+
+    const result = await res.json();
+    if (res.ok) {
+      questionnaire.status = newStatus;
+      showMessage(`Questionnaire status updated to ${newStatus}`, 'success');
+    } else {
+      showMessage(`Error updating status: ${result.message}`, 'error');
+    }
+  } catch (err) {
+    console.error('Status update error:', err);
+    showMessage('An error occurred while updating status.', 'error');
+  } finally {
+    showConfirmToggleModal.value = false;
+    pendingToggleQuestionnaire.value = null;
+    isTogglingStatus.value = false;
+  }
+}
+
+function navigateToQuestions(questionnaireId) {
+  router.push(`/questionnaire/questions/${questionnaireId}`);
+}
 </script>
 
 <style>
@@ -240,71 +217,133 @@ async function deleteQuestion(questionnaireId, questionId) {
   color: red;
   margin-left: 4px;
 }
+
+.toggle-checkbox {
+  width: 42px;
+  height: 22px;
+  appearance: none;
+  background-color: #ddd;
+  border-radius: 12px;
+  position: relative;
+  outline: none;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+.toggle-checkbox:checked {
+  background-color: #10b981;
+}
+.toggle-checkbox::before {
+  content: "";
+  width: 18px;
+  height: 18px;
+  background: white;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  border-radius: 50%;
+  transition: transform 0.3s ease;
+}
+.toggle-checkbox:checked::before {
+  transform: translateX(20px);
+}
 </style>
 
 <template>
   <div>
-    <h1 class="text-2xl font-bold mb-4">Questionnaire Management</h1>
+    <div class="flex justify-between items-center mb-4">
+      <h1 class="text-2xl font-bold">Questionnaires</h1>
+      <div class="flex gap-2">
+        <rs-button @click="router.push('/questionnaire/results')">
+          <Icon name="material-symbols:analytics-outline" class="mr-1" />
+          View Responses
+        </rs-button>
+        <rs-button @click="openAddQuestionnaireModal">
+          <Icon name="material-symbols:add" class="mr-1" />
+          Add Questionnaire
+        </rs-button>
+      </div>
+    </div>
     <div v-if="message" class="mb-4 p-3 rounded text-white"
         :class="messageType === 'success' ? 'bg-green-500' : 'bg-red-500'">
       {{ message }}
     </div>
 
-
-    <div class="flex justify-end mb-4">
-      <rs-button @click="openAddQuestionnaireModal">
-        <Icon name="material-symbols:add" class="mr-1" />
-        Add Questionnaire
-      </rs-button>
+    <!-- Loading indicator -->
+    <div v-if="isLoading" class="flex justify-center my-8">
+      <div class="flex flex-col items-center">
+        <Icon name="line-md:loading-twotone-loop" size="48" class="text-primary mb-2" />
+        <span>Loading questionnaires...</span>
+      </div>
     </div>
 
-    <div v-for="q in questionnaires" :key="q.id" class="card mb-6 p-4">
+    <!-- No data display -->
+    <div v-else-if="questionnaires.length === 0" class="card p-8 text-center">
+      <div class="flex flex-col items-center">
+        <Icon name="material-symbols:folder-off-outline" size="64" class="text-gray-400 mb-4" />
+        <h3 class="text-xl font-medium text-gray-600 mb-2">No Questionnaires Found</h3>
+        <p class="text-gray-500 mb-6">There are no questionnaires in the system yet.</p>
+        <rs-button @click="openAddQuestionnaireModal">
+          <Icon name="material-symbols:add" class="mr-1" />
+          Create Your First Questionnaire
+        </rs-button>
+      </div>
+    </div>
+
+    <!-- Questionnaire list -->
+    <div v-else v-for="q in questionnaires" :key="q.id" class="card mb-6 p-4">
       <div class="flex justify-between items-center mb-2">
         <div>
           <h2 class="text-xl font-semibold">{{ q.name }}</h2>
           <p class="text-sm text-gray-500">{{ q.description }} | <span :class="q.status === 'Active' ? 'text-green-600' : 'text-red-500'">{{ q.status }}</span></p>
+          <p class="text-sm text-gray-500 mt-1">
+            <span class="font-medium">Questions:</span> {{ q.questions.length }}
+          </p>
         </div>
-        <div class="flex gap-2">
+        <div class="flex gap-2 items-center">
+          <div class="flex items-center gap-2 mr-2">
+            <span class="text-sm text-gray-500">Status:</span>
+            <input
+              type="checkbox"
+              class="toggle-checkbox"
+              :checked="q.status === 'Active'"
+              @click.prevent="confirmToggleStatus(q)"
+            />
+          </div>
           <rs-button size="sm" @click="openEditQuestionnaireModal(q)">
             <Icon name="material-symbols:edit-outline-rounded" />
           </rs-button>
-          <rs-button size="sm" variant="danger" @click="deleteQuestionnaire(q.id)">
-            <Icon name="material-symbols:delete-outline" />
+          <rs-button size="sm" @click="() => {
+            console.log('Navigating to questions page with questionnaire ID:', q.id);
+            router.push(`/questionnaire/questions/${q.id}`);
+          }">
+            <Icon
+              name="material-symbols:list-alt-outline"
+              class="text-blue-500 hover:text-blue-600 cursor-pointer"
+              size="22"
+              title="Manage Questions"
+            />
           </rs-button>
-          <rs-button size="sm" @click="openAddQuestionModal(q.id)">
-            <Icon name="material-symbols:add" class="mr-1" />
-            Add Question
-          </rs-button>
+          <Icon
+            name="material-symbols:play-arrow-rounded"
+            class="text-green-500 hover:text-green-600 cursor-pointer"
+            size="22"
+            @click="router.push(`/questionnaire/take/${q.id}`)"
+            title="Take Questionnaire"
+          />
         </div>
       </div>
+    </div>
 
-      <rs-table
-        :data="q.questions"
-        :columns="[
-          { name: 'question', label: 'Question' },
-          { name: 'action', label: 'Actions', slot: true }
-        ]"
-        :options="{ borderless: true }"
-      >
-        <template #action="slotProps">
-          <div class="flex gap-2">
-              <Icon
-                name="material-symbols:edit-outline-rounded"
-                class="text-primary hover:text-primary/90 cursor-pointer"
-                size="22"
-                @click="openEditQuestionModal(q.id, slotProps.value)"
-              />
-
-              <!-- Delete Button -->
-              <Icon
-                name="material-symbols:close-rounded"
-                class="text-primary hover:text-primary/90 cursor-pointer"
-                size="22"
-                @click="deleteQuestion(q.id, slotProps.value.id)"
-              />
-          </div>
-        </template>
-      </rs-table>
+    <!-- Add a help section explaining the workflow -->
+    <div class="card p-4 mb-6 bg-blue-50 border border-blue-200">
+      <h3 class="font-semibold text-lg mb-2">How to Create a Complete Questionnaire</h3>
+      <ol class="list-decimal ml-6 space-y-2">
+        <li>Create a questionnaire using the <strong>Add Questionnaire</strong> button</li>
+        <li>Add questions to your questionnaire using the <strong>Manage Questions</strong> button</li>
+        <li>For each question, add answer options using the <strong>Manage Options</strong> button</li>
+        <li>Once you've added options to your questions, use the <strong>Take Questionnaire</strong> button to test it</li>
+        <li>View responses using the <strong>View Responses</strong> button</li>
+      </ol>
     </div>
 
     <!-- Add/Edit Questionnaire Modal -->
@@ -374,87 +413,27 @@ async function deleteQuestion(questionnaireId, questionId) {
       </FormKit>
     </rs-modal>
 
-
-    <!-- Add/Edit Question Modal -->
+    <!-- Toggle confirmation modal -->
     <rs-modal
-      :title="isEditingQuestion ? 'Edit Question' : 'Add Question'"
-      v-model="showQuestionModal"
+      title="Confirmation"
+      ok-title="Yes"
+      cancel-title="No"
+      :ok-callback="performToggleStatus"
+      :cancel-callback="cancelToggleStatus"
+      v-model="showConfirmToggleModal"
       :overlay-close="false"
-      :hide-footer="true"
     >
-      <div v-if="modalErrorMessage" class="mb-3 p-2 rounded bg-red-100 text-red-700 border border-red-300">
-        {{ modalErrorMessage }}
+      <p>
+        Are you sure you want to
+        <span v-if="pendingToggleQuestionnaire?.status === 'Active'">deactivate</span>
+        <span v-else>activate</span>
+        this questionnaire ({{ pendingToggleQuestionnaire?.name }})?
+      </p>
+
+      <div v-if="isTogglingStatus" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
+        <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
+        <span>Updating status...</span>
       </div>
-
-      <FormKit type="form" @submit="saveQuestion" :actions="false">
-        <FormKit
-          type="text"
-          v-model="newQuestion.question_bm"
-          name="questionTextBm"
-          label="Question"
-          placeholder="Enter question in Bahasa Malaysia"
-          validation="required"
-          validation-visibility="dirty"
-          :validation-messages="{ required: 'This field is required' }"
-        />
-
-        <FormKit
-          type="text"
-          v-model="newQuestion.question_en"
-          name="questionTextEn"
-          label="Question in English"
-          placeholder="Enter question in English"
-          validation="required"
-          validation-visibility="dirty"
-          :validation-messages="{ required: 'This field is required' }"
-        />
-
-        <FormKit
-          type="select"
-          v-model="newQuestion.requiredQuestion"
-          label="Required Question"
-          :options="[
-            { label: '-- Please select --', value: '' },
-            { label: 'Yes', value: '1' },
-            { label: 'No', value: '0' }
-          ]"
-          validation="required"
-          validation-visibility="dirty"
-          :validation-messages="{ required: 'This field is required' }"
-        />
-
-        <FormKit
-          type="select"
-          v-model="newQuestion.status"
-          label="Question Status"
-          :options="[
-            { label: '-- Please select --', value: '' },
-            { label: 'Active', value: 'Active' },
-            { label: 'Inactive', value: 'Inactive' }
-          ]"
-          validation="required"
-          validation-visibility="dirty"
-          :validation-messages="{ required: 'This field is required' }"
-        />
-        <!-- Custom Footer -->
-        <div class="flex justify-end gap-2 mt-4">
-          <button
-            type="button"
-            class="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400 text-black"
-            @click="showQuestionnaireModal = false"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            class="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            Save
-          </button>
-        </div>
-      </FormKit>
     </rs-modal>
-
-
   </div>
 </template>

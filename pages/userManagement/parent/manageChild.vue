@@ -20,7 +20,7 @@ const isRemovingChild = ref(false);
 const columns = [
   { name: 'parentUsername', label: 'Parent Username' },
   { name: 'fullname', label: 'Full Name' },
-  { name: 'nickname', label: 'Nickname' },
+  // { name: 'nickname', label: 'Nickname' },
   { name: 'gender', label: 'Gender' },
   { name: 'autismDiagnose', label: 'Autism Diagnose' },
   { name: 'diagnosedDate', label: 'Diagnosed Date' },
@@ -131,7 +131,7 @@ onMounted(async () => {
         childIC: p.icNumber, // ensure your API returns ic field as 'ic'
         parentUsername: p.parentUsername,
         fullname: p.fullname || '',
-        nickname: p.nickname,
+        // nickname: p.nickname,
         gender: p.gender,
         autismDiagnose: p.autismDiagnose,
         diagnosedDate: new Date(p.diagnosedDate).toISOString().split('T')[0],
@@ -153,7 +153,7 @@ const tableData = computed(() =>
     parentUsername: p.parentUsername,
     fullname: p.fullname,
     childIC: p.childIC,
-    nickname: p.nickname,
+    // nickname: p.nickname,
     autismDiagnose: p.autismDiagnose,
     diagnosedDate: p.diagnosedDate,
     availableSession: p.availableSession,

@@ -18,6 +18,7 @@ export default defineEventHandler(async (event) => {
         question_en,
         requiredQuestion,
         status,
+        answer_type,
       } = body;
   
       // Basic validation
@@ -27,6 +28,7 @@ export default defineEventHandler(async (event) => {
         question_en === undefined || question_en.trim() === '' ||
         requiredQuestion === undefined || requiredQuestion === '' ||
         status === undefined || status === ''
+        // Not making answer_type required since it might not be in the schema
       ) {
         return {
           statusCode: 400,
@@ -34,14 +36,18 @@ export default defineEventHandler(async (event) => {
         };
       }
 
-      // Save to DB
+      // Save to DB - use the correct relation format for questionnaires
       const saved = await prisma.questionnaires_questions.create({
         data: {
-          questionnaire_id: questionnaire_id,
-          question_text_bm	: question_bm,
+          questionnaires: {
+            connect: { questionnaire_id: parseInt(questionnaire_id) }
+          },
+          question_text_bm: question_bm,
           question_text_bi: question_en,
-          is_required: Boolean(requiredQuestion),
+          is_required: requiredQuestion === '1' || requiredQuestion === true ? true : false,
           status: status,
+          // Only include answer_type if it's provided and not empty
+          ...(answer_type && answer_type !== '' ? { answer_type: parseInt(answer_type) } : {}),
           created_at: new Date(),
         },
       });
@@ -56,7 +62,7 @@ export default defineEventHandler(async (event) => {
       console.error("Error inserting question:", error);
       return {
         statusCode: 500,
-        message: "Internal server error",
+        message: `Internal server error: ${error.message}`,
       };
     }
   });

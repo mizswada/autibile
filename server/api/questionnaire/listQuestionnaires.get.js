@@ -8,14 +8,27 @@ export default defineEventHandler(async (event) => {
           message: "Unauthorized: Missing user session",
         };
       }
+      
+      // Get query parameters
+      const query = getQuery(event);
+      const { questionnaireID } = query;
+      
+      // Build where clause
+      const whereClause = {};
+      
+      if (questionnaireID) {
+        whereClause.questionnaire_id = parseInt(questionnaireID);
+      }
   
       // Step 1: Get all questionnaires
       const questionnaires = await prisma.questionnaires.findMany({
+        where: whereClause,
         orderBy: { created_at: 'desc' },
         select: {
           questionnaire_id: true,
           title: true,
           description: true,
+          header: true,
           status: true,
         },
       });
