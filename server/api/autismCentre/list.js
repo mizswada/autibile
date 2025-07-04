@@ -11,18 +11,17 @@ export default defineEventHandler(async (event) => {
       };
     }
  
-    const centre = await prisma.therapyst_centre.findFirst({
+    const centre = await prisma.therapyst_center.findFirst({
       where: {
-        centre_id: parseInt(centreID),
+        center_id: parseInt(centreID),
       },
       select: {
-        centre_id: true,
-        centre_name: true,
+        center_id: true,
+        center_name: true,
         center_phone: true,
         center_address: true,
         center_location: true,
         created_at: true,
-       
       },
     });
  
@@ -35,12 +34,12 @@ export default defineEventHandler(async (event) => {
  
     // Transform the data to match the expected format
     const autismCentre = {
-      centreID: centre.center_id,
-      centreName: centre.center_name,
-      centerPhone: centre.center_phone,
-      centerAddress: centre.center_address,
-      centerLocation: centre.center_location,
-      createdDate: centre.created_at,
+      center_id: centre.center_id,
+      center_name: centre.center_name,
+      center_phone: centre.center_phone,
+      center_address: centre.center_address,
+      center_location: centre.center_location,
+      created_at: centre.created_at,
     };
  
     return {
@@ -56,4 +55,5 @@ export default defineEventHandler(async (event) => {
     };
   }
 });
+
   

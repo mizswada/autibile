@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
   }
   try {
     const deleted = await prisma.therapyst_center.delete({
-      where: { id: id }
+      where: { center_id: parseInt(id) }
     })
     return { status: 200, data: deleted }
   } catch (e) {

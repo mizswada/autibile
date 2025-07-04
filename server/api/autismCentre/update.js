@@ -6,8 +6,11 @@ export default defineEventHandler(async (event) => {
     const { user } = event.context.user;
  
     const { center_name, center_phone, center_address, center_location } = body;
- 
-   if (!center_name || !center_phone || !center_address || !center_location) {
+
+    // Get centreID from query
+    const centreID = getQuery(event).id;
+
+    if (!centreID || !center_name || !center_phone || !center_address || !center_location) {
       return {
         statusCode: 400,
         message: "Missing required fields",
@@ -15,15 +18,15 @@ export default defineEventHandler(async (event) => {
     }
     const autismCenter = await prisma.therapyst_center.update({
       where: {
-        centre_id: parseInt(centreID),
+        center_id: parseInt(centreID),
       },
       data: {
-        center_id: user.centerID,
         center_name: center_name,
-        center_phone: phone,
-        center_address: address,
-        center_location: location,
-        created_at: DateTime.now().toISO(),
+        center_phone: center_phone,
+        center_address: center_address,
+        center_location: center_location,
+        // Optionally update created_at if needed
+        // created_at: DateTime.now().toISO(),
       },
     });
  

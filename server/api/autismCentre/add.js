@@ -16,15 +16,13 @@ export default defineEventHandler(async (event) => {
     }
     const autismCenter = await prisma.therapyst_center.create({
       data: {
-        center_id: user.centerID,
         center_name: center_name,
-        center_phone: phone,
-        center_address: address,
-        center_location: location,
+        center_phone: center_phone,
+        center_address: center_address,
+        center_location: center_location,
         created_at: DateTime.now().toISO(),
       },
     });
-        alert (JSON.stringify(autismCenter));
 
     if (!autismCenter) {
       return {
@@ -46,4 +44,5 @@ export default defineEventHandler(async (event) => {
     };
   }
 });
+ 
 
