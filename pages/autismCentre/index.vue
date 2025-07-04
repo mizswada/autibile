@@ -75,14 +75,18 @@ async function saveCentre() {
         }
       })
     } else {
-      await $fetch('/api/autismCentre/add', {
+      console.log(showModalForm.value);
+      await fetch('/api/autismCentre/add', {
         method: 'POST',
-        body: {
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
           center_name: showModalForm.value.center_name,
           center_address: showModalForm.value.center_address,
           center_phone: showModalForm.value.center_phone,
           center_location: showModalForm.value.center_location
-        }
+        }),
       })
     }
     showModal.value = false
@@ -174,7 +178,7 @@ onMounted(fetchCentres)
       :disabled="modalType == 'edit' ? true : false"
     />
     <FormKit
-      type="number"
+      type="text"
       v-model="showModalForm.center_phone"
       name="contactNumber"
       label="Contact Number"

@@ -15,10 +15,6 @@ export default defineEventHandler(async (event) => {
         message: "Missing required fields",
       };
     }
- 
-   
- 
-    // Update animal record
     const autismCenter = await prisma.therapyst_center.update({
       where: {
         centre_id: parseInt(centreID),
