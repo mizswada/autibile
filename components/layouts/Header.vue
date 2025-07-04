@@ -1,8 +1,25 @@
 <script setup>
 const isVertical = ref(true);
 const isDesktop = ref(true);
-
+import { useUserStore } from "~/stores/user";
+    
+const userStore = useUserStore();
 const emit = defineEmits(["toggleMenu"]);
+// alert(JSON.stringify(userStore));
+// const { locale } = useI18n();
+// const colorMode = useColorMode();
+// alert(JSON.stringify(userStore.email));
+const uid = await useFetch("/api/findUser", {
+    method: "GET",
+    query: {
+        id: userStore.email,
+    },
+});
+
+console.log('uid',uid.data.value);
+
+// const userid=uid.data.value.data;
+// const id = computed(() => userid);
 
 // const { locale } = useI18n();
 // const colorMode = useColorMode();
@@ -85,7 +102,7 @@ onMounted(() => {
       </div>
 
       <div class="flex gap-2 item-center justify-items-end">
-        <VDropdown placement="bottom-end" distance="13" name="language">
+        <!-- <VDropdown placement="bottom-end" distance="13" name="language">
           <button class="icon-btn h-10 w-10 rounded-full">
             <country-flag :country="languageNow.flagCode" />
           </button>
@@ -108,6 +125,7 @@ onMounted(() => {
             </ul>
           </template>
         </VDropdown>
+
         <VDropdown placement="bottom-end" distance="13" name="theme">
           <button class="icon-btn h-10 w-10 rounded-full">
             <Icon size="22px" name="material-symbols:format-paint-rounded" />
@@ -200,13 +218,13 @@ onMounted(() => {
               </NuxtScrollbar>
             </ul>
           </template>
-        </VDropdown>
+        </VDropdown> -->
 
         <VDropdown placement="bottom-end" distance="13" name="profile">
           <button class="icon-btn profile px-2">
             <img
               class="w-8 h-8 object-cover rounded-full"
-              src="@/assets/img/user/default.svg"
+              src="@/assets/img/user/user.webp"
             />
             <div
               v-if="isDesktop"

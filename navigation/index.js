@@ -105,7 +105,7 @@ export default [
         child: [
           {
             title: "New Appointment",
-            path: "/appointmentManagement/newAppointment",
+            path: "/appointmentManagement/newAppointment/index",
           },
           {
             title: "Scheduled Appointment",
@@ -171,9 +171,9 @@ export default [
         ],
       },
        {
-        title: "Therapy Plan Management",
+        title: "Therapy Service Management",
         icon: "ic:outline-emoji-people",
-        path: "/therapyAndActivity",
+        path: "/therapyService",
       },
       {
         title: "Profile",
