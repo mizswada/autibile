@@ -1236,7 +1236,10 @@
           "format": "date-time"
         },
         "updated_at": {
-          "type": "string",
+          "type": [
+            "string",
+            "null"
+          ],
           "format": "date-time"
         },
         "deleted_at": {

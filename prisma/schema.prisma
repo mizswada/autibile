@@ -328,6 +328,6 @@ model therapyst_center {
   center_address  String    @db.Text
   center_location String    @db.VarChar(255)
   created_at      DateTime  @db.Timestamp(0)
-  updated_at      DateTime  @db.Timestamp(0)
+  updated_at      DateTime? @db.Timestamp(0)
   deleted_at      DateTime? @db.Timestamp(0)
 }

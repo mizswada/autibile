@@ -1,54 +1,37 @@
-
 export default defineEventHandler(async (event) => {
   try {
-    const query = getQuery(event);
-    const { user } = event.context.user;
-    const centreID = query.centreID;
- 
-    if (!centreID) {
-      return {
-        statusCode: 400,
-        message: "Centre ID is required",
-      };
-    }
- 
-    const centre = await prisma.therapyst_centre.findFirst({
-      where: {
-        centre_id: parseInt(centreID),
-      },
+   
+    const centres = await prisma.therapyst_center.findMany({
       select: {
-        centre_id: true,
-        centre_name: true,
+        center_ID: true,
+        center_name: true,
         center_phone: true,
         center_address: true,
-        center_location: true,
-        created_at: true,
-       
+        center_location: true,       
       },
+      where: {
+        deleted_at: null
+      },
+      orderBy: {
+        center_ID: 'asc'
+      }
     });
  
-    if (!centre) {
-      return {
-        statusCode: 400,
-        message: "Centre not found",
-      };
+    if (!centres || centres.length === 0) {
+      return [];
     }
  
     // Transform the data to match the expected format
-    const autismCentre = {
-      centreID: centre.center_id,
-      centreName: centre.center_name,
-      centerPhone: centre.center_phone,
-      centerAddress: centre.center_address,
-      centerLocation: centre.center_location,
-      createdDate: centre.created_at,
-    };
+    const transformedCentres = centres.map((centre, index) => ({
+      no: index + 1,
+      id: centre.center_ID,
+      center_name: centre.center_name,
+      center_phone: centre.center_phone,
+      center_address: centre.center_address,
+      center_location: centre.center_location,
+    }));
  
-    return {
-      statusCode: 200,
-      message: "Centre found",
-      data: autismCentre,
-    };
+    return transformedCentres;
   } catch (error) {
     console.log(error);
     return {
