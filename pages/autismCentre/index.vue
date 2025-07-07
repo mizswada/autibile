@@ -22,6 +22,7 @@ const showModalDeleteForm = ref({
 })
 
 const columns = [
+  { name: 'id', label: 'Centre ID' },
   { name: 'center_name', label: 'Centre Name' },
   { name: 'center_address', label: 'Address' },
   { name: 'center_phone', label: 'Contact Number' },
@@ -33,7 +34,7 @@ async function fetchCentres() {
   error.value = ''
   try {
     const res = await $fetch('/api/autismCentre/list')
-    centres.value = Array.isArray(res) ? res : (res.data ? [res.data] : [])
+    centres.value = Array.isArray(res) ? res : []
   } catch (e) {
     error.value = 'Failed to load centres'
   }
@@ -63,9 +64,11 @@ function openModalDelete(value) {
 
 async function saveCentre() {
   error.value = ''
+  // alert(JSON.stringify(modalType.value));
   try {
-    if (modalType.value === 'edit') {
-      await $fetch(`/api/autismCentre/update?id=${showModalForm.value.id}`, {
+    if (modalType.value === 'edit') 
+    {
+      const res = await $fetch(`/api/autismCentre/update?id=${showModalForm.value.id}`, {
         method: 'PUT',
         body: {
           center_name: showModalForm.value.center_name,
@@ -74,8 +77,11 @@ async function saveCentre() {
           center_location: showModalForm.value.center_location
         }
       })
-    } else {
-      await $fetch('/api/autismCentre/add', {
+      // alert(JSON.stringify(res));
+
+    } 
+    else {
+      const res = await $fetch('/api/autismCentre/add', {
         method: 'POST',
         body: {
           center_name: showModalForm.value.center_name,
@@ -84,6 +90,7 @@ async function saveCentre() {
           center_location: showModalForm.value.center_location
         }
       })
+      // alert(JSON.stringify(res));
     }
     showModal.value = false
     await fetchCentres()
@@ -120,7 +127,7 @@ onMounted(fetchCentres)
         </div>
         <rs-table
           :data="centres"
-          :columns="columns"
+          :field="['no', 'centreName', 'address', 'contactNumber', 'location', 'action']"
           :options="{
             variant: 'default',
             striped: true,
@@ -133,11 +140,28 @@ onMounted(fetchCentres)
           }"
           advanced
         >
-          <template v-slot:action="data">
+          <template v-slot:no="data">
+            {{ data.value.no }}
+          </template>
+          <template v-slot:centreName="data">
+            {{ data.value.center_name }}
+          </template>
+          <template v-slot:address="data">
+            {{ data.value.center_address }}
+          </template>
+          <template v-slot:contactNumber="data">
+            {{ data.value.center_phone }}
+          </template>
+          <template v-slot:location="data">
+            <a :href="data.value.center_location" target="_blank">  
+              {{ data.value.center_location }}
+            </a>
+          </template>
+          <template v-slot:action="data" class="flex justify-center items-center">
             <div class="flex justify-center items-center">
               <Icon
                 name="material-symbols:edit-outline-rounded"
-                class="text-primary hover:text-primary/90 cursor-pointer mr-1"
+                class="text-primary hover:text-primary/90 cursor-pointer mr-3"
                 size="22"
                 @click="openModal(data.value, 'edit')"
               ></Icon>
@@ -165,14 +189,18 @@ onMounted(fetchCentres)
         v-model="showModalForm.center_name"
         name="centreName"
         label="Centre Name"
-        :disabled="modalType == 'edit' ? true : false"
       />
       <FormKit
         type="text"
         v-model="showModalForm.center_address"
         name="address"
         label="Address"
-        :disabled="modalType == 'edit' ? true : false"
+      />
+      <FormKit
+        type="text"
+        v-model="showModalForm.center_location"
+        name="location"
+        label="Location"
       />
       <FormKit
         type="text"
@@ -186,7 +214,6 @@ onMounted(fetchCentres)
         v-model="showModalForm.center_phone"
         name="contactNumber"
         label="Contact Number"
-        :disabled="modalType == 'edit' ? true : false"
       />
     </rs-modal>
     <!-- Modal Delete Confirmation -->

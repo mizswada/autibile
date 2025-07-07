@@ -130,6 +130,7 @@ model questionnaires {
   questionnaire_id         Int                        @id @default(autoincrement())
   title                    String?                    @db.VarChar(255)
   description              String?                    @db.Text
+  header                   String?                    @db.Text
   status                   String?                    @db.VarChar(50)
   created_at               DateTime?                  @db.Timestamp(0)
   updated_at               DateTime?                  @default(now()) @db.Timestamp(0)
@@ -179,6 +180,7 @@ model questionnaires_questions_answers {
   question_id                     Int?
   option_id                       Int?
   score                           Int?
+  text_answer                     String?                          @db.VarChar(500)
   created_at                      DateTime?                        @db.Timestamp(0)
   questionnaires_responds         questionnaires_responds?         @relation(fields: [qr_id], references: [qr_id], onUpdate: NoAction, map: "questionnaires_questions_answers_ibfk_1")
   questionnaires_questions        questionnaires_questions?        @relation(fields: [question_id], references: [question_id], onUpdate: NoAction, map: "questionnaires_questions_answers_ibfk_2")
@@ -326,6 +328,6 @@ model therapyst_center {
   center_address  String    @db.Text
   center_location String    @db.VarChar(255)
   created_at      DateTime  @db.Timestamp(0)
-  updated_at      DateTime  @db.Timestamp(0)
+  updated_at      DateTime? @db.Timestamp(0)
   deleted_at      DateTime? @db.Timestamp(0)
 }
