@@ -3,32 +3,25 @@ import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
-const rawData = ref([]); // store full data including IDs
+const rawData = ref([]);
 const showConfirmToggleModal = ref(false);
 const pendingToggleData = ref(null);
 const showViewModal = ref(false);
 const viewData = ref(null);
-const relationshipOptions = ref([]);
-const nationalityOptions = ref([]);
-const stateOptions = ref([]);
 const isLoading = ref(false);
 const isTogglingStatus = ref(false);
 const isViewLoading = ref(false);
 
+// Add delete functionality
+const showDeleteModal = ref(false);
+const pendingDeleteData = ref(null);
+const isDeleting = ref(false);
+
 onMounted(async () => {
   isLoading.value = true;
   try {
-    const [parentRes, relRes, natRes, stateRes] = await Promise.all([
-      fetch('/api/parents/listParents'),
-      fetch('/api/parents/lookupRelationship'),
-      fetch('/api/parents/lookupNationality'),
-      fetch('/api/parents/lookupState'),
-    ]);
-
+    const parentRes = await fetch('/api/parents/listParents');
     const parentResult = await parentRes.json();
-    const relData = await relRes.json();
-    const natData = await natRes.json();
-    const stateData = await stateRes.json();
 
     if (parentResult.statusCode === 200) {
       rawData.value = parentResult.data.map(p => ({
@@ -39,25 +32,24 @@ onMounted(async () => {
         email: p.email || '',
         phoneNumber: p.phone || '',
         icNumber: p.ic || '',
+        relationship: p.relationship || '',
+        nationality: p.nationality || '',
+        state: p.state || '',
         status: p.status || '',
+
+        // Added fields
+        gender: p.gender || '',
+        dateOfBirth: p.dateOfBirth || '',
+        addressLine1: p.addressLine1 || '',
+        addressLine2: p.addressLine2 || '',
+        addressLine3: p.addressLine3 || '',
+        city: p.city || '',
+        postcode: p.postcode || '',
       }));
+
     } else {
       console.error('Failed to load parents:', parentResult.message);
     }
-
-    relationshipOptions.value = relData.map(item => ({
-      label: item.title,
-      value: item.lookupID
-    }));
-    nationalityOptions.value = natData.map(item => ({
-      label: item.title,
-      value: item.lookupID
-    }));
-    stateOptions.value = stateData.map(item => ({
-      label: item.title,
-      value: item.lookupID
-    }));
-
   } catch (err) {
     console.error('Fetch error:', err);
   } finally {
@@ -65,26 +57,33 @@ onMounted(async () => {
   }
 });
 
-function getLookupTitle(options, id) {
-  const item = options.find(opt => opt.value === id);
-  return item ? item.label : '';
-}
-
 async function viewParentDetails(rowData) {
   const original = getOriginalData(rowData.username);
   if (!original) return;
 
   isViewLoading.value = true;
   try {
-    const res = await fetch(`/api/parents/fetchEdit?parentID=${original.parentID}`);
-    const result = await res.json();
-
-    if (result.statusCode === 200) {
-      viewData.value = result.data;
-      showViewModal.value = true;
-    } else {
-      alert(`Error fetching details: ${result.message}`);
-    }
+    // Directly assign from local data
+    viewData.value = {
+      parentID: original.parentID,
+      fullName: original.fullName,
+      email: original.email,
+      ic: original.icNumber,
+      phone: original.phoneNumber,
+      relationship: original.relationship,
+      gender: original.gender,
+      dateOfBirth: original.dateOfBirth,
+      nationality: original.nationality,
+      addressLine1: original.addressLine1,
+      addressLine2: original.addressLine2,
+      addressLine3: original.addressLine3,
+      city: original.city,
+      postcode: original.postcode,
+      state: original.state,
+      status: original.status,
+    };
+    console.log(viewData.value);
+    showViewModal.value = true;
   } catch (err) {
     console.error('View parent error:', err);
     alert('An error occurred while fetching parent details.');
@@ -164,7 +163,50 @@ async function performToggleStatus() {
     isTogglingStatus.value = false;
   }
 }
+
+// Delete functionality
+function confirmDelete(rowData) {
+  const original = getOriginalData(rowData.username);
+  if (original) {
+    pendingDeleteData.value = original;
+    showDeleteModal.value = true;
+  }
+}
+
+function cancelDelete() {
+  pendingDeleteData.value = null;
+  showDeleteModal.value = false;
+}
+
+async function performDelete() {
+  const rowData = pendingDeleteData.value;
+  isDeleting.value = true;
+
+  try {
+    const res = await fetch(`/api/parents/delete?parentID=${rowData.parentID}`, {
+      method: 'DELETE'
+    });
+
+    const result = await res.json();
+
+    if (result.statusCode === 200) {
+      // Remove the deleted parent from the list
+      rawData.value = rawData.value.filter(p => p.parentID !== rowData.parentID);
+      alert('Parent deleted successfully');
+    } else {
+      alert(`Error deleting parent: ${result.message}`);
+    }
+  } catch (err) {
+    console.error('Delete error:', err);
+    alert('An error occurred while deleting the parent.');
+  } finally {
+    showDeleteModal.value = false;
+    pendingDeleteData.value = null;
+    isDeleting.value = false;
+  }
+}
 </script>
+
 
 <template>
   <div class="mb-4">
@@ -235,6 +277,14 @@ async function performToggleStatus() {
             >
               <Icon name="material-symbols:group-add-rounded" size="22" />
             </span>
+            
+            <!-- Delete Icon -->
+            <span
+              class="relative group cursor-pointer text-red-500 hover:text-red-700"
+              @click="() => confirmDelete(row.value)"
+            >
+              <Icon name="material-symbols:delete-outline" size="22" />
+            </span>
           </div>
         </template>
 
@@ -271,6 +321,38 @@ async function performToggleStatus() {
       <span>Updating status...</span>
     </div>
   </rs-modal>
+  
+  <!-- Delete confirmation modal -->
+  <rs-modal
+    title="Delete Parent"
+    ok-title="Delete"
+    cancel-title="Cancel"
+    :ok-callback="performDelete"
+    :cancel-callback="cancelDelete"
+    v-model="showDeleteModal"
+    :overlay-close="false"
+  >
+    <p class="mb-4">
+      Are you sure you want to delete this parent ({{ pendingDeleteData?.fullName }})?
+    </p>
+    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <Icon name="material-symbols:warning" class="text-yellow-400" />
+        </div>
+        <div class="ml-3">
+          <p class="text-sm text-yellow-700">
+            This will also delete all associated children records. This action cannot be undone.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="isDeleting" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
+      <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
+      <span>Deleting...</span>
+    </div>
+  </rs-modal>
 
   <rs-modal
     title="Parent Details"
@@ -292,10 +374,10 @@ async function performToggleStatus() {
         { label: 'Email', key: 'email', value: viewData.email },
         { label: 'IC', key: 'ic', value: viewData.ic },
         { label: 'Phone', key: 'phone', value: viewData.phone },
-        { label: 'Relationship', key: 'relationship', value: getLookupTitle(relationshipOptions, viewData.relationship) },
+        { label: 'Relationship', key: 'relationship', value: viewData.relationship },
         { label: 'Gender', key: 'gender', value: viewData.gender },
         { label: 'Date of Birth', key: 'dateOfBirth', value: viewData.dateOfBirth ? new Date(viewData.dateOfBirth).toISOString().split('T')[0] : '' },
-        { label: 'Nationality', key: 'nationality', value: getLookupTitle(nationalityOptions, viewData.nationality) },
+        { label: 'Nationality', key: 'nationality', value: viewData.nationality },
       ]" :key="field.key" class="flex flex-col gap-1">
         <label class="text-gray-600 text-sm">{{ field.label }}</label>
         <div class="bg-gray-50 border border-gray-200 rounded px-3 py-2">
@@ -315,7 +397,7 @@ async function performToggleStatus() {
         { label: 'Address Line 3', key: 'addressLine3', value: viewData.addressLine3 },
         { label: 'City', key: 'city', value: viewData.city },
         { label: 'Postcode', key: 'postcode', value: viewData.postcode },
-        { label: 'State', key: 'state', value: getLookupTitle(stateOptions, viewData.state) },
+        { label: 'State', key: 'state', value: viewData.state },
         { label: 'Status', key: 'status', value: viewData.status },
       ]" :key="field.key" class="flex flex-col gap-1">
         <label class="text-gray-600 text-sm">{{ field.label }}</label>

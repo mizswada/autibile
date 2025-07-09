@@ -16,13 +16,20 @@ export default defineEventHandler(async (event) => {
     const childId = parseInt(childID);
     const parentId = parseInt(parentID);
 
-    // Delete only the relation between parent and child
-    await prisma.user_parent_patient.deleteMany({
+    // Delete the relation between parent and child
+    const result = await prisma.user_parent_patient.deleteMany({
       where: { 
         patient_id: childId,
         parent_id: parentId
       },
     });
+
+    if (result.count === 0) {
+      return {
+        statusCode: 404,
+        message: 'No relationship found between this parent and child',
+      };
+    }
 
     return {
       statusCode: 200,
@@ -33,6 +40,7 @@ export default defineEventHandler(async (event) => {
     return {
       statusCode: 500,
       message: 'Internal server error',
+      error: error.message
     };
   }
 }); 

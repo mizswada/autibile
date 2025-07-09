@@ -34,6 +34,17 @@ const pendingToggleQuestion = ref(null);
 const isTogglingStatus = ref(false);
 const answerTypeOptions = ref([]);
 
+// Add these new refs for sub-questions handling
+const showingSubQuestions = ref({});
+const loadingSubQuestions = ref({});
+const subQuestions = ref({});
+const addingSubQuestionFor = ref(null);
+
+// Add refs for delete functionality
+const showDeleteModal = ref(false);
+const pendingDeleteQuestion = ref(null);
+const isDeleting = ref(false);
+
 async function fetchAnswerTypes() {
   try {
     const res = await fetch('/api/questionnaire/questions/lookupAnswer');
@@ -104,7 +115,8 @@ async function fetchQuestionnaireData() {
 async function fetchQuestions() {
   isLoading.value = true;
   try {
-    const res = await fetch(`/api/questionnaire/questions/listQuestions?questionnaireID=${questionnaireId}`);
+    // Default to fetching top-level questions (parentID is null)
+    const res = await fetch(`/api/questionnaire/questions/listQuestions?questionnaireID=${questionnaireId}&parentID=null`);
     const result = await res.json();
 
     if (res.ok && result.data) {
@@ -115,7 +127,10 @@ async function fetchQuestions() {
         is_required: q.is_required,
         status: q.status,
         questionnaire_id: q.questionnaire_id,
-        answer_type: q.answer_type
+        answer_type: q.answer_type,
+        has_sub_questions: q.has_sub_questions,
+        sub_questions_count: q.sub_questions_count,
+        parentID: q.parentID
       }));
     } else {
       console.error('Failed to load questions:', result.message);
@@ -124,6 +139,52 @@ async function fetchQuestions() {
     console.error('Error loading questions:', err);
   } finally {
     isLoading.value = false;
+  }
+}
+
+async function fetchSubQuestions(parentQuestionId) {
+  if (!showingSubQuestions.value[parentQuestionId]) {
+    showingSubQuestions.value[parentQuestionId] = true;
+    loadingSubQuestions.value[parentQuestionId] = true;
+    
+    try {
+      const res = await fetch(`/api/questionnaire/questions/listQuestions?questionnaireID=${questionnaireId}&parentID=${parentQuestionId}`);
+      const result = await res.json();
+
+      if (res.ok && result.data) {
+        subQuestions.value[parentQuestionId] = result.data.map(q => ({
+          id: q.question_id,
+          question_text_bi: q.question_text_bi,
+          question_text_bm: q.question_text_bm,
+          is_required: q.is_required,
+          status: q.status,
+          questionnaire_id: q.questionnaire_id,
+          answer_type: q.answer_type,
+          has_sub_questions: q.has_sub_questions,
+          sub_questions_count: q.sub_questions_count,
+          parentID: q.parentID
+        }));
+      } else {
+        console.error('Failed to load sub-questions:', result.message);
+        subQuestions.value[parentQuestionId] = [];
+      }
+    } catch (err) {
+      console.error('Error loading sub-questions:', err);
+      subQuestions.value[parentQuestionId] = [];
+    } finally {
+      loadingSubQuestions.value[parentQuestionId] = false;
+    }
+  } else {
+    // Hide sub-questions if they're already showing
+    showingSubQuestions.value[parentQuestionId] = false;
+  }
+}
+
+function toggleSubQuestions(questionId) {
+  if (!showingSubQuestions.value[questionId]) {
+    fetchSubQuestions(questionId);
+  } else {
+    showingSubQuestions.value[questionId] = false;
   }
 }
 
@@ -161,7 +222,7 @@ async function saveHeader() {
   }
 }
 
-function openAddQuestionModal() {
+function openAddQuestionModal(parentQuestion = null) {
   newQuestion.value = {
     question_bm: '',
     question_en: '',
@@ -171,10 +232,12 @@ function openAddQuestionModal() {
   };
   isEditingQuestion.value = false;
   editQuestionId.value = null;
+  addingSubQuestionFor.value = parentQuestion ? parentQuestion.id : null;
   showQuestionModal.value = true;
 }
 
-function openEditQuestionModal(question) {
+async function openEditQuestionModal(question) {
+  // Initialize with question data
   newQuestion.value = {
     question_bm: question.question_text_bm,
     question_en: question.question_text_bi,
@@ -182,8 +245,17 @@ function openEditQuestionModal(question) {
     status: question.status,
     answer_type: question.answer_type
   };
+  
   isEditingQuestion.value = true;
   editQuestionId.value = question.id;
+  
+  // If this is a sub-question (has parentID), set the addingSubQuestionFor value
+  if (question.parentID) {
+    addingSubQuestionFor.value = question.parentID;
+  } else {
+    addingSubQuestionFor.value = null;
+  }
+  
   showQuestionModal.value = true;
 }
 
@@ -195,6 +267,11 @@ async function saveQuestion() {
     status: newQuestion.value.status,
     answer_type: newQuestion.value.answer_type
   };
+
+  // Add parentID if adding a sub-question
+  if (addingSubQuestionFor.value) {
+    payload.parentID = addingSubQuestionFor.value;
+  }
 
   try {
     let res;
@@ -225,7 +302,18 @@ async function saveQuestion() {
       showQuestionModal.value = false;
       modalErrorMessage.value = '';
       showMessage(`Question ${isEditingQuestion.value ? 'updated' : 'created'} successfully`, 'success');
-      await fetchQuestions(); // Only fetch questions, not the whole questionnaire data
+      
+      // If we added a sub-question, refresh the parent's sub-questions
+      if (addingSubQuestionFor.value) {
+        await fetchSubQuestions(addingSubQuestionFor.value);
+        // Also refresh the main questions to update the sub-question count
+        await fetchQuestions();
+      } else {
+        await fetchQuestions(); // Only fetch questions, not the whole questionnaire data
+      }
+      
+      // Reset the addingSubQuestionFor value
+      addingSubQuestionFor.value = null;
     } else {
       console.error(`Failed to ${isEditingQuestion.value ? 'update' : 'create'} question:`, result.message);
       modalErrorMessage.value = result.message || `Failed to ${isEditingQuestion.value ? 'update' : 'create'} question`;
@@ -361,6 +449,51 @@ function getAnswerTypeLabel(answerType) {
   const found = answerTypeOptions.value.find(type => parseInt(type.value) === parseInt(answerType));
   return found ? found.label : `Type ID: ${answerType}`;
 }
+
+// Delete functions
+function confirmDelete(question) {
+  pendingDeleteQuestion.value = question;
+  showDeleteModal.value = true;
+}
+
+function cancelDelete() {
+  pendingDeleteQuestion.value = null;
+  showDeleteModal.value = false;
+}
+
+async function performDelete() {
+  const question = pendingDeleteQuestion.value;
+  isDeleting.value = true;
+
+  try {
+    const res = await fetch(`/api/questionnaire/questions/deleteQuestions?questionID=${question.id}`, {
+      method: 'DELETE'
+    });
+
+    const result = await res.json();
+    if (res.ok) {
+      // If this is a sub-question, refresh the parent's sub-questions
+      if (question.parentID) {
+        await fetchSubQuestions(question.parentID);
+        // Also refresh the main questions to update the sub-question count
+        await fetchQuestions();
+      } else {
+        // If it's a main question, just refresh the main list
+        await fetchQuestions();
+      }
+      showMessage('Question deleted successfully', 'success');
+    } else {
+      showMessage(`Error deleting question: ${result.message}`, 'error');
+    }
+  } catch (err) {
+    console.error('Delete error:', err);
+    showMessage('An error occurred while deleting the question.', 'error');
+  } finally {
+    showDeleteModal.value = false;
+    pendingDeleteQuestion.value = null;
+    isDeleting.value = false;
+  }
+}
 </script>
 
 <style>
@@ -397,6 +530,12 @@ function getAnswerTypeLabel(answerType) {
 }
 .toggle-checkbox:checked::before {
   transform: translateX(20px);
+}
+
+/* Rotation for chevron icon */
+.rotate-90 {
+  transform: rotate(90deg);
+  transition: transform 0.2s ease;
 }
 
 /* Table styles for fixed width and text truncation */
@@ -560,70 +699,177 @@ function getAnswerTypeLabel(answerType) {
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              <tr v-for="question in questions" :key="question.id">
-                <td class="px-6 py-4">
-                  <div class="tooltip-container">
-                    <div class="text-sm text-gray-900 question-text">{{ question.question_text_bm }}</div>
-                    <span class="tooltip-text" v-if="question.question_text_bm && question.question_text_bm.length > 50">{{ question.question_text_bm }}</span>
-                  </div>
-                </td>
-                <td class="px-6 py-4">
-                  <div class="tooltip-container">
-                    <div class="text-sm text-gray-900 question-text">{{ question.question_text_bi }}</div>
-                    <span class="tooltip-text" v-if="question.question_text_bi && question.question_text_bi.length > 50">{{ question.question_text_bi }}</span>
-                  </div>
-                </td>
-                <td class="px-6 py-4">
-                  <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" 
-                        :class="question.is_required ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'">
-                    {{ question.is_required ? 'Yes' : 'No' }}
-                  </span>
-                </td>
-                <td class="px-6 py-4">
-                  <div class="text-sm text-gray-900">
-                    {{ getAnswerTypeLabel(question.answer_type) }}
-                  </div>
-                </td>
-                <td class="px-6 py-4">
-                  <div class="flex items-center">
-                    <input
-                      type="checkbox"
-                      class="toggle-checkbox"
-                      :checked="question.status === 'Active'"
-                      @click.prevent="confirmToggleStatus(question)"
-                      title="Toggle Status"
-                    />
-                    <span class="ml-2 text-xs text-gray-500">{{ question.status }}</span>
-                  </div>
-                </td>
-                <td class="px-6 py-4 text-right text-sm font-medium">
-                  <div class="flex justify-end gap-3 items-center">
-                    <button 
-                      @click="openEditQuestionModal(question)" 
-                      class="text-indigo-600 hover:text-indigo-900"
-                      title="Edit Question"
-                    >
-                      <Icon name="material-symbols:edit-outline-rounded" size="20" />
-                    </button>
-                    
-                    <button 
-                      @click="router.push(`/questionnaire/questions/options/${question.id}`)"
-                      class="text-blue-600 hover:text-blue-900"
-                      title="Manage Options"
-                    >
-                      <Icon name="material-symbols:list-alt-outline" size="20" />
-                    </button>
+              <!-- Main questions -->
+              <template v-for="question in questions" :key="question.id">
+                <tr>
+                  <td class="px-6 py-4">
+                    <div class="flex items-center">
+                      <!-- Sub-question toggle button if question has sub-questions -->
+                      <button 
+                        v-if="question.has_sub_questions" 
+                        @click="toggleSubQuestions(question.id)"
+                        class="mr-2 text-gray-500 hover:text-gray-700 flex items-center"
+                        :class="{'rotate-90': showingSubQuestions[question.id]}"
+                      >
+                        <Icon name="material-symbols:chevron-right" size="20" />
+                        <span class="text-xs ml-1 bg-gray-200 px-1.5 py-0.5 rounded-full">{{ question.sub_questions_count }}</span>
+                      </button>
+                      <!-- Spacer if no sub-questions -->
+                      <div v-else class="w-5"></div>
+                      
+                      <div class="tooltip-container">
+                        <div class="text-sm text-gray-900 question-text">{{ question.question_text_bm }}</div>
+                        <span class="tooltip-text" v-if="question.question_text_bm && question.question_text_bm.length > 50">{{ question.question_text_bm }}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-6 py-4">
+                    <div class="tooltip-container">
+                      <div class="text-sm text-gray-900 question-text">{{ question.question_text_bi }}</div>
+                      <span class="tooltip-text" v-if="question.question_text_bi && question.question_text_bi.length > 50">{{ question.question_text_bi }}</span>
+                    </div>
+                  </td>
+                  <td class="px-6 py-4">
+                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" 
+                          :class="question.is_required ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'">
+                      {{ question.is_required ? 'Yes' : 'No' }}
+                    </span>
+                  </td>
+                  <td class="px-6 py-4">
+                    <div class="text-sm text-gray-900">
+                      {{ getAnswerTypeLabel(question.answer_type) }}
+                    </div>
+                  </td>
+                  <td class="px-6 py-4">
+                    <div class="flex items-center">
+                      <input
+                        type="checkbox"
+                        class="toggle-checkbox"
+                        :checked="question.status === 'Active'"
+                        @click.prevent="confirmToggleStatus(question)"
+                        title="Toggle Status"
+                      />
+                      <span class="ml-2 text-xs text-gray-500">{{ question.status }}</span>
+                    </div>
+                  </td>
+                  <td class="px-6 py-4 text-right text-sm font-medium">
+                    <div class="flex justify-end gap-3 items-center">
+                      <button 
+                        @click="openEditQuestionModal(question)" 
+                        class="text-indigo-600 hover:text-indigo-900"
+                        title="Edit Question"
+                      >
+                        <Icon name="material-symbols:edit-outline-rounded" size="20" />
+                      </button>
+                      
+                      <button 
+                        @click="router.push(`/questionnaire/questions/options/${question.id}`)"
+                        class="text-blue-600 hover:text-blue-900"
+                        title="Manage Options"
+                      >
+                        <Icon name="material-symbols:list-alt-outline" size="20" />
+                      </button>
 
-                    <button 
-                      @click="openAddQuestionModal"
-                      class="text-blue-600 hover:text-blue-900"
-                      title="Manage Options"
-                    >
-                      <Icon name="material-symbols:add" size="20" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
+                      <button 
+                        @click="openAddQuestionModal(question)"
+                        class="text-green-600 hover:text-green-900"
+                        title="Add Sub-question"
+                      >
+                        <Icon name="material-symbols:add" size="20" />
+                        <span class="sr-only">Add Sub-question</span>
+                      </button>
+                      
+                      <button 
+                        @click="confirmDelete(question)"
+                        class="text-red-600 hover:text-red-900"
+                        title="Delete Question"
+                      >
+                        <Icon name="material-symbols:delete-outline" size="20" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                
+                <!-- Loading indicator for sub-questions -->
+                <tr v-if="loadingSubQuestions[question.id] && showingSubQuestions[question.id]">
+                  <td colspan="6" class="px-6 py-4 bg-gray-50">
+                    <div class="flex justify-center">
+                      <div class="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-primary"></div>
+                    </div>
+                  </td>
+                </tr>
+                
+                <!-- Sub-questions -->
+                <template v-if="showingSubQuestions[question.id] && subQuestions[question.id]">
+                  <tr v-for="subQuestion in subQuestions[question.id]" :key="subQuestion.id" class="bg-gray-50">
+                    <td class="px-6 py-4">
+                      <div class="flex items-center">
+                        <div class="w-5 ml-5"></div> <!-- Indentation for sub-questions -->
+                        <div class="tooltip-container">
+                          <div class="text-sm text-gray-900 question-text">{{ subQuestion.question_text_bm }}</div>
+                          <span class="tooltip-text" v-if="subQuestion.question_text_bm && subQuestion.question_text_bm.length > 50">{{ subQuestion.question_text_bm }}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="px-6 py-4">
+                      <div class="tooltip-container">
+                        <div class="text-sm text-gray-900 question-text">{{ subQuestion.question_text_bi }}</div>
+                        <span class="tooltip-text" v-if="subQuestion.question_text_bi && subQuestion.question_text_bi.length > 50">{{ subQuestion.question_text_bi }}</span>
+                      </div>
+                    </td>
+                    <td class="px-6 py-4">
+                      <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" 
+                            :class="subQuestion.is_required ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'">
+                        {{ subQuestion.is_required ? 'Yes' : 'No' }}
+                      </span>
+                    </td>
+                    <td class="px-6 py-4">
+                      <div class="text-sm text-gray-900">
+                        {{ getAnswerTypeLabel(subQuestion.answer_type) }}
+                      </div>
+                    </td>
+                    <td class="px-6 py-4">
+                      <div class="flex items-center">
+                        <input
+                          type="checkbox"
+                          class="toggle-checkbox"
+                          :checked="subQuestion.status === 'Active'"
+                          @click.prevent="confirmToggleStatus(subQuestion)"
+                          title="Toggle Status"
+                        />
+                        <span class="ml-2 text-xs text-gray-500">{{ subQuestion.status }}</span>
+                      </div>
+                    </td>
+                    <td class="px-6 py-4 text-right text-sm font-medium">
+                      <div class="flex justify-end gap-3 items-center">
+                        <button 
+                          @click="openEditQuestionModal(subQuestion)" 
+                          class="text-indigo-600 hover:text-indigo-900"
+                          title="Edit Question"
+                        >
+                          <Icon name="material-symbols:edit-outline-rounded" size="20" />
+                        </button>
+                        
+                        <button 
+                          @click="router.push(`/questionnaire/questions/options/${subQuestion.id}`)"
+                          class="text-blue-600 hover:text-blue-900"
+                          title="Manage Options"
+                        >
+                          <Icon name="material-symbols:list-alt-outline" size="20" />
+                        </button>
+
+                        <button 
+                          @click="confirmDelete(subQuestion)"
+                          class="text-red-600 hover:text-red-900"
+                          title="Delete Question"
+                        >
+                          <Icon name="material-symbols:delete-outline" size="20" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
+              </template>
             </tbody>
           </table>
         </div>
@@ -631,13 +877,22 @@ function getAnswerTypeLabel(answerType) {
     </div>
 
     <rs-modal
-      :title="isEditingQuestion ? 'Edit Question' : 'Add Question'"
+      :title="isEditingQuestion ? 'Edit Question' : (addingSubQuestionFor ? 'Add Sub-Question' : 'Add Question')"
       v-model="showQuestionModal"
       :overlay-close="false"
       :hide-footer="true"
     >
       <div v-if="modalErrorMessage" class="mb-3 p-2 rounded bg-red-100 text-red-700 border border-red-300">
         {{ modalErrorMessage }}
+      </div>
+      
+      <!-- Show parent question info when adding/editing a sub-question -->
+      <div v-if="addingSubQuestionFor" class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
+        <div class="text-sm font-medium text-blue-800">
+          <template v-if="isEditingQuestion">Editing sub-question</template>
+          <template v-else>Adding sub-question</template>
+        </div>
+        <div class="text-xs text-blue-600 mt-1">Parent Question ID: {{ addingSubQuestionFor }}</div>
       </div>
 
       <FormKit type="form" @submit="saveQuestion" :actions="false">
@@ -780,6 +1035,40 @@ function getAnswerTypeLabel(answerType) {
       <div v-if="isTogglingStatus" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
         <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
         <span>Updating status...</span>
+      </div>
+    </rs-modal>
+
+    <rs-modal
+      title="Delete Question"
+      ok-title="Delete"
+      cancel-title="Cancel"
+      :ok-callback="performDelete"
+      :cancel-callback="cancelDelete"
+      v-model="showDeleteModal"
+      :overlay-close="false"
+    >
+      <p class="mb-4">
+        Are you sure you want to delete this question?
+      </p>
+      <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <Icon name="material-symbols:warning" class="text-yellow-400" />
+          </div>
+          <div class="ml-3">
+            <p class="text-sm text-yellow-700">
+              This action cannot be undone. Deleting this question will also remove all associated options and responses.
+              <span v-if="pendingDeleteQuestion?.has_sub_questions" class="font-bold block mt-1">
+                Warning: This question has {{ pendingDeleteQuestion?.sub_questions_count }} sub-questions that will also be deleted.
+              </span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="isDeleting" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
+        <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
+        <span>Deleting question...</span>
       </div>
     </rs-modal>
   </div>

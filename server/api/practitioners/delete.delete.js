@@ -11,20 +11,30 @@ export default defineEventHandler(async (event) => {
   
     try {
       const id = parseInt(practitionerID);
+      const currentDate = new Date();
     
-      await prisma.user_practitioners.delete({
-        where: { practitioner_id: id },
+      // Soft delete by setting deleted_at
+      await prisma.user_practitioners.update({
+        where: { 
+          practitioner_id: id,
+          deleted_at: null // Only update if not already deleted
+        },
+        data: { 
+          deleted_at: currentDate,
+          status: 'INACTIVE'
+        }
       });
   
       return {
         statusCode: 200,
-        message: 'Practitioner deleted successfully',
+        message: 'Practitioner soft deleted successfully',
       };
     } catch (error) {
       console.error('Delete error:', error);
       return {
         statusCode: 500,
         message: 'Internal server error',
+        error: error.message
       };
     }
   });

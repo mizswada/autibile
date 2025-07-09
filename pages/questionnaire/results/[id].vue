@@ -8,6 +8,7 @@ const responseId = computed(() => route.params.id);
 const response = ref(null);
 const isLoading = ref(true);
 const error = ref(null);
+const scoreThresholds = ref([]);
 
 onMounted(async () => {
   await fetchResponseDetails();
@@ -24,6 +25,9 @@ async function fetchResponseDetails() {
     if (res.ok && result.data && result.data.length > 0) {
       response.value = result.data[0];
       console.log('Response details:', response.value);
+      
+      // After getting the response, fetch the score thresholds for this questionnaire
+      await fetchScoreThresholds(response.value.questionnaire_id);
     } else {
       error.value = result.message || 'Response not found';
     }
@@ -32,6 +36,52 @@ async function fetchResponseDetails() {
     error.value = 'An error occurred while fetching response details';
   } finally {
     isLoading.value = false;
+  }
+}
+
+async function fetchScoreThresholds(questionnaireId) {
+  try {
+    // Fetch score thresholds from the API
+    const res = await fetch(`/api/questionnaire/thresholds?questionnaireId=${questionnaireId}`);
+    const result = await res.json();
+    
+    if (res.ok && result.data) {
+      scoreThresholds.value = result.data;
+    } else {
+      console.error('Failed to load score thresholds:', result.message);
+      // Fallback to default thresholds if API call fails
+      scoreThresholds.value = [
+        {
+          threshold: 30,
+          comparison: ">=",
+          interpretation: "Indicates risk for behavioural sleep problem.",
+          recommendation: "Recommend a more in-depth assessment by a qualified healthcare professional (e.g., paediatrician, sleep specialist)."
+        },
+        {
+          threshold: 30,
+          comparison: "<",
+          interpretation: "Suggests a low risk for behavioural sleep problems.",
+          recommendation: "Encourage maintaining good sleep hygiene and consistent bedtime routines."
+        }
+      ];
+    }
+  } catch (err) {
+    console.error('Error fetching score thresholds:', err);
+    // Fallback to default thresholds if API call fails
+    scoreThresholds.value = [
+      {
+        threshold: 30,
+        comparison: ">=",
+        interpretation: "Indicates risk for behavioural sleep problem.",
+        recommendation: "Recommend a more in-depth assessment by a qualified healthcare professional (e.g., paediatrician, sleep specialist)."
+      },
+      {
+        threshold: 30,
+        comparison: "<",
+        interpretation: "Suggests a low risk for behavioural sleep problems.",
+        recommendation: "Encourage maintaining good sleep hygiene and consistent bedtime routines."
+      }
+    ];
   }
 }
 
@@ -55,21 +105,64 @@ function goBack() {
 const groupedAnswers = computed(() => {
   if (!response.value || !response.value.answers) return [];
   
-  const grouped = {};
-  
+  // First, get all questions from the answers
+  const questions = {};
   response.value.answers.forEach(answer => {
-    if (!grouped[answer.question_id]) {
-      grouped[answer.question_id] = {
+    if (!questions[answer.question_id]) {
+      questions[answer.question_id] = {
         question_id: answer.question_id,
         question_text: answer.question_text,
-        answers: []
+        answers: [],
+        parentID: answer.parentID || null, // Store parentID for organizing
       };
     }
     
-    grouped[answer.question_id].answers.push(answer);
+    questions[answer.question_id].answers.push(answer);
   });
   
-  return Object.values(grouped);
+  // Separate parent questions and sub-questions
+  const parentQuestions = {};
+  const subQuestions = {};
+  
+  Object.values(questions).forEach(question => {
+    if (question.parentID) {
+      // This is a sub-question
+      subQuestions[question.question_id] = question;
+    } else {
+      // This is a parent question
+      parentQuestions[question.question_id] = question;
+      // Initialize sub-questions array
+      parentQuestions[question.question_id].subQuestions = [];
+    }
+  });
+  
+  // Associate sub-questions with their parents
+  Object.values(subQuestions).forEach(subQuestion => {
+    const parentID = subQuestion.parentID;
+    if (parentQuestions[parentID]) {
+      parentQuestions[parentID].subQuestions.push(subQuestion);
+    }
+  });
+  
+  // Return only parent questions (which now include their sub-questions)
+  return Object.values(parentQuestions);
+});
+
+// Get the appropriate score interpretation based on the total score
+const scoreInterpretation = computed(() => {
+  if (!response.value || !scoreThresholds.value.length) return null;
+  
+  const totalScore = response.value.total_score || 0;
+  
+  for (const threshold of scoreThresholds.value) {
+    if (threshold.comparison === ">=" && totalScore >= threshold.threshold) {
+      return threshold;
+    } else if (threshold.comparison === "<" && totalScore < threshold.threshold) {
+      return threshold;
+    }
+  }
+  
+  return null;
 });
 </script>
 
@@ -133,18 +226,55 @@ const groupedAnswers = computed(() => {
         </div>
       </div>
       
+      <!-- Score Interpretation -->
+      <div v-if="scoreInterpretation" class="bg-white p-6 rounded shadow">
+        <h2 class="text-xl font-bold mb-4">Score Interpretation</h2>
+        
+        <div class="p-4 rounded" :class="scoreInterpretation.comparison === '>=' && scoreInterpretation.threshold <= response.total_score ? 'bg-yellow-50 border border-yellow-200' : 'bg-green-50 border border-green-200'">
+          <div class="font-medium text-lg mb-2" :class="scoreInterpretation.comparison === '>=' && scoreInterpretation.threshold <= response.total_score ? 'text-yellow-700' : 'text-green-700'">
+            {{ scoreInterpretation.interpretation }}
+          </div>
+          <div class="text-gray-700">
+            {{ scoreInterpretation.recommendation }}
+          </div>
+        </div>
+      </div>
+      
       <!-- Response Details -->
       <div class="bg-white p-6 rounded shadow">
         <h2 class="text-xl font-bold mb-4">Response Details</h2>
         
         <div v-for="(group, index) in groupedAnswers" :key="group.question_id" class="mb-6 pb-6" :class="{ 'border-b': index < groupedAnswers.length - 1 }">
+          <!-- Parent Question -->
           <div class="font-medium mb-2">{{ group.question_text }}</div>
           
-          <div class="pl-4 border-l-2 border-gray-200">
+          <!-- Parent Question Answers -->
+          <div class="pl-4 border-l-2 border-gray-200 mb-4">
             <div v-for="answer in group.answers" :key="answer.answer_id" class="mb-2">
               <div class="flex justify-between">
                 <div>{{ answer.option_title }}</div>
                 <div class="text-blue-600 font-medium">{{ answer.option_value }} points</div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Sub-questions -->
+          <div v-if="group.subQuestions && group.subQuestions.length > 0" class="ml-6">
+            <div v-for="subQuestion in group.subQuestions" :key="subQuestion.question_id" class="mb-4">
+              <!-- Sub-question text -->
+              <div class="font-medium mb-2 flex items-center">
+                <Icon name="material-symbols:subdirectory-arrow-right" class="mr-1 text-gray-400" />
+                {{ subQuestion.question_text }}
+              </div>
+              
+              <!-- Sub-question answers -->
+              <div class="pl-4 border-l-2 border-gray-200 ml-4">
+                <div v-for="answer in subQuestion.answers" :key="answer.answer_id" class="mb-2">
+                  <div class="flex justify-between">
+                    <div>{{ answer.option_title }}</div>
+                    <div class="text-blue-600 font-medium">{{ answer.option_value }} points</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

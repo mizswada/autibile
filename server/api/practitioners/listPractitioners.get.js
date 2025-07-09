@@ -21,6 +21,9 @@ export default defineEventHandler(async (event) => {
     }
 
     const practitioners = await prisma.user_practitioners.findMany({
+      where: {
+        deleted_at: null // Filter out soft-deleted records
+      },
       orderBy: { created_at: 'desc' },
       include: {
         user: {
@@ -64,6 +67,7 @@ export default defineEventHandler(async (event) => {
     return {
       statusCode: 500,
       message: 'Internal Server Error',
+      error: error.message
     };
   }
 });

@@ -17,7 +17,8 @@ export default defineEventHandler(async (event) => {
       question_en, 
       requiredQuestion, 
       status,
-      answer_type
+      answer_type,
+      parentID  // Add parentID field for sub-questions
     } = body;
 
     // Basic validation
@@ -42,6 +43,50 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    // If parentID is provided, validate that it exists and is not the same as questionID
+    // (a question cannot be its own parent)
+    if (parentID) {
+      if (parseInt(parentID) === parseInt(questionID)) {
+        return {
+          statusCode: 400,
+          message: "A question cannot be its own parent",
+        };
+      }
+
+      const parentQuestion = await prisma.questionnaires_questions.findUnique({
+        where: { question_id: parseInt(parentID) }
+      });
+
+      if (!parentQuestion) {
+        return {
+          statusCode: 400,
+          message: "Parent question not found",
+        };
+      }
+
+      // Ensure the parent question belongs to the same questionnaire
+      if (parentQuestion.questionnaire_id !== existingQuestion.questionnaire_id) {
+        return {
+          statusCode: 400,
+          message: "Parent question must belong to the same questionnaire",
+        };
+      }
+
+      // Check for circular references (e.g., A -> B -> A)
+      // This is a simple check for direct circular reference
+      // For deeper circular references, a more complex check would be needed
+      const childQuestions = await prisma.questionnaires_questions.findMany({
+        where: { parentID: parseInt(questionID) }
+      });
+
+      if (childQuestions.some(q => q.question_id === parseInt(parentID))) {
+        return {
+          statusCode: 400,
+          message: "Circular parent-child relationship detected",
+        };
+      }
+    }
+
     // Update the question
     const updatedQuestion = await prisma.questionnaires_questions.update({
       where: {
@@ -54,6 +99,8 @@ export default defineEventHandler(async (event) => {
         status: status,
         // Only include answer_type if it's provided and not empty
         ...(answer_type && answer_type !== '' ? { answer_type: parseInt(answer_type) } : {}),
+        // Update parentID if provided
+        ...(parentID !== undefined ? { parentID: parentID ? parseInt(parentID) : null } : {}),
         updated_at: new Date()
       }
     });

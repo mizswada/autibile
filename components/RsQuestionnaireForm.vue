@@ -118,11 +118,31 @@ async function fetchQuestionnaire() {
 async function fetchQuestions() {
   isLoading.value = true;
   try {
+    // First fetch all questions for this questionnaire
     const res = await fetch(`/api/questionnaire/questions/listQuestions?questionnaireID=${props.questionnaireId}&status=Active`);
     const result = await res.json();
 
     if (res.ok && result.data) {
-      questions.value = result.data;
+      // Separate parent questions and sub-questions
+      const allQuestions = result.data;
+      const parentQuestions = allQuestions.filter(q => q.parentID === null);
+      const subQuestions = allQuestions.filter(q => q.parentID !== null);
+      
+      // Organize questions in hierarchical order
+      const organizedQuestions = [];
+      
+      // Add parent questions and their sub-questions in sequence
+      for (const parentQuestion of parentQuestions) {
+        // Add the parent question
+        organizedQuestions.push(parentQuestion);
+        
+        // Find and add all sub-questions for this parent
+        const children = subQuestions.filter(sq => sq.parentID === parentQuestion.question_id);
+        organizedQuestions.push(...children);
+      }
+      
+      // Use the organized questions list
+      questions.value = organizedQuestions;
       
       // For each question, fetch its options
       await Promise.all(questions.value.map(async (question) => {
@@ -224,6 +244,7 @@ async function submitQuestionnaire() {
     questions.value.forEach(question => {
       const questionId = question.question_id;
       const answerType = question.answer_type;
+      const parentID = question.parentID; // Get parent ID for sub-questions
       
       // Handle Text Type (answer_type = 33)
       if (answerType === 33) {
@@ -232,7 +253,8 @@ async function submitQuestionnaire() {
             question_id: parseInt(questionId),
             option_id: null, // No option for text type
             text_answer: textAnswers.value[questionId],
-            patient_id: props.patientId ? parseInt(props.patientId) : null
+            patient_id: props.patientId ? parseInt(props.patientId) : null,
+            parentID: parentID ? parseInt(parentID) : null // Include parentID if it exists
           });
         }
       }
@@ -243,7 +265,8 @@ async function submitQuestionnaire() {
             question_id: parseInt(questionId),
             option_id: null, // No specific option ID for range
             numeric_answer: parseInt(answers.value[questionId]),
-            patient_id: props.patientId ? parseInt(props.patientId) : null
+            patient_id: props.patientId ? parseInt(props.patientId) : null,
+            parentID: parentID ? parseInt(parentID) : null // Include parentID if it exists
           });
         }
       }
@@ -253,7 +276,8 @@ async function submitQuestionnaire() {
           formattedAnswers.push({
             question_id: parseInt(questionId),
             option_id: parseInt(answers.value[questionId]),
-            patient_id: props.patientId ? parseInt(props.patientId) : null
+            patient_id: props.patientId ? parseInt(props.patientId) : null,
+            parentID: parentID ? parseInt(parentID) : null // Include parentID if it exists
           });
         }
       }
@@ -262,7 +286,8 @@ async function submitQuestionnaire() {
         formattedAnswers.push({
           question_id: parseInt(questionId),
           option_id: parseInt(answers.value[questionId]),
-          patient_id: props.patientId ? parseInt(props.patientId) : null
+          patient_id: props.patientId ? parseInt(props.patientId) : null,
+          parentID: parentID ? parseInt(parentID) : null // Include parentID if it exists
         });
       }
       // Fallback for questions with no answer_type but with text answers
@@ -276,7 +301,8 @@ async function submitQuestionnaire() {
           question_id: parseInt(questionId),
           option_id: textOption ? parseInt(textOption.option_id) : null,
           text_answer: textAnswers.value[questionId],
-          patient_id: props.patientId ? parseInt(props.patientId) : null
+          patient_id: props.patientId ? parseInt(props.patientId) : null,
+          parentID: parentID ? parseInt(parentID) : null // Include parentID if it exists
         });
       }
     });
@@ -348,8 +374,19 @@ function cancelQuestionnaire() {
       
       <!-- Questions -->
       <div class="space-y-8">
-        <div v-for="question in questions" :key="question.question_id" class="card p-5">
+        <div 
+          v-for="question in questions" 
+          :key="question.question_id" 
+          class="card p-5"
+          :class="{'ml-8 border-l-4 border-l-blue-300': question.parentID}"
+        >
           <div class="mb-3">
+            <!-- Show parent question info if this is a sub-question -->
+            <div v-if="question.parentID" class="text-xs text-blue-600 mb-2 flex items-center">
+              <Icon name="material-symbols:subdirectory-arrow-right" class="mr-1" />
+              Sub-question
+            </div>
+            
             <h3 class="text-lg font-medium">
               {{ question.question_text_bi }}
               <span v-if="question.is_required" class="text-red-500">*</span>

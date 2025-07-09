@@ -20,6 +20,11 @@ const showConfirmToggleModal = ref(false);
 const pendingToggleQuestionnaire = ref(null);
 const isTogglingStatus = ref(false);
 
+// For delete functionality
+const showDeleteModal = ref(false);
+const pendingDeleteQuestionnaire = ref(null);
+const isDeleting = ref(false);
+
 function showMessage(msg, type = 'success') {
   message.value = msg;
   messageType.value = type;
@@ -206,6 +211,44 @@ async function performToggleStatus() {
   }
 }
 
+// Delete functions
+function confirmDelete(questionnaire) {
+  pendingDeleteQuestionnaire.value = questionnaire;
+  showDeleteModal.value = true;
+}
+
+function cancelDelete() {
+  pendingDeleteQuestionnaire.value = null;
+  showDeleteModal.value = false;
+}
+
+async function performDelete() {
+  const questionnaire = pendingDeleteQuestionnaire.value;
+  isDeleting.value = true;
+
+  try {
+    const res = await fetch(`/api/questionnaire/delete?questionnaireID=${questionnaire.id}`, {
+      method: 'DELETE'
+    });
+
+    const result = await res.json();
+    if (result.statusCode === 200) {
+      // Remove the deleted questionnaire from the list
+      questionnaires.value = questionnaires.value.filter(q => q.id !== questionnaire.id);
+      showMessage('Questionnaire deleted successfully', 'success');
+    } else {
+      showMessage(`Error deleting questionnaire: ${result.message}`, 'error');
+    }
+  } catch (err) {
+    console.error('Delete error:', err);
+    showMessage('An error occurred while deleting the questionnaire.', 'error');
+  } finally {
+    showDeleteModal.value = false;
+    pendingDeleteQuestionnaire.value = null;
+    isDeleting.value = false;
+  }
+}
+
 function navigateToQuestions(questionnaireId) {
   router.push(`/questionnaire/questions/${questionnaireId}`);
 }
@@ -323,12 +366,27 @@ function navigateToQuestions(questionnaireId) {
               title="Manage Questions"
             />
           </rs-button>
+          <rs-button size="sm" @click="router.push(`/questionnaire/thresholds/${q.id}`)">
+            <Icon
+              name="material-symbols:analytics-outline"
+              class="text-purple-500 hover:text-purple-600 cursor-pointer"
+              size="22"
+              title="Manage Scoring Thresholds"
+            />
+          </rs-button>
           <Icon
             name="material-symbols:play-arrow-rounded"
             class="text-green-500 hover:text-green-600 cursor-pointer"
             size="22"
             @click="router.push(`/questionnaire/take/${q.id}`)"
             title="Take Questionnaire"
+          />
+          <Icon
+            name="material-symbols:delete-outline"
+            class="text-red-500 hover:text-red-700 cursor-pointer"
+            size="22"
+            @click="confirmDelete(q)"
+            title="Delete Questionnaire"
           />
         </div>
       </div>
@@ -341,6 +399,7 @@ function navigateToQuestions(questionnaireId) {
         <li>Create a questionnaire using the <strong>Add Questionnaire</strong> button</li>
         <li>Add questions to your questionnaire using the <strong>Manage Questions</strong> button</li>
         <li>For each question, add answer options using the <strong>Manage Options</strong> button</li>
+        <li>Define scoring thresholds using the <strong>Manage Scoring Thresholds</strong> button to provide interpretations based on total scores</li>
         <li>Once you've added options to your questions, use the <strong>Take Questionnaire</strong> button to test it</li>
         <li>View responses using the <strong>View Responses</strong> button</li>
       </ol>
@@ -433,6 +492,38 @@ function navigateToQuestions(questionnaireId) {
       <div v-if="isTogglingStatus" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
         <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
         <span>Updating status...</span>
+      </div>
+    </rs-modal>
+
+    <!-- Delete confirmation modal -->
+    <rs-modal
+      title="Delete Questionnaire"
+      ok-title="Delete"
+      cancel-title="Cancel"
+      :ok-callback="performDelete"
+      :cancel-callback="cancelDelete"
+      v-model="showDeleteModal"
+      :overlay-close="false"
+    >
+      <p class="mb-4">
+        Are you sure you want to delete this questionnaire ({{ pendingDeleteQuestionnaire?.name }})?
+      </p>
+      <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <Icon name="material-symbols:warning" class="text-yellow-400" />
+          </div>
+          <div class="ml-3">
+            <p class="text-sm text-yellow-700">
+              This will also delete all associated questions, options, and responses. This action cannot be undone.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="isDeleting" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
+        <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
+        <span>Deleting...</span>
       </div>
     </rs-modal>
   </div>

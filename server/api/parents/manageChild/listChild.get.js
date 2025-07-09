@@ -8,7 +8,12 @@ export default defineEventHandler(async (event) => {
     if (parentID) {
       // Get children for specific parent
       relations = await prisma.user_parent_patient.findMany({
-        where: { parent_id: parentID },
+        where: { 
+          parent_id: parentID,
+          user_parents: {
+            deleted_at: null // Only include active parents
+          }
+        },
         include: {
           user_patients: true,
           user_parents: {
@@ -21,6 +26,11 @@ export default defineEventHandler(async (event) => {
     } else {
       // Get all children with their parent
       relations = await prisma.user_parent_patient.findMany({
+        where: {
+          user_parents: {
+            deleted_at: null // Only include active parents
+          }
+        },
         include: {
           user_patients: true,
           user_parents: {
@@ -61,6 +71,7 @@ export default defineEventHandler(async (event) => {
     return {
       statusCode: 500,
       message: 'Internal Server Error',
+      error: error.message
     };
   }
 });

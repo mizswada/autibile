@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
     }
 
     const query = getQuery(event);
-    const { questionnaireId, patientId } = query;
+    const { questionnaireId, patientId, qrId } = query;
 
     // Build where clause based on query parameters
     const whereClause = {};
@@ -22,6 +22,10 @@ export default defineEventHandler(async (event) => {
     
     if (patientId) {
       whereClause.patient_id = parseInt(patientId);
+    }
+
+    if (qrId) {
+      whereClause.qr_id = parseInt(qrId);
     }
 
     // Fetch responses with related data
@@ -58,7 +62,8 @@ export default defineEventHandler(async (event) => {
         option_id: answer.option_id,
         option_title: answer.questionnaires_questions_action?.option_title || 'Unknown',
         option_value: answer.questionnaires_questions_action?.option_value || 0,
-        score: answer.score || 0
+        score: answer.score || 0,
+        parentID: answer.questionnaires_questions?.parentID || null // Include parentID for sub-questions
       }))
     }));
 

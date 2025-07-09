@@ -105,11 +105,11 @@ export default [
         child: [
           {
             title: "New Appointment",
-            path: "/appointmentManagement/newAppointment/index",
+            path: "/appointmentManagement/newAppointment",
           },
           {
             title: "Scheduled Appointment",
-            path: "/appointmentManagement/scheduledAppointment",
+            path: "/appointmentManagement/newAppointment/scheduledAppointment",
           },
         ],
       },
@@ -156,20 +156,20 @@ export default [
         icon: "ic:outline-question-answer",
         path: "/faq",
       },
-      {
-        title: "Community Support",
-        icon: "ic:outline-headset-mic",
-        child: [
-          {
-            title: "Posts Management",
-            path: "/communitySupport/postManagement",
-          },
-          {
-            title: "Reported Posts",
-            path: "/communitySupport/reportedContent",
-          },
-        ],
-      },
+      // {
+      //   title: "Community Support",
+      //   icon: "ic:outline-headset-mic",
+      //   child: [
+      //     {
+      //       title: "Posts Management",
+      //       path: "/communitySupport/postManagement",
+      //     },
+      //     {
+      //       title: "Reported Posts",
+      //       path: "/communitySupport/reportedContent",
+      //     },
+      //   ],
+      // },
        {
         title: "Therapy Service Management",
         icon: "ic:outline-emoji-people",

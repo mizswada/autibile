@@ -14,7 +14,9 @@ export default defineEventHandler(async (event) => {
       const { questionnaireID } = query;
       
       // Build where clause
-      const whereClause = {};
+      const whereClause = {
+        deleted_at: null // Filter out soft-deleted records
+      };
       
       if (questionnaireID) {
         whereClause.questionnaire_id = parseInt(questionnaireID);
@@ -47,6 +49,7 @@ export default defineEventHandler(async (event) => {
       const questions = await prisma.questionnaires_questions.findMany({
         where: {
           questionnaire_id: { in: questionnaireIDs },
+          deleted_at: null // Filter out soft-deleted records
         },
         select: {
           question_id: true,
@@ -83,6 +86,7 @@ export default defineEventHandler(async (event) => {
       return {
         statusCode: 500,
         message: 'Internal Server Error',
+        error: error.message
       };
     }
   });

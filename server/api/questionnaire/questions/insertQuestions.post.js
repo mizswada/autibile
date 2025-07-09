@@ -19,6 +19,7 @@ export default defineEventHandler(async (event) => {
         requiredQuestion,
         status,
         answer_type,
+        parentID,
       } = body;
   
       // Basic validation
@@ -36,6 +37,28 @@ export default defineEventHandler(async (event) => {
         };
       }
 
+      // If parentID is provided, validate that it exists
+      if (parentID) {
+        const parentQuestion = await prisma.questionnaires_questions.findUnique({
+          where: { question_id: parseInt(parentID) }
+        });
+
+        if (!parentQuestion) {
+          return {
+            statusCode: 400,
+            message: "Parent question not found",
+          };
+        }
+
+        // Ensure the parent question belongs to the same questionnaire
+        if (parentQuestion.questionnaire_id !== parseInt(questionnaire_id)) {
+          return {
+            statusCode: 400,
+            message: "Parent question must belong to the same questionnaire",
+          };
+        }
+      }
+
       // Save to DB - use the correct relation format for questionnaires
       const saved = await prisma.questionnaires_questions.create({
         data: {
@@ -48,6 +71,8 @@ export default defineEventHandler(async (event) => {
           status: status,
           // Only include answer_type if it's provided and not empty
           ...(answer_type && answer_type !== '' ? { answer_type: parseInt(answer_type) } : {}),
+          // Add parentID if provided
+          ...(parentID ? { parentID: parseInt(parentID) } : {}),
           created_at: new Date(),
         },
       });
