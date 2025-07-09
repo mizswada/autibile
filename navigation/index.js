@@ -169,7 +169,7 @@ export default [
       {
         title: "Tech Support",
         icon: "ic:outline-headset-mic",
-        path: "/technicalSupport",
+        path: "/techSupport",
       },
     ],
     

@@ -239,6 +239,12 @@
             "$ref": "#/definitions/appointments"
           }
         },
+        "faq": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/faq"
+          }
+        },
         "progress_track": {
           "type": "array",
           "items": {
@@ -504,6 +510,12 @@
             "null"
           ],
           "format": "date-time"
+        },
+        "questionnaire_scoring": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/questionnaire_scoring"
+          }
         },
         "questionnaires_questions": {
           "type": "array",
@@ -1250,6 +1262,114 @@
           "format": "date-time"
         }
       }
+    },
+    "faq": {
+      "type": "object",
+      "properties": {
+        "faq_ID": {
+          "type": "integer"
+        },
+        "faq_question": {
+          "type": "string"
+        },
+        "faq_answer": {
+          "type": "string"
+        },
+        "faq_status": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "lookup": {
+          "$ref": "#/definitions/lookup"
+        }
+      }
+    },
+    "questionnaire_scoring": {
+      "type": "object",
+      "properties": {
+        "scoring_ID": {
+          "type": "integer"
+        },
+        "scoring_min": {
+          "type": "integer"
+        },
+        "scoring_max": {
+          "type": "integer"
+        },
+        "scoring_interpretation": {
+          "type": "string"
+        },
+        "scoring_recommendation": {
+          "type": "integer"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "questionnaires": {
+          "$ref": "#/definitions/questionnaires"
+        }
+      }
+    },
+    "tech_supports": {
+      "type": "object",
+      "properties": {
+        "techSupport_ID": {
+          "type": "integer"
+        },
+        "techSupport_name": {
+          "type": "string"
+        },
+        "techSupport_email": {
+          "type": "string"
+        },
+        "techSupport_phone": {
+          "type": "string"
+        },
+        "techSupport_status": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
     }
   },
   "type": "object",
@@ -1310,6 +1430,15 @@
     },
     "therapyst_center": {
       "$ref": "#/definitions/therapyst_center"
+    },
+    "faq": {
+      "$ref": "#/definitions/faq"
+    },
+    "questionnaire_scoring": {
+      "$ref": "#/definitions/questionnaire_scoring"
+    },
+    "tech_supports": {
+      "$ref": "#/definitions/tech_supports"
     }
   }
 }
