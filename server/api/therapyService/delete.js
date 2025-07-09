@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
-import path from 'path'
-import prisma from "@@/server/config/prisma-client"
+//import path from 'path'
+//import prisma from "@@/server/config/prisma-client"
 
 export default defineEventHandler(async (event) => {
   if (event.method !== 'DELETE') {
