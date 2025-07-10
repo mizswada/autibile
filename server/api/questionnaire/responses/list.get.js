@@ -52,7 +52,7 @@ export default defineEventHandler(async (event) => {
       questionnaire_id: response.questionnaire_id,
       questionnaire_title: response.questionnaires?.title || 'Unknown',
       patient_id: response.patient_id,
-      patient_name: response.user_patients?.fullname || 'Anonymous',
+      patient_name: response.patient_id ? (response.user_patients?.fullname || 'Patient Not Found') : 'No Patient Selected',
       total_score: response.total_score || 0,
       created_at: response.created_at,
       answers: response.questionnaires_questions_answers.map(answer => ({

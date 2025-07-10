@@ -289,6 +289,18 @@ function navigateToQuestions(questionnaireId) {
 .toggle-checkbox:checked::before {
   transform: translateX(20px);
 }
+
+/* Action icon styles */
+.action-icon {
+  cursor: pointer;
+  padding: 1px;
+  border-radius: 1px;
+  transition: all 0.2s ease;
+}
+.action-icon:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  transform: scale(1.1);
+}
 </style>
 
 <template>
@@ -343,7 +355,7 @@ function navigateToQuestions(questionnaireId) {
           </p>
         </div>
         <div class="flex gap-2 items-center">
-          <div class="flex items-center gap-2 mr-2">
+          <!-- <div class="flex items-center gap-2 mr-2">
             <span class="text-sm text-gray-500">Status:</span>
             <input
               type="checkbox"
@@ -351,43 +363,48 @@ function navigateToQuestions(questionnaireId) {
               :checked="q.status === 'Active'"
               @click.prevent="confirmToggleStatus(q)"
             />
-          </div>
-          <rs-button size="sm" @click="openEditQuestionnaireModal(q)">
-            <Icon name="material-symbols:edit-outline-rounded" />
-          </rs-button>
-          <rs-button size="sm" @click="() => {
-            console.log('Navigating to questions page with questionnaire ID:', q.id);
-            router.push(`/questionnaire/questions/${q.id}`);
-          }">
-            <Icon
-              name="material-symbols:list-alt-outline"
-              class="text-blue-500 hover:text-blue-600 cursor-pointer"
-              size="22"
-              title="Manage Questions"
-            />
-          </rs-button>
-          <rs-button size="sm" @click="router.push(`/questionnaire/thresholds/${q.id}`)">
-            <Icon
-              name="material-symbols:analytics-outline"
-              class="text-purple-500 hover:text-purple-600 cursor-pointer"
-              size="22"
-              title="Manage Scoring Thresholds"
-            />
-          </rs-button>
+          </div> -->
+          
+          <!-- Standardized action icons -->
           <Icon
-            name="material-symbols:play-arrow-rounded"
-            class="text-green-500 hover:text-green-600 cursor-pointer"
+            name="material-symbols:edit-outline-rounded"
+            class="action-icon text-gray-600 hover:text-gray-800"
             size="22"
-            @click="router.push(`/questionnaire/take/${q.id}`)"
-            title="Take Questionnaire"
+            @click="openEditQuestionnaireModal(q)"
+            title="Edit Questionnaire"
           />
+          
+          <Icon
+            name="material-symbols:list-alt-outline"
+            class="action-icon text-blue-500 hover:text-blue-600"
+            size="22"
+            @click="router.push(`/questionnaire/questions/${q.id}`)"
+            title="Manage Questions"
+          />
+          
+          <Icon
+            name="material-symbols:analytics-outline"
+            class="action-icon text-purple-500 hover:text-purple-600"
+            size="22"
+            @click="router.push(`/questionnaire/thresholds/${q.id}`)"
+            title="Manage Scoring Thresholds"
+          />
+          
           <Icon
             name="material-symbols:delete-outline"
-            class="text-red-500 hover:text-red-700 cursor-pointer"
+            class="action-icon text-red-500 hover:text-red-700"
             size="22"
             @click="confirmDelete(q)"
             title="Delete Questionnaire"
           />
+
+          <button
+            class="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600"
+            @click="router.push(`/questionnaire/take/${q.id}`)"
+            title="Take Questionnaire"
+          >
+            View
+          </button>
         </div>
       </div>
     </div>

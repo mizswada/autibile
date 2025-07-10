@@ -87,12 +87,30 @@ export default defineEventHandler(async (event) => {
       }
     });
 
+    // Fetch the appropriate threshold based on the total score
+    const threshold = await prisma.questionnaire_scoring.findFirst({
+      where: {
+        scoring_questionnaires: parseInt(questionnaireId),
+        scoring_min: {
+          lte: totalScore
+        },
+        scoring_max: {
+          gte: totalScore
+        },
+        deleted_at: null
+      }
+    });
+
     return {
       statusCode: 200,
       message: "Questionnaire submitted successfully",
       data: {
         respond_id: qrRecord.qr_id,
-        total_score: totalScore
+        total_score: totalScore,
+        threshold: threshold ? {
+          interpretation: threshold.scoring_interpretation,
+          recommendation: threshold.scoring_recommendation
+        } : null
       }
     };
 

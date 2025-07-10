@@ -41,12 +41,14 @@ const progress = computed(() => {
   const totalQuestions = questions.value.length;
   const answeredQuestions = questions.value.filter(q => {
     const questionId = q.question_id;
-    // Check if question has any options with text/textarea type
-    const hasTextOptions = q.options && q.options.some(o => o.option_type === 'text' || o.option_type === 'textarea');
+    const questionType = getQuestionOptionType(q);
     
-    if (hasTextOptions) {
+    // For text or textarea questions, check textAnswers
+    if (questionType === 'text' || questionType === 'textarea' || q.answer_type === 33) {
       return textAnswers.value[questionId] !== undefined && textAnswers.value[questionId] !== '';
-    } else {
+    } 
+    // For all other question types, check answers
+    else {
       return answers.value[questionId] !== undefined && answers.value[questionId] !== null;
     }
   }).length;
@@ -59,12 +61,14 @@ const requiredQuestionsAnswered = computed(() => {
     .filter(q => q.is_required)
     .every(q => {
       const questionId = q.question_id;
-      // Check if question has any options with text/textarea type
-      const hasTextOptions = q.options && q.options.some(o => o.option_type === 'text' || o.option_type === 'textarea');
+      const questionType = getQuestionOptionType(q);
       
-      if (hasTextOptions) {
+      // For text or textarea questions, check textAnswers
+      if (questionType === 'text' || questionType === 'textarea' || q.answer_type === 33) {
         return textAnswers.value[questionId] !== undefined && textAnswers.value[questionId] !== '';
-      } else {
+      } 
+      // For all other question types, check answers
+      else {
         return answers.value[questionId] !== undefined && answers.value[questionId] !== null;
       }
     });
@@ -141,13 +145,20 @@ async function fetchQuestions() {
         organizedQuestions.push(...children);
       }
       
-      // Use the organized questions list
-      questions.value = organizedQuestions;
-      
-      // For each question, fetch its options
-      await Promise.all(questions.value.map(async (question) => {
-        await fetchQuestionOptions(question);
+      // Initialize questions with empty options arrays
+      questions.value = organizedQuestions.map(q => ({
+        ...q,
+        options: [],
+        optionsLoading: true,
+        optionsError: false
       }));
+      
+      // Fetch options for all questions in batches to avoid overwhelming the server
+      const batchSize = 5;
+      for (let i = 0; i < questions.value.length; i += batchSize) {
+        const batch = questions.value.slice(i, i + batchSize);
+        await Promise.all(batch.map(question => fetchQuestionOptions(question)));
+      }
     } else {
       errorMessage.value = result.message || 'Failed to load questions';
     }
@@ -180,6 +191,9 @@ function cleanOptionTitle(optionTitle) {
 }
 
 async function fetchQuestionOptions(question) {
+  question.optionsLoading = true;
+  question.optionsError = false;
+  
   try {
     const res = await fetch(`/api/questionnaire/questions/options/list?questionID=${question.question_id}`);
     const result = await res.json();
@@ -192,12 +206,24 @@ async function fetchQuestionOptions(question) {
         original_title: option.option_title,
         option_title: cleanOptionTitle(option.option_title)
       }));
+      question.optionsLoading = false;
     } else {
       console.error(`Failed to load options for question ${question.question_id}:`, result.message);
+      question.optionsError = true;
+      question.optionsLoading = false;
     }
   } catch (err) {
     console.error(`Error loading options for question ${question.question_id}:`, err);
+    question.optionsError = true;
+    question.optionsLoading = false;
   }
+}
+
+// Add a function to retry loading options if they fail
+async function retryLoadOptions(question) {
+  question.optionsLoading = true;
+  question.optionsError = false;
+  await fetchQuestionOptions(question);
 }
 
 function handleOptionSelect(questionId, optionId) {
@@ -222,6 +248,18 @@ function getQuestionOptionType(question) {
   
   // Fallback to checking options if answer_type is not set
   if (!question.options || question.options.length === 0) return 'none';
+  
+  // Check if any option has a text or textarea type
+  const hasTextOption = question.options.some(o => 
+    o.option_type === 'text' || o.option_type === 'textarea'
+  );
+  
+  if (hasTextOption) {
+    // Find the specific text option type
+    const textOption = question.options.find(o => o.option_type === 'textarea');
+    return textOption ? 'textarea' : 'text';
+  }
+  
   return question.options[0].option_type || 'radio';
 }
 
@@ -245,9 +283,10 @@ async function submitQuestionnaire() {
       const questionId = question.question_id;
       const answerType = question.answer_type;
       const parentID = question.parentID; // Get parent ID for sub-questions
+      const questionType = getQuestionOptionType(question);
       
-      // Handle Text Type (answer_type = 33)
-      if (answerType === 33) {
+      // Handle Text Type (answer_type = 33 or questionType is text/textarea)
+      if (answerType === 33 || questionType === 'text' || questionType === 'textarea') {
         if (textAnswers.value[questionId]) {
           formattedAnswers.push({
             question_id: parseInt(questionId),
@@ -306,6 +345,8 @@ async function submitQuestionnaire() {
         });
       }
     });
+
+    console.log('Submitting answers:', formattedAnswers);
     
     emit('submit', {
       questionnaireId: parseInt(props.questionnaireId),
@@ -397,8 +438,27 @@ function cancelQuestionnaire() {
           </div>
           
           <!-- Radio Button Options -->
-          <div v-if="getQuestionOptionType(question) === 'radio' && question.options && question.options.length > 0" class="mt-4">
-            <div class="space-y-2">
+          <div v-if="getQuestionOptionType(question) === 'radio' && question.options" class="mt-4">
+            <div v-if="question.optionsLoading" class="p-3 text-center">
+              <div class="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500 mr-2"></div>
+              <span class="text-sm text-gray-500">Loading options...</span>
+            </div>
+            
+            <div v-else-if="question.optionsError" class="p-3 border rounded bg-red-50 text-center">
+              <p class="text-sm text-red-600 mb-2">Failed to load options</p>
+              <button 
+                @click="retryLoadOptions(question)"
+                class="text-sm px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                Retry
+              </button>
+            </div>
+            
+            <div v-else-if="question.options.length === 0" class="p-3 text-center text-gray-500 italic">
+              No options available for this question
+            </div>
+            
+            <div v-else class="space-y-2">
               <div 
                 v-for="option in question.options" 
                 :key="option.option_id"
@@ -430,8 +490,27 @@ function cancelQuestionnaire() {
           </div>
           
           <!-- Checkbox Options -->
-          <div v-else-if="getQuestionOptionType(question) === 'checkbox' && question.options && question.options.length > 0" class="mt-4">
-            <div class="space-y-2">
+          <div v-else-if="getQuestionOptionType(question) === 'checkbox' && question.options" class="mt-4">
+            <div v-if="question.optionsLoading" class="p-3 text-center">
+              <div class="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500 mr-2"></div>
+              <span class="text-sm text-gray-500">Loading options...</span>
+            </div>
+            
+            <div v-else-if="question.optionsError" class="p-3 border rounded bg-red-50 text-center">
+              <p class="text-sm text-red-600 mb-2">Failed to load options</p>
+              <button 
+                @click="retryLoadOptions(question)"
+                class="text-sm px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                Retry
+              </button>
+            </div>
+            
+            <div v-else-if="question.options.length === 0" class="p-3 text-center text-gray-500 italic">
+              No options available for this question
+            </div>
+            
+            <div v-else class="space-y-2">
               <div 
                 v-for="option in question.options" 
                 :key="option.option_id"
@@ -493,19 +572,83 @@ function cancelQuestionnaire() {
           
           <!-- Text Type -->
           <div v-else-if="getQuestionOptionType(question) === 'text'" class="mt-4">
-            <input
-              type="text"
-              v-model="textAnswers[question.question_id]"
-              class="w-full p-3 border rounded"
-              placeholder="Enter your answer here"
-              :disabled="props.readOnly"
-              @input="handleTextInput(question.question_id, $event.target.value)"
-            />
+            <div v-if="question.optionsLoading" class="p-3 text-center">
+              <div class="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500 mr-2"></div>
+              <span class="text-sm text-gray-500">Loading options...</span>
+            </div>
+            
+            <div v-else-if="question.optionsError" class="p-3 border rounded bg-red-50 text-center">
+              <p class="text-sm text-red-600 mb-2">Failed to load options</p>
+              <button 
+                @click="retryLoadOptions(question)"
+                class="text-sm px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                Retry
+              </button>
+            </div>
+            
+            <div v-else>
+              <input
+                type="text"
+                v-model="textAnswers[question.question_id]"
+                class="w-full p-3 border rounded"
+                :placeholder="question.options && question.options.length > 0 ? question.options[0].option_title : 'Enter your answer here'"
+                :disabled="props.readOnly"
+                @input="handleTextInput(question.question_id, $event.target.value)"
+              />
+            </div>
+          </div>
+          
+          <!-- Textarea Type -->
+          <div v-else-if="getQuestionOptionType(question) === 'textarea'" class="mt-4">
+            <div v-if="question.optionsLoading" class="p-3 text-center">
+              <div class="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500 mr-2"></div>
+              <span class="text-sm text-gray-500">Loading options...</span>
+            </div>
+            
+            <div v-else-if="question.optionsError" class="p-3 border rounded bg-red-50 text-center">
+              <p class="text-sm text-red-600 mb-2">Failed to load options</p>
+              <button 
+                @click="retryLoadOptions(question)"
+                class="text-sm px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                Retry
+              </button>
+            </div>
+            
+            <div v-else>
+              <textarea
+                v-model="textAnswers[question.question_id]"
+                class="w-full p-3 border rounded min-h-[100px]"
+                :placeholder="question.options && question.options.length > 0 ? question.options[0].option_title : 'Enter your answer here'"
+                :disabled="props.readOnly"
+                @input="handleTextInput(question.question_id, $event.target.value)"
+              ></textarea>
+            </div>
           </div>
           
           <!-- Scale Options (for backward compatibility) -->
-          <div v-else-if="getQuestionOptionType(question) === 'scale' && question.options && question.options.length > 0" class="mt-4">
-            <div class="flex justify-between items-center">
+          <div v-else-if="getQuestionOptionType(question) === 'scale' && question.options" class="mt-4">
+            <div v-if="question.optionsLoading" class="p-3 text-center">
+              <div class="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500 mr-2"></div>
+              <span class="text-sm text-gray-500">Loading options...</span>
+            </div>
+            
+            <div v-else-if="question.optionsError" class="p-3 border rounded bg-red-50 text-center">
+              <p class="text-sm text-red-600 mb-2">Failed to load options</p>
+              <button 
+                @click="retryLoadOptions(question)"
+                class="text-sm px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                Retry
+              </button>
+            </div>
+            
+            <div v-else-if="question.options.length === 0" class="p-3 text-center text-gray-500 italic">
+              No options available for this question
+            </div>
+            
+            <div v-else class="space-y-2">
               <div 
                 v-for="option in question.options" 
                 :key="option.option_id"
@@ -526,29 +669,6 @@ function cancelQuestionnaire() {
                 <span class="text-xs text-gray-500">{{ option.option_title }}</span>
               </div>
             </div>
-          </div>
-          
-          <!-- Text Input (for backward compatibility) -->
-          <div v-else-if="getQuestionOptionType(question) === 'text' && question.options && question.options.length > 0" class="mt-4">
-            <input
-              type="text"
-              v-model="textAnswers[question.question_id]"
-              class="w-full p-3 border rounded"
-              :placeholder="question.options[0].option_title"
-              :disabled="props.readOnly"
-              @input="handleTextInput(question.question_id, $event.target.value)"
-            />
-          </div>
-          
-          <!-- Text Area (for backward compatibility) -->
-          <div v-else-if="getQuestionOptionType(question) === 'textarea' && question.options && question.options.length > 0" class="mt-4">
-            <textarea
-              v-model="textAnswers[question.question_id]"
-              class="w-full p-3 border rounded min-h-[100px]"
-              :placeholder="question.options[0].option_title"
-              :disabled="props.readOnly"
-              @input="handleTextInput(question.question_id, $event.target.value)"
-            ></textarea>
           </div>
           
           <div v-else class="text-gray-500 italic">No options available for this question</div>

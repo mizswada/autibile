@@ -17,19 +17,11 @@ const editThresholdId = ref(null);
 const modalErrorMessage = ref('');
 
 const newThreshold = ref({
-  threshold_value: '',
-  comparison: '',
+  scoring_min: '',
+  scoring_max: '',
   interpretation: '',
   recommendation: ''
 });
-
-const comparisonOptions = [
-  { label: 'Greater than or equal to (>=)', value: '>=' },
-  { label: 'Greater than (>)', value: '>' },
-  { label: 'Equal to (=)', value: '=' },
-  { label: 'Less than (<)', value: '<' },
-  { label: 'Less than or equal to (<=)', value: '<=' }
-];
 
 onMounted(async () => {
   await fetchQuestionnaireData();
@@ -78,8 +70,8 @@ async function fetchThresholds() {
 
 function openAddThresholdModal() {
   newThreshold.value = {
-    threshold_value: '',
-    comparison: '',
+    scoring_min: '',
+    scoring_max: '',
     interpretation: '',
     recommendation: ''
   };
@@ -90,8 +82,8 @@ function openAddThresholdModal() {
 
 function openEditThresholdModal(threshold) {
   newThreshold.value = {
-    threshold_value: threshold.threshold_value,
-    comparison: threshold.comparison,
+    scoring_min: threshold.scoring_min,
+    scoring_max: threshold.scoring_max === 999999 ? '' : threshold.scoring_max,
     interpretation: threshold.interpretation,
     recommendation: threshold.recommendation
   };
@@ -101,19 +93,26 @@ function openEditThresholdModal(threshold) {
 }
 
 async function saveThreshold() {
-  if (!newThreshold.value.threshold_value || 
-      !newThreshold.value.comparison || 
+  if (!newThreshold.value.scoring_min || 
       !newThreshold.value.interpretation || 
       !newThreshold.value.recommendation) {
-    modalErrorMessage.value = 'All fields are required';
+    modalErrorMessage.value = 'Minimum score, interpretation, and recommendation are required';
     return;
   }
 
   try {
+    const min = parseInt(newThreshold.value.scoring_min);
+    const max = newThreshold.value.scoring_max ? parseInt(newThreshold.value.scoring_max) : 999999;
+    
+    if (min > max) {
+      modalErrorMessage.value = 'Minimum score cannot be greater than maximum score';
+      return;
+    }
+
     const payload = {
       questionnaire_id: parseInt(questionnaireId),
-      threshold_value: parseInt(newThreshold.value.threshold_value),
-      comparison: newThreshold.value.comparison,
+      scoring_min: min,
+      scoring_max: max,
       interpretation: newThreshold.value.interpretation,
       recommendation: newThreshold.value.recommendation
     };
@@ -185,9 +184,16 @@ function goBack() {
   router.push('/questionnaire');
 }
 
-function getComparisonLabel(comparison) {
-  const option = comparisonOptions.find(opt => opt.value === comparison);
-  return option ? option.label : comparison;
+function getScoreRangeDisplay(threshold) {
+  if (threshold.scoring_min === threshold.scoring_max) {
+    return `Score = ${threshold.scoring_min}`;
+  } else if (threshold.scoring_min === 0) {
+    return `Score ≤ ${threshold.scoring_max}`;
+  } else if (threshold.scoring_max === 999999) {
+    return `Score ≥ ${threshold.scoring_min}`;
+  } else {
+    return `${threshold.scoring_min} - ${threshold.scoring_max}`;
+  }
 }
 </script>
 
@@ -245,10 +251,7 @@ function getComparisonLabel(comparison) {
             <thead class="bg-gray-50">
               <tr>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Threshold
-                </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Comparison
+                  Score Range
                 </th>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Interpretation
@@ -264,10 +267,7 @@ function getComparisonLabel(comparison) {
             <tbody class="bg-white divide-y divide-gray-200">
               <tr v-for="threshold in thresholds" :key="threshold.threshold_id">
                 <td class="px-6 py-4">
-                  <div class="text-sm font-medium">{{ threshold.threshold_value }}</div>
-                </td>
-                <td class="px-6 py-4">
-                  <div class="text-sm">{{ getComparisonLabel(threshold.comparison) }}</div>
+                  <div class="text-sm font-medium">{{ getScoreRangeDisplay(threshold) }}</div>
                 </td>
                 <td class="px-6 py-4">
                   <div class="text-sm">{{ threshold.interpretation }}</div>
@@ -321,35 +321,36 @@ function getComparisonLabel(comparison) {
       </div>
 
       <FormKit type="form" @submit="saveThreshold" :actions="false">
-        <FormKit
-          type="number"
-          v-model="newThreshold.threshold_value"
-          name="thresholdValue"
-          label="Threshold Value"
-          placeholder="Enter threshold value"
-          validation="required|number"
-          validation-visibility="dirty"
-          :validation-messages="{ required: 'This field is required', number: 'Must be a number' }"
-        />
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormKit
+            type="number"
+            v-model="newThreshold.scoring_min"
+            name="scoringMin"
+            label="Minimum Score"
+            placeholder="Enter minimum score"
+            validation="required|number"
+            validation-visibility="dirty"
+            :validation-messages="{ required: 'This field is required', number: 'Must be a number' }"
+          />
 
-        <FormKit
-          type="select"
-          v-model="newThreshold.comparison"
-          name="comparison"
-          label="Comparison Operator"
-          :options="comparisonOptions"
-          placeholder="Select comparison operator"
-          validation="required"
-          validation-visibility="dirty"
-          :validation-messages="{ required: 'This field is required' }"
-        />
+          <FormKit
+            type="number"
+            v-model="newThreshold.scoring_max"
+            name="scoringMax"
+            label="Maximum Score (leave empty for no upper limit)"
+            placeholder="Enter maximum score"
+            validation="number"
+            validation-visibility="dirty"
+            :validation-messages="{ number: 'Must be a number' }"
+          />
+        </div>
 
         <FormKit
           type="textarea"
           v-model="newThreshold.interpretation"
           name="interpretation"
           label="Interpretation"
-          placeholder="Enter interpretation for this threshold"
+          placeholder="Enter interpretation for this score range"
           validation="required"
           validation-visibility="dirty"
           :validation-messages="{ required: 'This field is required' }"
@@ -361,7 +362,7 @@ function getComparisonLabel(comparison) {
           v-model="newThreshold.recommendation"
           name="recommendation"
           label="Recommendation"
-          placeholder="Enter recommendation for this threshold"
+          placeholder="Enter recommendation for this score range"
           validation="required"
           validation-visibility="dirty"
           :validation-messages="{ required: 'This field is required' }"
