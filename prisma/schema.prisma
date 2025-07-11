@@ -60,6 +60,7 @@ model lookup {
   lookupCreatedDate                                     DateTime?        @db.DateTime(0)
   lookupModifiedDate                                    DateTime?        @db.DateTime(0)
   appointments                                          appointments[]
+  faq                                                   faq[]
   progress_track                                        progress_track[]
   user_parents_user_parents_parent_relationshipTolookup user_parents[]   @relation("user_parents_parent_relationshipTolookup")
   user_parents_user_parents_parent_nationalityTolookup  user_parents[]   @relation("user_parents_parent_nationalityTolookup")
@@ -135,6 +136,7 @@ model questionnaires {
   created_at               DateTime?                  @db.Timestamp(0)
   updated_at               DateTime?                  @default(now()) @db.Timestamp(0)
   deleted_at               DateTime?                  @db.Timestamp(0)
+  questionnaire_scoring    questionnaire_scoring[]
   questionnaires_questions questionnaires_questions[]
   questionnaires_responds  questionnaires_responds[]
 }
@@ -330,4 +332,44 @@ model therapyst_center {
   created_at      DateTime  @db.Timestamp(0)
   updated_at      DateTime? @db.Timestamp(0)
   deleted_at      DateTime? @db.Timestamp(0)
+}
+
+model faq {
+  faq_ID        Int       @id @default(autoincrement())
+  faq_languange Int
+  faq_question  String    @db.Text
+  faq_answer    String    @db.Text
+  faq_status    String    @db.VarChar(50)
+  created_at    DateTime  @db.Timestamp(0)
+  updated_at    DateTime  @db.Timestamp(0)
+  deleted_at    DateTime? @db.Timestamp(0)
+  lookup        lookup    @relation(fields: [faq_languange], references: [lookupID], onDelete: NoAction, onUpdate: NoAction, map: "faq_ibfk_1")
+
+  @@index([faq_languange], map: "faq_languange")
+}
+
+model questionnaire_scoring {
+  scoring_ID             Int            @id @default(autoincrement())
+  scoring_questionnaires Int
+  scoring_min            Int
+  scoring_max            Int
+  scoring_interpretation String         @db.VarChar(255)
+  scoring_recommendation String         @db.Text
+  created_at             DateTime       @db.Timestamp(0)
+  updated_at             DateTime       @db.Timestamp(0)
+  deleted_at             DateTime?      @db.Timestamp(0)
+  questionnaires         questionnaires @relation(fields: [scoring_questionnaires], references: [questionnaire_id], onDelete: NoAction, onUpdate: NoAction, map: "questionnaire_scoring_ibfk_1")
+
+  @@index([scoring_questionnaires], map: "scoring_questionnaires")
+}
+
+model tech_supports {
+  techSupport_ID     Int       @id @default(autoincrement())
+  techSupport_name   String    @db.VarChar(255)
+  techSupport_email  String    @db.VarChar(255)
+  techSupport_phone  String    @db.VarChar(50)
+  techSupport_status String    @db.VarChar(50)
+  created_at         DateTime  @db.Timestamp(0)
+  updated_at         DateTime  @db.Timestamp(0)
+  deleted_at         DateTime? @db.Timestamp(0)
 }

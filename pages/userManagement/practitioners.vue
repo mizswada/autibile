@@ -14,6 +14,11 @@ const isLoading = ref(false);
 const isSubmitting = ref(false);
 const isToggling = ref(false);
 
+// Add delete functionality
+const showDeleteModal = ref(false);
+const pendingDeleteData = ref(null);
+const isDeleting = ref(false);
+
 const form = ref({
   fullName: '',
   email: '',
@@ -83,6 +88,47 @@ async function performToggleStatus() {
     showConfirmToggleModal.value = false;
     pendingToggleData.value = null;
     isToggling.value = false;
+  }
+}
+
+// Delete functions
+function confirmDelete(row) {
+  const original = getOriginalData(row.username);
+  if (original) {
+    pendingDeleteData.value = original;
+    showDeleteModal.value = true;
+  }
+}
+
+function cancelDelete() {
+  pendingDeleteData.value = null;
+  showDeleteModal.value = false;
+}
+
+async function performDelete() {
+  const rowData = pendingDeleteData.value;
+  isDeleting.value = true;
+
+  try {
+    const response = await $fetch(`/api/practitioners/delete?practitionerID=${rowData.practitionerID}`, {
+      method: 'DELETE'
+    });
+
+    if (response.statusCode === 200) {
+      // Remove the deleted practitioner from the list
+      rawData.value = rawData.value.filter(p => p.practitionerID !== rowData.practitionerID);
+      alert('Practitioner deleted successfully');
+    } else {
+      console.error('Failed to delete practitioner:', response.message);
+      alert(`Delete failed: ${response.message}`);
+    }
+  } catch (error) {
+    console.error('API error:', error);
+    alert('An error occurred while deleting the practitioner.');
+  } finally {
+    showDeleteModal.value = false;
+    pendingDeleteData.value = null;
+    isDeleting.value = false;
   }
 }
 
@@ -312,6 +358,14 @@ watch(() => showModal.value, (newVal) => {
           >
             <Icon name="material-symbols:edit" size="22" />
           </span>
+          
+          <!-- Delete Icon -->
+          <span
+            class="relative group cursor-pointer text-red-500 hover:text-red-700"
+            @click="() => confirmDelete(row.value)"
+          >
+            <Icon name="material-symbols:delete-outline" size="22" />
+          </span>
         </div>
       </template>
     </rs-table>
@@ -431,6 +485,38 @@ watch(() => showModal.value, (newVal) => {
       <div v-if="isToggling" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
         <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
         <span>Updating status...</span>
+      </div>
+    </rs-modal>
+    
+    <!-- Delete confirmation modal -->
+    <rs-modal
+      title="Delete Practitioner"
+      ok-title="Delete"
+      cancel-title="Cancel"
+      :ok-callback="performDelete"
+      :cancel-callback="cancelDelete"
+      v-model="showDeleteModal"
+      :overlay-close="false"
+    >
+      <p class="mb-4">
+        Are you sure you want to delete this practitioner ({{ pendingDeleteData?.fullName }})?
+      </p>
+      <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <Icon name="material-symbols:warning" class="text-yellow-400" />
+          </div>
+          <div class="ml-3">
+            <p class="text-sm text-yellow-700">
+              This action cannot be undone. The practitioner will no longer appear in the system.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="isDeleting" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
+        <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
+        <span>Deleting...</span>
       </div>
     </rs-modal>
   </div>

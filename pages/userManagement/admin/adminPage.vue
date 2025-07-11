@@ -12,6 +12,11 @@ const isLoading = ref(false);
 const isViewLoading = ref(false);
 const isTogglingStatus = ref(false);
 
+// Add delete functionality
+const showDeleteModal = ref(false);
+const pendingDeleteData = ref(null);
+const isDeleting = ref(false);
+
 onMounted(async () => {
   await loadAdmins();
 });
@@ -140,6 +145,48 @@ async function performToggleStatus() {
     isTogglingStatus.value = false;
   }
 }
+
+// Delete functions
+function confirmDelete(rowData) {
+  const original = getOriginalData(rowData.username);
+  if (original) {
+    pendingDeleteData.value = original;
+    showDeleteModal.value = true;
+  }
+}
+
+function cancelDelete() {
+  pendingDeleteData.value = null;
+  showDeleteModal.value = false;
+}
+
+async function performDelete() {
+  const rowData = pendingDeleteData.value;
+  isDeleting.value = true;
+
+  try {
+    const res = await fetch(`/api/admin/deleteAdmin?userID=${rowData.userID}`, {
+      method: 'DELETE'
+    });
+
+    const result = await res.json();
+
+    if (result.statusCode === 200) {
+      // Remove the deleted admin from the list
+      rawData.value = rawData.value.filter(p => p.userID !== rowData.userID);
+      alert('Administrator deleted successfully');
+    } else {
+      alert(`Error deleting administrator: ${result.message}`);
+    }
+  } catch (err) {
+    console.error('Delete error:', err);
+    alert('An error occurred while deleting the administrator.');
+  } finally {
+    showDeleteModal.value = false;
+    pendingDeleteData.value = null;
+    isDeleting.value = false;
+  }
+}
 </script>
 
 <template>
@@ -195,6 +242,14 @@ async function performToggleStatus() {
             >
               <Icon name="material-symbols:edit" size="22" />
             </span>
+            
+            <!-- Delete Icon -->
+            <span
+              class="relative group cursor-pointer text-red-500 hover:text-red-700"
+              @click="() => confirmDelete(row.value)"
+            >
+              <Icon name="material-symbols:delete-outline" size="22" />
+            </span>
           </div>
         </template>
 
@@ -229,6 +284,38 @@ async function performToggleStatus() {
     <div v-if="isTogglingStatus" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
       <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
       <span>Updating status...</span>
+    </div>
+  </rs-modal>
+  
+  <!-- Delete confirmation modal -->
+  <rs-modal
+    title="Delete Administrator"
+    ok-title="Delete"
+    cancel-title="Cancel"
+    :ok-callback="performDelete"
+    :cancel-callback="cancelDelete"
+    v-model="showDeleteModal"
+    :overlay-close="false"
+  >
+    <p class="mb-4">
+      Are you sure you want to delete this administrator ({{ pendingDeleteData?.fullName }})?
+    </p>
+    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <Icon name="material-symbols:warning" class="text-yellow-400" />
+        </div>
+        <div class="ml-3">
+          <p class="text-sm text-yellow-700">
+            This action cannot be undone. The administrator will no longer appear in the system.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="isDeleting" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
+      <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
+      <span>Deleting...</span>
     </div>
   </rs-modal>
 

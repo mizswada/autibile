@@ -103,21 +103,21 @@ export default [
         title: "Appointment Management",
         icon: "ic:outline-calendar-today",
         child: [
-          {
-            title: "New Appointment",
-            path: "/appointmentManagement/newAppointment",
-          },
+          // {
+          //   title: "New Appointment",
+          //   path: "/appointmentManagement/newAppointment",
+          // },
           {
             title: "Scheduled Appointment",
-            path: "/appointmentManagement/scheduledAppointment",
+            path: "/appointmentManagement/newAppointment/scheduledAppointment",
           },
         ],
       },
 
        {
-        title: "Reports",
+        title: "Diary Report",
         icon: "ic:outline-pie-chart",
-        path: "/reports",
+        path: "/diaryReport",
       },
 
       {
@@ -128,8 +128,27 @@ export default [
 
        {
         title: "Manage Questionnaire",
-        icon: "ic:outline-question-answer",
+        icon: "material-symbols:quiz-outline",
         path: "/questionnaire",
+        children: [
+          {
+            title: "Manage Questionnaires",
+            path: "/questionnaire",
+          },
+          {
+            title: "View Responses",
+            path: "/questionnaire/results",
+          },
+          {
+            title: "Take Questionnaire",
+            path: "/questionnaire",
+            click: (router) => {
+              // This will be handled in the questionnaire index page
+              // User will select which questionnaire to take
+              router.push('/questionnaire');
+            }
+          },
+        ],
       },
 
       {
@@ -152,20 +171,20 @@ export default [
         ],
       },
        {
-        title: "Therapy Plan Management",
+        title: "Therapy Service Management",
         icon: "ic:outline-emoji-people",
-        path: "/therapyAndActivity",
+        path: "/therapyService",
       },
-      {
-        title: "Profile",
-        icon: "ic:outline-person",
-        child: [
-          {
-            title: "Profile Edit",
-            path: "/profile/profileEdit",
-          },
-        ],
-      },
+      // {
+      //   title: "Profile",
+      //   icon: "ic:outline-person",
+      //   child: [
+      //     {
+      //       title: "Profile Edit",
+      //       path: "/profile/profileEdit",
+      //     },
+      //   ],
+      // },
       {
         title: "Tech Support",
         icon: "ic:outline-headset-mic",

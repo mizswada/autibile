@@ -20,8 +20,10 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    // Join user_parents with user and lookup tables
     const parents = await prisma.user_parents.findMany({
+      where: {
+        deleted_at: null // Filter out soft-deleted records
+      },
       orderBy: { created_at: 'desc' },
       include: {
         user: {
@@ -33,20 +35,51 @@ export default defineEventHandler(async (event) => {
             userIC: true,
           },
         },
+        lookup_user_parents_parent_relationshipTolookup: {
+          select: {
+            lookupID: true,
+            title: true, 
+          },
+        },
+        lookup_user_parents_parent_nationalityTolookup: {
+          select: {
+            lookupID: true,
+            title: true,
+          },
+        },
+        lookup_user_parents_parent_stateTolookup: {
+          select: {
+            lookupID: true,
+            title: true,
+          },
+        },
       },
     });
 
-    // Format response
-    const formattedParents = parents.map(p => ({
-      parentID: p.parent_id,
-      userID: p.user_id,
-      username: p.user?.userUsername || '',
-      fullName: p.user?.userFullName || '',
-      email: p.user?.userEmail || '',
-      phone: p.user?.userPhone || '',
-      ic: p.user?.userIC || '',
-      status: p.parent_status || '',
+    const formattedParents = parents.map(parent => ({
+      parentID: parent.parent_id,
+      userID: parent.user_id,
+      username: parent.user?.userUsername || '',
+      fullName: parent.user?.userFullName || '',
+      email: parent.user?.userEmail || '',
+      phone: parent.user?.userPhone || '',
+      ic: parent.user?.userIC || '',
+      relationship: parent.lookup_user_parents_parent_relationshipTolookup?.title || '',
+      nationality: parent.lookup_user_parents_parent_nationalityTolookup?.title || '',
+      state: parent.lookup_user_parents_parent_stateTolookup?.title || '',
+      status: parent.parent_status || '',
+
+      // Added fields from fetchEdit API
+      gender: parent.parent_gender || '',
+      dateOfBirth: parent.parent_dob || '',
+      addressLine1: parent.parent_add1 || '',
+      addressLine2: parent.parent_add2 || '',
+      addressLine3: parent.parent_add3 || '',
+      city: parent.parent_city || '',
+      postcode: parent.parent_postcode || '',
     }));
+
+    //console.log(formattedParents);
 
     return {
       statusCode: 200,
@@ -59,6 +92,7 @@ export default defineEventHandler(async (event) => {
     return {
       statusCode: 500,
       message: 'Internal Server Error',
+      error: error.message
     };
   }
 });

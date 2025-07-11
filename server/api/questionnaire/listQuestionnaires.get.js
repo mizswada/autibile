@@ -8,14 +8,29 @@ export default defineEventHandler(async (event) => {
           message: "Unauthorized: Missing user session",
         };
       }
+      
+      // Get query parameters
+      const query = getQuery(event);
+      const { questionnaireID } = query;
+      
+      // Build where clause
+      const whereClause = {
+        deleted_at: null // Filter out soft-deleted records
+      };
+      
+      if (questionnaireID) {
+        whereClause.questionnaire_id = parseInt(questionnaireID);
+      }
   
       // Step 1: Get all questionnaires
       const questionnaires = await prisma.questionnaires.findMany({
+        where: whereClause,
         orderBy: { created_at: 'desc' },
         select: {
           questionnaire_id: true,
           title: true,
           description: true,
+          header: true,
           status: true,
         },
       });
@@ -34,6 +49,7 @@ export default defineEventHandler(async (event) => {
       const questions = await prisma.questionnaires_questions.findMany({
         where: {
           questionnaire_id: { in: questionnaireIDs },
+          deleted_at: null // Filter out soft-deleted records
         },
         select: {
           question_id: true,
@@ -70,6 +86,7 @@ export default defineEventHandler(async (event) => {
       return {
         statusCode: 500,
         message: 'Internal Server Error',
+        error: error.message
       };
     }
   });

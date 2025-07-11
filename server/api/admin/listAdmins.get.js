@@ -7,6 +7,9 @@ export default defineEventHandler(async (event) => {
     // Find users with admin roles
     const users = await prisma.user.findMany({
       where: {
+        userStatus: {
+          not: 'INACTIVE' // Filter out inactive users
+        },
         userrole: {
           some: {
             role: {
