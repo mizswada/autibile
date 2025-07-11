@@ -185,6 +185,7 @@ function extractOptionType(optionTitle) {
 function cleanOptionTitle(optionTitle) {
   if (!optionTitle) return '';
   
+  // Make sure to remove any type of prefix in square brackets
   return optionTitle
     .replace(/^\[(radio|checkbox|scale|text|textarea)\]/, '')
     .trim();
@@ -429,7 +430,7 @@ function cancelQuestionnaire() {
             </div>
             
             <h3 class="text-lg font-medium">
-              {{ question.question_text_bi }}
+              {{ question.question_text_bi || question.question_text }}
               <span v-if="question.is_required" class="text-red-500">*</span>
             </h3>
             <p v-if="question.question_text_bm" class="text-sm text-gray-500 mt-1">

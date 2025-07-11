@@ -80,6 +80,12 @@ function openAddQuestionnaireModal() {
 }
 
 function openEditQuestionnaireModal(q) {
+  // Don't allow editing of protected questionnaire
+  if (isProtectedQuestionnaire(q.id)) {
+    showMessage('This questionnaire cannot be edited as it is a system questionnaire.', 'error');
+    return;
+  }
+  
   newQuestionnaire.value = {
     name: q.name,
     description: q.description,
@@ -170,6 +176,12 @@ async function saveQuestionnaire() {
 
 // Status toggle functions
 function confirmToggleStatus(questionnaire) {
+  // Don't allow status changes for protected questionnaire
+  if (isProtectedQuestionnaire(questionnaire.id)) {
+    showMessage('This questionnaire status cannot be changed as it is a system questionnaire.', 'error');
+    return;
+  }
+  
   pendingToggleQuestionnaire.value = questionnaire;
   showConfirmToggleModal.value = true;
 }
@@ -213,8 +225,19 @@ async function performToggleStatus() {
 
 // Delete functions
 function confirmDelete(questionnaire) {
+  // Don't allow deletion of protected questionnaire
+  if (isProtectedQuestionnaire(questionnaire.id)) {
+    showMessage('This questionnaire cannot be deleted as it is a system questionnaire.', 'error');
+    return;
+  }
+  
   pendingDeleteQuestionnaire.value = questionnaire;
   showDeleteModal.value = true;
+}
+
+// Function to check if a questionnaire is protected (system questionnaire)
+function isProtectedQuestionnaire(id) {
+  return id === 1;
 }
 
 function cancelDelete() {
@@ -367,6 +390,7 @@ function navigateToQuestions(questionnaireId) {
           
           <!-- Standardized action icons -->
           <Icon
+            v-if="!isProtectedQuestionnaire(q.id)"
             name="material-symbols:edit-outline-rounded"
             class="action-icon text-gray-600 hover:text-gray-800"
             size="22"
@@ -391,6 +415,7 @@ function navigateToQuestions(questionnaireId) {
           />
           
           <Icon
+            v-if="!isProtectedQuestionnaire(q.id)"
             name="material-symbols:delete-outline"
             class="action-icon text-red-500 hover:text-red-700"
             size="22"

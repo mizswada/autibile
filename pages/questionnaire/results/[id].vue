@@ -1,6 +1,8 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
-import { useRoute, navigateTo } from 'vue-router';
+import { useRoute } from 'vue-router';
+import { navigateTo } from '#imports';
+import RsQuestionnaireForm from '~/components/RsQuestionnaireForm.vue';
 
 const route = useRoute();
 const responseId = computed(() => route.params.id);
@@ -9,6 +11,7 @@ const response = ref(null);
 const isLoading = ref(true);
 const error = ref(null);
 const scoreThresholds = ref([]);
+const showDetailsView = ref(false);
 
 onMounted(async () => {
   await fetchResponseDetails();
@@ -101,7 +104,11 @@ function goBack() {
   navigateTo('/questionnaire/results');
 }
 
-// Group answers by questions for better display
+function toggleView() {
+  showDetailsView.value = !showDetailsView.value;
+}
+
+  // Group answers by questions for better display
 const groupedAnswers = computed(() => {
   if (!response.value || !response.value.answers) return [];
   
@@ -112,6 +119,7 @@ const groupedAnswers = computed(() => {
       questions[answer.question_id] = {
         question_id: answer.question_id,
         question_text: answer.question_text,
+        question_text_bm: answer.question_text_bm, // Include Bahasa Malaysia text
         answers: [],
         parentID: answer.parentID || null, // Store parentID for organizing
       };
@@ -148,6 +156,19 @@ const groupedAnswers = computed(() => {
   return Object.values(parentQuestions);
 });
 
+// Format answers for the questionnaire form component
+const formattedAnswers = computed(() => {
+  if (!response.value || !response.value.answers) return [];
+  
+  return response.value.answers.map(answer => ({
+    question_id: answer.question_id,
+    option_id: answer.option_id,
+    text_answer: answer.text_answer,
+    option_title: answer.option_title ? answer.option_title.replace(/^\[(radio|checkbox|scale|text|textarea)\]/, '') : '',
+    option_value: answer.option_value
+  }));
+});
+
 // Get the appropriate score interpretation based on the total score
 const scoreInterpretation = computed(() => {
   if (!response.value || !scoreThresholds.value.length) return null;
@@ -168,15 +189,24 @@ const scoreInterpretation = computed(() => {
 
 <template>
   <div class="p-6">
-    <div class="flex items-center mb-6">
+    <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center">
+        <button 
+          @click="goBack"
+          class="mr-3 flex items-center text-black hover:text-gray-800"
+        >
+          <Icon name="material-symbols:arrow-back" class="mr-1" />
+        </button>
+        <h1 class="text-2xl font-bold">Response Details</h1>
+      </div>
+      
       <button 
-        @click="goBack"
-        class="mr-3 flex items-center text-blue-600 hover:text-blue-800"
+        @click="toggleView" 
+        class="flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
       >
-        <Icon name="material-symbols:arrow-back" class="mr-1" />
-        Back to Results
+        <Icon :name="showDetailsView ? 'material-symbols:format-list-bulleted' : 'material-symbols:visibility'" class="mr-1" />
+        {{ showDetailsView ? 'Show Summary' : 'Show Questionnaire View' }}
       </button>
-      <h1 class="text-2xl font-bold">Response Details</h1>
     </div>
     
     <div v-if="isLoading" class="p-8 text-center">
@@ -194,85 +224,140 @@ const scoreInterpretation = computed(() => {
       </button>
     </div>
     
-    <div v-else-if="response" class="space-y-6">
-      <!-- Response Summary -->
-      <div class="bg-white p-6 rounded shadow">
-        <h2 class="text-xl font-bold mb-4">Response Summary</h2>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <div class="mb-3">
-              <div class="text-sm text-gray-500">Questionnaire</div>
-              <div class="font-medium">{{ response.questionnaire_title }}</div>
-            </div>
-            
-            <div class="mb-3">
-              <div class="text-sm text-gray-500">Patient</div>
-              <div class="font-medium">{{ response.patient_name }}</div>
-            </div>
-          </div>
-          
-          <div>
-            <div class="mb-3">
-              <div class="text-sm text-gray-500">Date Submitted</div>
-              <div class="font-medium">{{ formatDate(response.created_at) }}</div>
-            </div>
-            
-            <div class="mb-3">
-              <div class="text-sm text-gray-500">Total Score</div>
-              <div class="font-medium text-xl">{{ response.total_score }}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Score Interpretation -->
-      <div v-if="scoreInterpretation" class="bg-white p-6 rounded shadow">
-        <h2 class="text-xl font-bold mb-4">Score Interpretation</h2>
-        
-        <div class="p-4 rounded" :class="scoreInterpretation.comparison === '>=' && scoreInterpretation.threshold <= response.total_score ? 'bg-yellow-50 border border-yellow-200' : 'bg-green-50 border border-green-200'">
-          <div class="font-medium text-lg mb-2" :class="scoreInterpretation.comparison === '>=' && scoreInterpretation.threshold <= response.total_score ? 'text-yellow-700' : 'text-green-700'">
-            {{ scoreInterpretation.interpretation }}
-          </div>
-          <div class="text-gray-700">
-            {{ scoreInterpretation.recommendation }}
-          </div>
-        </div>
-      </div>
-      
-      <!-- Response Details -->
-      <div class="bg-white p-6 rounded shadow">
-        <h2 class="text-xl font-bold mb-4">Response Details</h2>
-        
-        <div v-for="(group, index) in groupedAnswers" :key="group.question_id" class="mb-6 pb-6" :class="{ 'border-b': index < groupedAnswers.length - 1 }">
-          <!-- Parent Question -->
-          <div class="font-medium mb-2">{{ group.question_text }}</div>
-          
-          <!-- Parent Question Answers -->
-          <div class="pl-4 border-l-2 border-gray-200 mb-4">
-            <div v-for="answer in group.answers" :key="answer.answer_id" class="mb-2">
-              <div class="flex justify-between">
-                <div>{{ answer.option_title }}</div>
-                <div class="text-blue-600 font-medium">{{ answer.option_value }} points</div>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Sub-questions -->
-          <div v-if="group.subQuestions && group.subQuestions.length > 0" class="ml-6">
-            <div v-for="subQuestion in group.subQuestions" :key="subQuestion.question_id" class="mb-4">
-              <!-- Sub-question text -->
-              <div class="font-medium mb-2 flex items-center">
-                <Icon name="material-symbols:subdirectory-arrow-right" class="mr-1 text-gray-400" />
-                {{ subQuestion.question_text }}
+    <div v-else-if="response">
+      <!-- Questionnaire Form View -->
+      <div v-if="showDetailsView && response.questionnaire_id">
+        <div class="bg-white p-6 rounded shadow mb-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <div class="mb-3">
+                <div class="text-sm text-gray-500">Questionnaire</div>
+                <div class="font-medium">{{ response.questionnaire_title }}</div>
               </div>
               
-              <!-- Sub-question answers -->
-              <div class="pl-4 border-l-2 border-gray-200 ml-4">
-                <div v-for="answer in subQuestion.answers" :key="answer.answer_id" class="mb-2">
-                  <div class="flex justify-between">
-                    <div>{{ answer.option_title }}</div>
-                    <div class="text-blue-600 font-medium">{{ answer.option_value }} points</div>
+              <div class="mb-3">
+                <div class="text-sm text-gray-500">Patient</div>
+                <div class="font-medium">{{ response.patient_name }}</div>
+              </div>
+            </div>
+            
+            <div>
+              <div class="mb-3">
+                <div class="text-sm text-gray-500">Date Submitted</div>
+                <div class="font-medium">{{ formatDate(response.created_at) }}</div>
+              </div>
+              
+              <div class="mb-3">
+                <div class="text-sm text-gray-500">Total Score</div>
+                <div class="font-medium text-xl">{{ response.total_score }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <RsQuestionnaireForm 
+          :questionnaire-id="response.questionnaire_id"
+          :patient-id="response.patient_id"
+          :saved-answers="formattedAnswers"
+          :read-only="true"
+        />
+      </div>
+      
+      <!-- Summary View -->
+      <div v-else class="space-y-6">
+        <!-- Response Summary -->
+        <div class="bg-white p-6 rounded shadow">
+          <h2 class="text-xl font-bold mb-4">Response Summary</h2>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <div class="mb-3">
+                <div class="text-sm text-gray-500">Questionnaire</div>
+                <div class="font-medium">{{ response.questionnaire_title }}</div>
+              </div>
+              
+              <div class="mb-3">
+                <div class="text-sm text-gray-500">Patient</div>
+                <div class="font-medium">{{ response.patient_name }}</div>
+              </div>
+            </div>
+            
+            <div>
+              <div class="mb-3">
+                <div class="text-sm text-gray-500">Date Submitted</div>
+                <div class="font-medium">{{ formatDate(response.created_at) }}</div>
+              </div>
+              
+              <div class="mb-3">
+                <div class="text-sm text-gray-500">Total Score</div>
+                <div class="font-medium text-xl">{{ response.total_score }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Score Interpretation -->
+        <div v-if="scoreInterpretation" class="bg-white p-6 rounded shadow">
+          <h2 class="text-xl font-bold mb-4">Score Interpretation</h2>
+          
+          <div class="p-4 rounded" :class="scoreInterpretation.comparison === '>=' && scoreInterpretation.threshold <= response.total_score ? 'bg-yellow-50 border border-yellow-200' : 'bg-green-50 border border-green-200'">
+            <div class="font-medium text-lg mb-2" :class="scoreInterpretation.comparison === '>=' && scoreInterpretation.threshold <= response.total_score ? 'text-yellow-700' : 'text-green-700'">
+              {{ scoreInterpretation.interpretation }}
+            </div>
+            <div class="text-gray-700">
+              {{ scoreInterpretation.recommendation }}
+            </div>
+          </div>
+        </div>
+        
+        <!-- Response Details -->
+        <div class="bg-white p-6 rounded shadow">
+          <h2 class="text-xl font-bold mb-4">Response Details</h2>
+          
+          <div v-for="(group, index) in groupedAnswers" :key="group.question_id" class="mb-6 pb-6" :class="{ 'border-b': index < groupedAnswers.length - 1 }">
+            <!-- Parent Question -->
+            <div class="mb-2">
+              <div class="font-medium">{{ group.question_text }}</div>
+              <div v-if="group.question_text_bm" class="text-sm text-gray-500 mt-1">{{ group.question_text_bm }}</div>
+            </div>
+            
+            <!-- Parent Question Answers -->
+                          <div class="pl-4 border-l-2 border-gray-200 mb-4">
+              <div v-for="answer in group.answers" :key="answer.answer_id" class="mb-2">
+                <div class="flex justify-between">
+                  <div>
+                    <!-- Show text answer if available, otherwise show option title -->
+                    <template v-if="answer.text_answer">{{ answer.text_answer }}</template>
+                    <template v-else>{{ (answer.option_title || '').replace(/^\[(radio|checkbox|scale|text|textarea)\]/, '') }}</template>
+                  </div>
+                  <div v-if="answer.option_value" class="text-blue-600 font-medium">{{ answer.option_value }} points</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Sub-questions -->
+            <div v-if="group.subQuestions && group.subQuestions.length > 0" class="ml-6">
+              <div v-for="subQuestion in group.subQuestions" :key="subQuestion.question_id" class="mb-4">
+                <!-- Sub-question text -->
+                <div class="mb-2 flex">
+                  <Icon name="material-symbols:subdirectory-arrow-right" class="mr-1 text-gray-400 mt-1 flex-shrink-0" />
+                  <div>
+                    <div class="font-medium">{{ subQuestion.question_text }}</div>
+                    <div v-if="subQuestion.question_text_bm" class="text-sm text-gray-500 mt-1">{{ subQuestion.question_text_bm }}</div>
+                  </div>
+                </div>
+                
+                <!-- Sub-question answers -->
+                <div class="pl-4 border-l-2 border-gray-200 ml-4">
+                  <div v-for="answer in subQuestion.answers" :key="answer.answer_id" class="mb-2">
+                    <div class="flex justify-between">
+                      <div>
+                        <!-- Show text answer if available, otherwise show option title -->
+                        <template v-if="answer.text_answer">{{ answer.text_answer }}</template>
+                        <template v-else>{{ (answer.option_title || '').replace(/^\[(radio|checkbox|scale|text|textarea)\]/, '') }}</template>
+                      </div>
+                      <div v-if="answer.option_value" class="text-blue-600 font-medium">{{ answer.option_value }} points</div>
+                    </div>
                   </div>
                 </div>
               </div>

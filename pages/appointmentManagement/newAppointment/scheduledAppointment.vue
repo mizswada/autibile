@@ -19,7 +19,39 @@ const calendarOptions = ref({
     right: "dayGridMonth,timeGridWeek,listWeek",
   },
   events: [],
-  eventClick: handleEventClick
+  eventClick: handleEventClick,
+  eventContent: function(arg) {
+    // Create a custom event display with session count, service, and time slot
+    const eventEl = document.createElement('div');
+    eventEl.classList.add('fc-event-custom-content');
+    eventEl.style.padding = '2px';
+    eventEl.style.overflow = 'hidden';
+    
+    // Time slot
+    const timeSlotEl = document.createElement('div');
+    timeSlotEl.classList.add('text-xs', 'opacity-90', 'mt-1');
+    timeSlotEl.innerHTML = `${extractTimeOnly(arg.event.extendedProps.time_slot) || 'Unknown Time'}`;
+    eventEl.appendChild(timeSlotEl);
+    // Patient name
+    const titleEl = document.createElement('div');
+    titleEl.classList.add('font-medium');
+    titleEl.innerHTML = arg.event.extendedProps.patient_name || 'Unknown Patient';
+    eventEl.appendChild(titleEl);
+    
+    // Service name
+    const serviceEl = document.createElement('div');
+    serviceEl.classList.add('text-xs', 'opacity-80');
+    serviceEl.innerHTML = arg.event.extendedProps.service_name || 'Unknown Service';
+    eventEl.appendChild(serviceEl);
+    
+    // Session number
+    const sessionEl = document.createElement('div');
+    sessionEl.classList.add('text-xs', 'font-semibold');
+    sessionEl.innerHTML = `Session ${arg.event.extendedProps.session_number || 1}`;
+    eventEl.appendChild(sessionEl);
+    
+    return { domNodes: [eventEl] };
+  }
 });
 
 const fetchAppointments = async () => {
@@ -52,8 +84,50 @@ const fetchAppointments = async () => {
 
 // Function to handle clicking on a calendar event
 function handleEventClick(info) {
-  selectedAppointment.value = info.event;
-  showDetailsModal.value = true;
+  console.log("Calendar event clicked:", info.event);
+  
+  const eventId = info.event.id;
+  
+  // Try to find the appointment in the raw data first
+  const appointment = getOriginalData(eventId);
+  
+  if (appointment) {
+    // If found in raw data, use that
+    selectedAppointment.value = appointment;
+    showDetailsModal.value = true;
+  } else {
+    // If not found in raw data, create a formatted appointment object from the event data
+    const eventData = info.event;
+    const extendedProps = eventData.extendedProps;
+    
+    // Create a properly formatted appointment object from the event data
+    const formattedAppointment = {
+      id: eventData.id,
+      patientName: extendedProps.patient_name || 'Unknown Patient',
+      practitionerName: extendedProps.practitioner_name || 'Unknown Practitioner',
+      serviceName: extendedProps.service_name || 'Unknown Service',
+      date: new Date(eventData.start).toLocaleDateString(),
+      originalDate: eventData.start.toISOString(),
+      timeSlot: extendedProps.time_slot || 'Unknown Time',
+      status: extendedProps.status || 36,
+      patientId: extendedProps.patient_id,
+      practitionerId: extendedProps.practitioner_id,
+      serviceId: extendedProps.service_id,
+      slotId: extendedProps.slot_ID,
+      parentComment: extendedProps.parent_comment,
+      therapistDoctorComment: extendedProps.therapist_doctor_comment,
+      parentRate: extendedProps.parent_rate || 0,
+      sessionNumber: extendedProps.session_number || 1,
+      rawExtendedProps: extendedProps
+    };
+    
+    // Add this appointment to the raw data for future reference
+    rawData.value.push(formattedAppointment);
+    
+    // Set as selected appointment and show details modal
+    selectedAppointment.value = formattedAppointment;
+    showDetailsModal.value = true;
+  }
 }
 
 // Function to get color based on status
@@ -185,6 +259,7 @@ const { data: appointmentsData, pending: appointmentsLoading, refresh: _refreshA
           parentComment: appt.extendedProps.parent_comment,
           therapistDoctorComment: appt.extendedProps.therapist_doctor_comment,
           parentRate: appt.extendedProps.parent_rate || 0,
+          sessionNumber: appt.extendedProps.session_number || 1,
           rawExtendedProps: appt.extendedProps
         };
       });
@@ -645,6 +720,19 @@ function getOriginalData(id) {
   return rawData.value.find(appt => appt.id === id);
 }
 
+// Function to extract only the time part from the time slot string
+function extractTimeOnly(timeSlot) {
+  if (!timeSlot) return 'Unknown Time';
+  
+  // Extract the time part after the colon (e.g., "Slot 2 : 10.00 am - 11.00 am" -> "10.00 am - 11.00 am")
+  const colonIndex = timeSlot.indexOf(':');
+  if (colonIndex !== -1) {
+    return timeSlot.substring(colonIndex + 1).trim();
+  }
+  
+  return timeSlot;
+}
+
 // Open rating modal
 const openRatingModal = (appointment) => {
   if (!appointment) {
@@ -1002,6 +1090,16 @@ const cancelAppointment = async () => {
                 </p>
               </div>
             </div>
+            
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <p class="text-sm text-gray-500">Session Number</p>
+                <p class="font-medium">
+                  {{ selectedAppointment.sessionNumber || 1 }}
+                  <span class="text-xs text-gray-500">(Sequential appointment number)</span>
+                </p>
+              </div>
+            </div>
 
             <div class="grid grid-cols-2 gap-4">
               <div>
@@ -1074,14 +1172,6 @@ const cancelAppointment = async () => {
           </div>
 
           <div class="mt-6 flex justify-between">
-            <div>
-              <rs-button variant="danger-outline" @click="showDeleteModal = true">
-                <Icon name="material-symbols:delete" class="mr-1" /> Delete
-              </rs-button>
-              <rs-button variant="warning-outline" class="ml-2" @click="cancelAppointment" :disabled="isLoading">
-                <Icon name="material-symbols:cancel" class="mr-1" /> Cancel Appointment
-              </rs-button>
-            </div>
             <rs-button variant="primary" @click="showDetailsModal = false">Close</rs-button>
           </div>
         </div>

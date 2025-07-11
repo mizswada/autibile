@@ -220,7 +220,7 @@ async function saveOption() {
 
     let response;
     if (isEditingOption.value && newOption.value.id) {
-      response = await fetch('/api/questionnaire/questions/options/update.put', {
+      response = await fetch('/api/questionnaire/questions/options/update', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -434,12 +434,12 @@ watch(showOptionModal, (newVal) => {
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="bg-gray-50 p-4 rounded-lg">
-            <h3 class="text-sm uppercase text-gray-500 mb-1">Bahasa Malaysia</h3>
-            <p class="text-lg font-medium">{{ question.question_text_bm }}</p>
+            <h3 class="text-sm uppercase text-gray-500 mb-1">Question</h3>
+            <p class="text-lg font-medium">{{ question.question_text_bi }}</p>
           </div>
           <div class="bg-gray-50 p-4 rounded-lg">
-            <h3 class="text-sm uppercase text-gray-500 mb-1">English</h3>
-            <p class="text-lg font-medium">{{ question.question_text_bi }}</p>
+            <h3 class="text-sm uppercase text-gray-500 mb-1">Description</h3>
+            <p class="text-lg font-medium">{{ question.question_text_bm }}</p>
           </div>
         </div>
 
@@ -608,8 +608,8 @@ watch(showOptionModal, (newVal) => {
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Option Type</label>
                 <select v-model="newOption.option_type" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                  <option value="radio">Radio Button (Single Choice)</option>
-                  <option value="checkbox">Checkbox (Multiple Choice)</option>
+                  <option value="radio">Radio Button</option>
+                  <option value="checkbox">Checkbox</option>
                 </select>
               </div>
 

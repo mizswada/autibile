@@ -318,12 +318,22 @@ const scoreInterpretation = computed(() => {
               <td class="px-6 py-4">{{ response.total_score }}</td>
               <td class="px-6 py-4">{{ formatDate(response.created_at) }}</td>
               <td class="px-6 py-4">
-                <button 
-                  @click="viewResponseDetails(response.qr_id)"
-                  class="text-blue-600 hover:text-blue-800"
-                >
-                  View Details
-                </button>
+                <div class="flex space-x-3">
+                  <button 
+                    @click="viewResponseDetails(response.qr_id)"
+                    class="text-blue-600 hover:text-blue-800 flex items-center"
+                    title="View Details"
+                  >
+                    <Icon name="material-symbols:info-outline-rounded" class="mr-1" />
+                  </button>
+                  <button 
+                    @click="viewResponse(response.qr_id)"
+                    class="text-green-600 hover:text-green-800 flex items-center"
+                    title="View Questionnaire and Answers"
+                  >
+                    <Icon name="material-symbols:visibility" class="mr-1" />
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>

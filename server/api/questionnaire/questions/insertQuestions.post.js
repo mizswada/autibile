@@ -25,8 +25,8 @@ export default defineEventHandler(async (event) => {
       // Basic validation
       if (
         questionnaire_id === undefined ||
-        question_bm === undefined || question_bm.trim() === '' ||
-        question_en === undefined || question_en.trim() === '' ||
+        //question_bm === undefined || question_bm.trim() === '' ||
+        //question_en === undefined || question_en.trim() === '' ||
         requiredQuestion === undefined || requiredQuestion === '' ||
         status === undefined || status === ''
         // Not making answer_type required since it might not be in the schema

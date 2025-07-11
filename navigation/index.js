@@ -115,9 +115,9 @@ export default [
       },
 
        {
-        title: "Reports",
+        title: "Diary Report",
         icon: "ic:outline-pie-chart",
-        path: "/reports",
+        path: "/diaryReport",
       },
 
       {
@@ -175,16 +175,16 @@ export default [
         icon: "ic:outline-emoji-people",
         path: "/therapyService",
       },
-      {
-        title: "Profile",
-        icon: "ic:outline-person",
-        child: [
-          {
-            title: "Profile Edit",
-            path: "/profile/profileEdit",
-          },
-        ],
-      },
+      // {
+      //   title: "Profile",
+      //   icon: "ic:outline-person",
+      //   child: [
+      //     {
+      //       title: "Profile Edit",
+      //       path: "/profile/profileEdit",
+      //     },
+      //   ],
+      // },
       {
         title: "Tech Support",
         icon: "ic:outline-headset-mic",

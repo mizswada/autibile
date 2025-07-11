@@ -1,5 +1,11 @@
 // Added by: Firzana Huda 24 June 2025
 export default defineEventHandler(async (event) => {
+  // Helper function to clean option titles
+  const cleanOptionTitle = (optionTitle) => {
+    if (!optionTitle) return '';
+    return optionTitle.replace(/^\[(radio|checkbox|scale|text|textarea)\]/, '').trim();
+  };
+
   try {
     // Extract userID from the session context
     const { userID } = event.context.user || {};
@@ -59,9 +65,11 @@ export default defineEventHandler(async (event) => {
         answer_id: answer.answer_id,
         question_id: answer.question_id,
         question_text: answer.questionnaires_questions?.question_text_bi || 'Unknown',
+        question_text_bm: answer.questionnaires_questions?.question_text_bm || '',
         option_id: answer.option_id,
-        option_title: answer.questionnaires_questions_action?.option_title || 'Unknown',
+        option_title: answer.questionnaires_questions_action ? cleanOptionTitle(answer.questionnaires_questions_action.option_title) || '' : '',
         option_value: answer.questionnaires_questions_action?.option_value || 0,
+        text_answer: answer.text_answer || '',
         score: answer.score || 0,
         parentID: answer.questionnaires_questions?.parentID || null // Include parentID for sub-questions
       }))

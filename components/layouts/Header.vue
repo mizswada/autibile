@@ -57,6 +57,11 @@ const toggleMenu = (event) => {
   emit("toggleMenu", event);
 };
 
+// Get username from store
+const username = computed(() => {
+  return userStore.username || 'User';
+});
+
 // Focus on search input
 function toggleSearch() {
   document.getElementById("header-search").value = "";
@@ -230,15 +235,21 @@ onMounted(() => {
               v-if="isDesktop"
               class="grid grid-cols-1 text-left ml-3 flex-none"
             >
-              <p class="font-semibold text-sm truncate w-24 mb-0">John Doe</p>
-              <span class="font-medium text-xs truncate w-24"
-                >RM 10,000.00</span
-              >
+              <p class="font-semibold text-sm truncate w-24 mb-0">{{ username }}</p>
             </div>
             <Icon name="ic:outline-keyboard-arrow-down" class="ml-3" />
           </button>
           <template #popper>
             <ul class="header-dropdown w-full md:w-52">
+              <li>
+                <nuxt-link
+                  to="/profile/profileEdit"
+                  class="flex items-center cursor-pointer py-2 px-4 hover:bg-[rgb(var(--bg-1))]"
+                >
+                  <Icon name="ic:outline-person" class="mr-2" />
+                  Profile
+                </nuxt-link>
+              </li>
               <li>
                 <a
                   href="/logout"

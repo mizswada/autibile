@@ -29,6 +29,28 @@ export default defineEventHandler(async (event) => {
       },
       orderBy: { date: 'asc' }
     });
+    
+    // Get sequential session numbers for each patient
+    const patientAppointments = {};
+    
+    // Group appointments by patient
+    for (const appointment of appointments) {
+      const patientId = appointment.patient_id;
+      if (!patientAppointments[patientId]) {
+        patientAppointments[patientId] = [];
+      }
+      patientAppointments[patientId].push(appointment);
+    }
+    
+    // Sort each patient's appointments by date and assign session numbers
+    for (const patientId in patientAppointments) {
+      patientAppointments[patientId].sort((a, b) => a.date.getTime() - b.date.getTime());
+      
+      // Assign sequential session numbers
+      patientAppointments[patientId].forEach((appointment, index) => {
+        appointment.sessionNumber = index + 1;
+      });
+    }
 
     const formattedAppointments = appointments.map(appointment => {
       const slotTitle = appointment.lookup?.title || 'Slot';
@@ -42,9 +64,17 @@ export default defineEventHandler(async (event) => {
         endTime = convertTo24Hour(timeRangeMatch[1]);
       }
 
+      // Get sequential session number for this appointment
+      const sessionNumber = appointment.sessionNumber || 1;
+      
+      // Create a more informative title that includes service and session number
+      const patientName = appointment.user_patients?.fullname || 'Unknown Patient';
+      const serviceName = appointment.service?.name || 'Unknown Service';
+      const title = `${patientName} - ${serviceName} (Session ${sessionNumber})`;
+      
       return {
         id: appointment.appointment_id,
-        title: appointment.user_patients?.fullname || 'Unknown Patient',
+        title: title,
         start: `${appointment.date.toISOString().split('T')[0]}T${startTime}:00`,
         end: `${appointment.date.toISOString().split('T')[0]}T${endTime}:00`,
         extendedProps: {
@@ -60,7 +90,8 @@ export default defineEventHandler(async (event) => {
           parent_comment: appointment.parent_comment,
           therapist_doctor_comment: appointment.therapist_doctor_comment,
           parent_rate: appointment.parent_rate,
-          slot_ID: appointment.slot_ID
+          slot_ID: appointment.slot_ID,
+          session_number: sessionNumber
         }
       };
     });

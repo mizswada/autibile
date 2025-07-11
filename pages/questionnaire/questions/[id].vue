@@ -1,10 +1,15 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 const route = useRoute();
 const router = useRouter();
 const questionnaireId = route.params.id;
+
+// Function to check if the current questionnaire is protected
+const isProtectedQuestionnaire = computed(() => {
+  return questionnaireId === '1';
+});
 
 const questionnaire = ref(null);
 const questions = ref([]);
@@ -223,6 +228,12 @@ async function saveHeader() {
 }
 
 function openAddQuestionModal(parentQuestion = null) {
+  // Don't allow adding questions for protected questionnaires
+  if (isProtectedQuestionnaire.value) {
+    showMessage('Questions cannot be added for this questionnaire as it is a system questionnaire.', 'error');
+    return;
+  }
+  
   newQuestion.value = {
     question_bm: '',
     question_en: '',
@@ -237,6 +248,12 @@ function openAddQuestionModal(parentQuestion = null) {
 }
 
 async function openEditQuestionModal(question) {
+  // Don't allow editing questions for protected questionnaires
+  if (isProtectedQuestionnaire.value) {
+    showMessage('Questions cannot be edited for this questionnaire as it is a system questionnaire.', 'error');
+    return;
+  }
+  
   // Initialize with question data
   newQuestion.value = {
     question_bm: question.question_text_bm,
@@ -452,6 +469,12 @@ function getAnswerTypeLabel(answerType) {
 
 // Delete functions
 function confirmDelete(question) {
+  // Don't allow deleting questions for protected questionnaires
+  if (isProtectedQuestionnaire.value) {
+    showMessage('Questions cannot be deleted for this questionnaire as it is a system questionnaire.', 'error');
+    return;
+  }
+  
   pendingDeleteQuestion.value = question;
   showDeleteModal.value = true;
 }
@@ -589,8 +612,8 @@ async function performDelete() {
   border-radius: 6px;
   padding: 8px;
   position: absolute;
-  z-index: 1;
-  bottom: 125%;
+  z-index: 10;
+  top: 100%;
   left: 0;
   opacity: 0;
   transition: opacity 0.3s;
@@ -598,6 +621,7 @@ async function performDelete() {
   line-height: 1.4;
   white-space: normal;
   word-wrap: break-word;
+  margin-top: 5px;
 }
 
 .tooltip-container:hover .tooltip-text {
@@ -636,13 +660,13 @@ async function performDelete() {
         <div class="mt-4 border-t pt-3">
           <div class="flex justify-between items-center mb-2">
             <h3 class="text-md font-medium">Questionnaire Header/Instructions</h3>
-            <rs-button @click="openHeaderModal" size="sm">
+            <rs-button v-if="!isProtectedQuestionnaire" @click="openHeaderModal" size="sm" >
               <Icon name="material-symbols:edit-outline-rounded" class="mr-1" />
               Edit Header
             </rs-button>
           </div>
           <div v-if="questionnaire.header" class="bg-gray-50 p-3 rounded border">
-            <div v-html="questionnaire.header"></div>
+            <div v-html="questionnaire.header" class="text-red-600"></div>
           </div>
           <div v-else class="bg-gray-50 p-3 rounded border text-gray-500 italic">
             No header/instructions added yet. Click "Edit Header" to add instructions for this questionnaire.
@@ -653,7 +677,7 @@ async function performDelete() {
       <div class="flex justify-between items-center mb-4">
         <h3 class="text-lg font-semibold">Questions ({{ questions.length }})</h3>
         <div class="flex gap-2">
-          <rs-button @click="openAddQuestionModal">
+          <rs-button v-if="!isProtectedQuestionnaire" @click="openAddQuestionModal">
             <Icon name="material-symbols:add" class="mr-1" />
             Add New Question
           </rs-button>
@@ -667,7 +691,7 @@ async function performDelete() {
             <h3 class="text-xl font-medium text-gray-600 mb-2">No Questions Added Yet</h3>
             <p class="text-gray-500 mb-6">This questionnaire doesn't have any questions yet.</p>
             <div class="flex gap-4">
-              <rs-button @click="openAddQuestionModal">
+              <rs-button v-if="!isProtectedQuestionnaire" @click="openAddQuestionModal">
                 <Icon name="material-symbols:add" class="mr-1" />
                 Add New Question
               </rs-button>
@@ -678,11 +702,14 @@ async function performDelete() {
           <table class="questions-table divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
+                <th scope="col" class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider col-no" style="min-width: 40px; width: 40px;">
+                  No
+                </th>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider col-question-bm">
-                  Question (BM)
+                  Question
                 </th>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider col-question-en">
-                  Question (EN)
+                  Description
                 </th>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider col-required">
                   Required
@@ -700,8 +727,11 @@ async function performDelete() {
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
               <!-- Main questions -->
-              <template v-for="question in questions" :key="question.id">
+              <template v-for="(question, index) in questions" :key="question.id">
                 <tr>
+                  <td class="px-2 py-4 text-center">
+                    <div class="text-sm font-medium text-gray-900">{{ index + 1 }}</div>
+                  </td>
                   <td class="px-6 py-4">
                     <div class="flex items-center">
                       <!-- Sub-question toggle button if question has sub-questions -->
@@ -717,18 +747,12 @@ async function performDelete() {
                       <!-- Spacer if no sub-questions -->
                       <div v-else class="w-5"></div>
                       
-                      <div class="tooltip-container">
-                        <div class="text-sm text-gray-900 question-text">{{ question.question_text_bm }}</div>
-                        <span class="tooltip-text" v-if="question.question_text_bm && question.question_text_bm.length > 50">{{ question.question_text_bm }}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div class="tooltip-container">
                       <div class="text-sm text-gray-900 question-text">{{ question.question_text_bi }}</div>
-                      <span class="tooltip-text" v-if="question.question_text_bi && question.question_text_bi.length > 50">{{ question.question_text_bi }}</span>
                     </div>
                   </td>
+                                      <td class="px-6 py-4">
+                      <div class="text-sm text-gray-900 question-text">{{ question.question_text_bm }}</div>
+                    </td>
                   <td class="px-6 py-4">
                     <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" 
                           :class="question.is_required ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'">
@@ -755,6 +779,7 @@ async function performDelete() {
                   <td class="px-6 py-4 text-right text-sm font-medium">
                     <div class="flex justify-end gap-3 items-center">
                       <button 
+                        v-if="!isProtectedQuestionnaire"
                         @click="openEditQuestionModal(question)" 
                         class="text-indigo-600 hover:text-indigo-900"
                         title="Edit Question"
@@ -771,6 +796,7 @@ async function performDelete() {
                       </button>
 
                       <button 
+                        v-if="!isProtectedQuestionnaire"
                         @click="openAddQuestionModal(question)"
                         class="text-green-600 hover:text-green-900"
                         title="Add Sub-question"
@@ -780,6 +806,7 @@ async function performDelete() {
                       </button>
                       
                       <button 
+                        v-if="!isProtectedQuestionnaire"
                         @click="confirmDelete(question)"
                         class="text-red-600 hover:text-red-900"
                         title="Delete Question"
@@ -792,7 +819,7 @@ async function performDelete() {
                 
                 <!-- Loading indicator for sub-questions -->
                 <tr v-if="loadingSubQuestions[question.id] && showingSubQuestions[question.id]">
-                  <td colspan="6" class="px-6 py-4 bg-gray-50">
+                  <td colspan="6" class="px-6 py-4 bg-gray-200">
                     <div class="flex justify-center">
                       <div class="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-primary"></div>
                     </div>
@@ -801,21 +828,18 @@ async function performDelete() {
                 
                 <!-- Sub-questions -->
                 <template v-if="showingSubQuestions[question.id] && subQuestions[question.id]">
-                  <tr v-for="subQuestion in subQuestions[question.id]" :key="subQuestion.id" class="bg-gray-50">
+                  <tr v-for="(subQuestion, subIndex) in subQuestions[question.id]" :key="subQuestion.id" class="bg-gray-200">
+                    <td class="px-2 py-4 text-center">
+                      <div class="text-sm font-medium text-gray-900">{{ index + 1 }}.{{ subIndex + 1 }}</div>
+                    </td>
                     <td class="px-6 py-4">
                       <div class="flex items-center">
                         <div class="w-5 ml-5"></div> <!-- Indentation for sub-questions -->
-                        <div class="tooltip-container">
-                          <div class="text-sm text-gray-900 question-text">{{ subQuestion.question_text_bm }}</div>
-                          <span class="tooltip-text" v-if="subQuestion.question_text_bm && subQuestion.question_text_bm.length > 50">{{ subQuestion.question_text_bm }}</span>
-                        </div>
+                        <div class="text-sm text-gray-900 question-text">{{ subQuestion.question_text_bi }}</div>
                       </div>
                     </td>
                     <td class="px-6 py-4">
-                      <div class="tooltip-container">
-                        <div class="text-sm text-gray-900 question-text">{{ subQuestion.question_text_bi }}</div>
-                        <span class="tooltip-text" v-if="subQuestion.question_text_bi && subQuestion.question_text_bi.length > 50">{{ subQuestion.question_text_bi }}</span>
-                      </div>
+                      <div class="text-sm text-gray-900 question-text">{{ subQuestion.question_text_bm }}</div>
                     </td>
                     <td class="px-6 py-4">
                       <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" 
@@ -843,6 +867,7 @@ async function performDelete() {
                     <td class="px-6 py-4 text-right text-sm font-medium">
                       <div class="flex justify-end gap-3 items-center">
                         <button 
+                          v-if="!isProtectedQuestionnaire"
                           @click="openEditQuestionModal(subQuestion)" 
                           class="text-indigo-600 hover:text-indigo-900"
                           title="Edit Question"
@@ -859,6 +884,7 @@ async function performDelete() {
                         </button>
 
                         <button 
+                          v-if="!isProtectedQuestionnaire"
                           @click="confirmDelete(subQuestion)"
                           class="text-red-600 hover:text-red-900"
                           title="Delete Question"
@@ -898,24 +924,17 @@ async function performDelete() {
       <FormKit type="form" @submit="saveQuestion" :actions="false">
         <FormKit
           type="text"
-          v-model="newQuestion.question_bm"
-          name="questionTextBm"
-          label="Question"
-          placeholder="Enter question in Bahasa Malaysia"
-          validation="required"
-          validation-visibility="dirty"
-          :validation-messages="{ required: 'This field is required' }"
-        />
-
-        <FormKit
-          type="text"
           v-model="newQuestion.question_en"
           name="questionTextEn"
-          label="Question in English"
-          placeholder="Enter question in English"
-          validation="required"
-          validation-visibility="dirty"
-          :validation-messages="{ required: 'This field is required' }"
+          label="Question"
+          placeholder="Enter question"
+        />
+        <FormKit
+          type="text"
+          v-model="newQuestion.question_bm"
+          name="questionTextBm"
+          label="Description"
+          placeholder="Enter description"
         />
 
         <FormKit
