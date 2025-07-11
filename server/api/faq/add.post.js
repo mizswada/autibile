@@ -6,16 +6,14 @@ export default defineEventHandler(async (event) => {
     console.log('body', body);
     const { user } = event.context.user;
  
-    const { faq_language,faq_question, faq_answer, faq_status} = body;
+    const { faq_language, faq_question, faq_answer, faq_status } = body;
  
-    if ( faq_language ||!faq_question || !faq_answer || !faq_status) {
+    if (!faq_language || !faq_question || !faq_answer || !faq_status) {
       return {
         statusCode: 400,
         message: "Missing required fields",
       };
     }
- 
- 
  
     // Create faq record
     const faq = await prisma.faq.create({
@@ -38,7 +36,7 @@ export default defineEventHandler(async (event) => {
  
     return {
       statusCode: 200,
-      message: "question added successfully",
+      message: "Question added successfully",
       data: faq,
     };
   } catch (error) {

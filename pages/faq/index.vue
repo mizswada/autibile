@@ -9,8 +9,9 @@ const newQuestion = ref({
   faq_language: '',
   faq_question: '',
   faq_answer: '',
-  faq_status: true,
+  faq_status: 'active',
 })
+const languageOptions = ref([])
 
 const loading = ref(false)
 const error = ref('')
@@ -27,9 +28,18 @@ async function fetchQuestions() {
   loading.value = false
 }
 
+async function fetchLanguages() {
+  try {
+    const data = await $fetch('/api/faq/languages')
+    languageOptions.value = data
+  } catch (e) {
+    console.error('Failed to load languages', e)
+  }
+}
+
 function toggleQuestion(id) {
   const q = questions.value.find(q => q.id === id)
-  if (q) q.faq_status = !q.faq_status
+  if (q) q.faq_status = q.faq_status === 'active' ? 'inactive' : 'active'
 }
 
 function openAddModal() {
@@ -37,7 +47,7 @@ function openAddModal() {
     faq_language: '',
     faq_question: '',
     faq_answer: '',
-    faq_status: true,
+    faq_status: 'active',
   }
   isEdit.value = false
   editId.value = null
@@ -46,7 +56,7 @@ function openAddModal() {
 
 function openEditModal(q) {
   newQuestion.value = {
-    faq_language: q.faq_language,
+    faq_language: q.faq_languange,
     faq_question: q.faq_question,
     faq_answer: q.faq_answer,
     faq_status: q.faq_status,
@@ -99,7 +109,10 @@ async function deleteQuestion(id) {
   }
 }
 
-onMounted(fetchQuestions)
+onMounted(async () => {
+  await fetchLanguages()
+  await fetchQuestions()
+})
 </script>
 
 <template>
@@ -114,27 +127,52 @@ onMounted(fetchQuestions)
     <div class="card p-4 mt-4">
       <rs-table
         :data="questions"
-        :columns="[
-          { name: 'question', label: 'FAQ Question' },
-          { name: 'status', label: 'Status', slot: true },
-          { name: 'action', label: 'Actions', slot: true }
-        ]"
-        :options="{ borderless: true }"
+        :field="['no', 'language', 'question', 'answer', 'status', 'action']"
+        :options="{
+          variant: 'default',
+          striped: true,
+          borderless: true,
+        }"
+        :options-advanced="{
+          sortable: true,
+          responsive: true,
+          filterable: false,
+        }"
         advanced
       >
-        <template #status="slotProps">
-          <span :class="slotProps.row.enabled ? 'text-green-600 font-semibold' : 'text-gray-400'">
-            {{ slotProps.row.enabled ? 'Enabled' : 'Inactive' }}
-          </span>
+        <template v-slot:no="data">
+          {{ data.value.no }}
         </template>
-        <template #action="slotProps">
-          <div class="flex gap-2">
-            <rs-button size="sm" @click="openEditModal(slotProps.row)">
-              <Icon name="material-symbols:edit-outline-rounded" />
-            </rs-button>
-            <rs-button size="sm" variant="danger" @click="deleteQuestion(slotProps.row.id)">
-              <Icon name="material-symbols:delete-outline" />
-            </rs-button>
+        <template v-slot:language="data">
+          {{ data.value.faq_language }}
+        </template>
+        <template v-slot:question="data">
+          {{ data.value.faq_question }}
+        </template>
+        <template v-slot:answer="data">
+          <div class="max-w-md truncate">
+            {{ data.value.faq_answer }}
+          </div>
+        </template>
+        <template v-slot:status="data">
+          <rs-badge :variant="data.value.faq_status === 'active' ? 'success' : 'danger'">
+            {{ data.value.faq_status === 'active' ? 'Active' : 'Inactive' }}
+          </rs-badge>
+        </template>
+        <template v-slot:action="data">
+          <div class="flex justify-center items-center">
+            <Icon
+              name="material-symbols:edit-outline-rounded"
+              class="text-primary hover:text-primary/90 cursor-pointer mr-3"
+              size="22"
+              @click="openEditModal(data.value)"
+            ></Icon>
+            <Icon
+              name="material-symbols:close-rounded"
+              class="text-primary hover:text-primary/90 cursor-pointer"
+              size="22"
+              @click="deleteQuestion(data.value.id)"
+            ></Icon>
           </div>
         </template>
       </rs-table>
@@ -148,49 +186,44 @@ onMounted(fetchQuestions)
       :overlay-close="false"
     >
       <FormKit
-          type="select"
-          v-model="newQuestion.lanquage"
-          name="language"
-          label="Language"
-          :options="['-- Please select --', 'Bahasa Melayu', 'Engilsh']"
-          validation="required"
-        />
+        type="select"
+        v-model="newQuestion.faq_language"
+        name="language"
+        label="Language"
+        :options="languageOptions"
+        option-value="value"
+        option-label="label"
+        placeholder="Select language"
+        validation="required"
+      />
       <FormKit
         type="text"
-        v-model="newQuestion.question"
-        name="faqText"
+        v-model="newQuestion.faq_question"
+        name="faqQuestion"
         label="FAQ Question"
         placeholder="Enter FAQ question"
+        validation="required"
       />
       <FormKit 
         type="textarea"
-        v-model="newQuestion.answer" 
-        name="Answer" 
+        v-model="newQuestion.faq_answer" 
+        name="faqAnswer" 
         rows="8" 
-        label="Answer"/>
-      <div class="mt-2">
-        <label class="block font-medium mb-1">Status</label>
-        <label class="mr-4">
-          <input
-            type="radio"
-            value="true"
-            v-model="newQuestion.enabled"
-            :checked="newQuestion.enabled === true"
-            @change="newQuestion.enabled = true"
-          />
-          Enabled
-        </label>
-        <label>
-          <input
-            type="radio"
-            value="false"
-            v-model="newQuestion.enabled"
-            :checked="newQuestion.enabled === false"
-            @change="newQuestion.enabled = false"
-          />
-          Inactive
-        </label>
-      </div>
+        label="Answer"
+        validation="required"
+      />
+      <FormKit
+        type="select"
+        v-model="newQuestion.faq_status"
+        name="status"
+        label="Status"
+        :options="[
+          { label: 'Active', value: 'active' },
+          { label: 'Inactive', value: 'inactive' }
+        ]"
+        option-value="value"
+        option-label="label"
+      />
     </rs-modal>
   </div>
 </template>

@@ -46,7 +46,7 @@ export default defineEventHandler(async (event) => {
     return {
       statusCode: 200,
       message: "Question updated successfully",
-      data: updatedCentre,
+      data: updatedFaq,
     };
   } catch (error) {
     console.log(error);
