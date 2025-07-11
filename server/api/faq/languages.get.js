@@ -4,7 +4,7 @@ export default defineEventHandler(async (event) => {
     const languages = await prisma.lookup.findMany({
       where: {
         refCode: 'faq_languange',
-        status: 'active'
+        status: 'enable'
       },
       select: {
         lookupID: true,
