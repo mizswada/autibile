@@ -302,7 +302,7 @@ const scoreInterpretation = computed(() => {
         <table class="w-full">
           <thead class="bg-gray-50 text-left">
             <tr>
-              <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+              <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">No</th>
               <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Questionnaire</th>
               <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
               <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Total Score</th>
@@ -311,8 +311,8 @@ const scoreInterpretation = computed(() => {
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-200">
-            <tr v-for="response in responses" :key="response.qr_id" class="hover:bg-gray-50">
-              <td class="px-6 py-4 whitespace-nowrap">{{ response.qr_id }}</td>
+            <tr v-for="(response, index) in responses" :key="response.qr_id" class="hover:bg-gray-50">
+              <td class="px-6 py-4 whitespace-nowrap">{{ index + 1 }}</td>
               <td class="px-6 py-4">{{ response.questionnaire_title }}</td>
               <td class="px-6 py-4">{{ response.patient_name }}</td>
               <td class="px-6 py-4">{{ response.total_score }}</td>
@@ -337,6 +337,7 @@ const scoreInterpretation = computed(() => {
               </td>
             </tr>
           </tbody>
+
         </table>
       </div>
     </div>

@@ -192,6 +192,7 @@ const timeSlotOptions = ref([{ label: "--- Please select ---", value: "" }]);
 
 // Table columns
 const columns = [
+  { name: 'no', label: 'No' },
   { name: 'patientName', label: 'Patient Name' },
   { name: 'practitionerName', label: 'Practitioner' },
   { name: 'serviceName', label: 'Service' },
@@ -266,17 +267,28 @@ const { data: appointmentsData, pending: appointmentsLoading, refresh: _refreshA
       
       rawData.value = rawAppointments;
       
-      // Create the table data from raw data
-      return rawAppointments.map(appt => ({
-        id: appt.id,
-        patientName: appt.patientName,
-        practitionerName: appt.practitionerName,
-        serviceName: appt.serviceName,
-        date: appt.date,
-        timeSlot: appt.timeSlot,
-        status: appt.status,
-        action: 'edit'
-      }));
+      // Create the table data from raw data with index as No.
+      return rawAppointments.map((appt, index) => {
+        // Create a new object without the id property in the visible data
+        const visibleData = {
+          no: index + 1,
+          patientName: appt.patientName,
+          practitionerName: appt.practitionerName,
+          serviceName: appt.serviceName,
+          date: appt.date,
+          timeSlot: appt.timeSlot,
+          status: appt.status,
+          action: 'edit'
+        };
+        
+        // Add id as a non-enumerable property so it's accessible for actions but not displayed
+        Object.defineProperty(visibleData, 'id', {
+          value: appt.id,
+          enumerable: false
+        });
+        
+        return visibleData;
+      });
     }
     return [];
   }
