@@ -20,7 +20,7 @@ const isRemovingChild = ref(false);
 const columns = [
   { name: 'parentUsername', label: 'Parent Username' },
   { name: 'fullname', label: 'Full Name' },
-  { name: 'nickname', label: 'Nickname' },
+  // { name: 'nickname', label: 'Nickname' },
   { name: 'gender', label: 'Gender' },
   { name: 'autismDiagnose', label: 'Autism Diagnose' },
   { name: 'diagnosedDate', label: 'Diagnosed Date' },
@@ -131,7 +131,7 @@ onMounted(async () => {
         childIC: p.icNumber, // ensure your API returns ic field as 'ic'
         parentUsername: p.parentUsername,
         fullname: p.fullname || '',
-        nickname: p.nickname,
+        // nickname: p.nickname,
         gender: p.gender,
         autismDiagnose: p.autismDiagnose,
         diagnosedDate: new Date(p.diagnosedDate).toISOString().split('T')[0],
@@ -153,7 +153,7 @@ const tableData = computed(() =>
     parentUsername: p.parentUsername,
     fullname: p.fullname,
     childIC: p.childIC,
-    nickname: p.nickname,
+    // nickname: p.nickname,
     autismDiagnose: p.autismDiagnose,
     diagnosedDate: p.diagnosedDate,
     availableSession: p.availableSession,
@@ -163,8 +163,8 @@ const tableData = computed(() =>
 );
 
 
-function getOriginalData(childIC) {
-  return rawData.value.find(p => p.childIC === childIC);
+function getOriginalData(childIC, parentUsername) {
+  return rawData.value.find(p => p.childIC === childIC && p.parentUsername === parentUsername);
 }
 </script>
 
@@ -199,7 +199,7 @@ function getOriginalData(childIC) {
             type="checkbox"
             class="toggle-checkbox"
             :checked="row.value.status === 'Active'"
-            @change="confirmToggleStatus(getOriginalData(row.value.childIC))"
+            @change="confirmToggleStatus(getOriginalData(row.value.childIC, row.value.parentUsername))"
           />
         </template>
 
@@ -211,7 +211,7 @@ function getOriginalData(childIC) {
               class="text-primary hover:text-primary/90 cursor-pointer"
               size="22"
               @click="() => {
-                const original = getOriginalData(row.value.childIC);
+                const original = getOriginalData(row.value.childIC, row.value.parentUsername);
                 if (original) {
                   router.push({
                     path: '/userManagement/parent/manageEditChild',
@@ -225,7 +225,7 @@ function getOriginalData(childIC) {
               class="text-red-500 hover:text-red-600 cursor-pointer"
               size="22"
               @click="() => {
-                const original = getOriginalData(row.value.childIC);
+                const original = getOriginalData(row.value.childIC, row.value.parentUsername);
                 if (original) {
                   confirmRemoveChild(original);
                 }
@@ -250,10 +250,25 @@ function getOriginalData(childIC) {
     >
       <p>
         Are you sure you want to
-        <span v-if="pendingToggleChild?.status === 'Active'">deactivate</span>
-        <span v-else>activate</span>
-        this child (Nickname: {{ pendingToggleChild?.nickname }})?
+        <span v-if="pendingToggleChild?.status === 'Active'" class="font-semibold text-red-600">deactivate</span>
+        <span v-else class="font-semibold text-green-600">activate</span>
+        this child <span class="font-semibold">"{{ pendingToggleChild?.fullname }}"</span>?
       </p>
+      
+      <div class="bg-blue-50 border-l-4 border-blue-400 p-4 my-4">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <Icon name="material-symbols:info" class="text-blue-400" />
+          </div>
+          <div class="ml-3">
+            <p class="text-sm text-blue-700">
+              <span class="font-bold">Child ID:</span> {{ pendingToggleChild?.childID }}<br>
+              <span class="font-bold">Parent:</span> {{ pendingToggleChild?.parentUsername }}<br>
+              <span class="font-bold">Current Status:</span> {{ pendingToggleChild?.status }}
+            </p>
+          </div>
+        </div>
+      </div>
 
       <div v-if="isTogglingStatus" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
         <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
@@ -272,11 +287,26 @@ function getOriginalData(childIC) {
       :overlay-close="false"
     >
       <p>
-        Are you sure you want to remove this child ({{ pendingRemoveChild?.nickname }}) from this parent?
+        Are you sure you want to remove this child <span class="font-semibold">"{{ pendingRemoveChild?.fullname }}"</span> from parent <span class="font-semibold">"{{ pendingRemoveChild?.parentUsername }}"</span>?
       </p>
       <p class="text-sm text-orange-600 mt-2">
         This will only remove the association between the parent and child. The child's record will still exist in the system.
       </p>
+      
+      <div class="bg-blue-50 border-l-4 border-blue-400 p-4 my-4">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <Icon name="material-symbols:info" class="text-blue-400" />
+          </div>
+          <div class="ml-3">
+            <p class="text-sm text-blue-700">
+              <span class="font-bold">Child ID:</span> {{ pendingRemoveChild?.childID }}<br>
+              <span class="font-bold">Parent ID:</span> {{ pendingRemoveChild?.parentID }}<br>
+              <span class="font-bold">IC Number:</span> {{ pendingRemoveChild?.childIC }}
+            </p>
+          </div>
+        </div>
+      </div>
 
       <div v-if="isRemovingChild" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
         <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
