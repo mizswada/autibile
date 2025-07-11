@@ -354,7 +354,7 @@ model questionnaire_scoring {
   scoring_min            Int
   scoring_max            Int
   scoring_interpretation String         @db.VarChar(255)
-  scoring_recommendation Int
+  scoring_recommendation String         @db.Text
   created_at             DateTime       @db.Timestamp(0)
   updated_at             DateTime       @db.Timestamp(0)
   deleted_at             DateTime?      @db.Timestamp(0)

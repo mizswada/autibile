@@ -28,7 +28,8 @@ async function fetchServices() {
   loading.value = true
   error.value = ''
   try {
-    services.value = await $fetch('/api/therapyService/list')
+    const data = await $fetch('/api/therapyService/list')
+    services.value = data.map(item => ({ ...item, action: true }))
   } catch (e) {
     error.value = 'Failed to load services'
   }

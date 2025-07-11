@@ -1314,7 +1314,7 @@
           "type": "string"
         },
         "scoring_recommendation": {
-          "type": "integer"
+          "type": "string"
         },
         "created_at": {
           "type": "string",

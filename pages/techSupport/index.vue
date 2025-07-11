@@ -1,22 +1,19 @@
 <script setup>
-import { ref } from 'vue';
-const supportContacts = ref([
-  {
-    name: "General Support",
-    phone: "+6012-3456789",
-    email: "support@autibile.com"
-  },
-  {
-    name: "IT Helpdesk",
-    phone: "+6011-22334455",
-    email: "it@autibile.com"
-  },
-  {
-    name: "Emergency Hotline",
-    phone: "+6019-9988776",
-    email: "emergency@autibile.com"
+import { ref, onMounted } from 'vue'
+
+const supportContacts = ref([])
+
+const fetchContacts = async () => {
+  try {
+    const res = await fetch('/api/techSupport/list')
+    const data = await res.json()
+    supportContacts.value = data
+  } catch (e) {
+    supportContacts.value = []
   }
-]);
+}
+
+onMounted(fetchContacts)
 </script>
 
 <template>
@@ -26,7 +23,7 @@ const supportContacts = ref([
       <rs-table
         :data="supportContacts"
         :columns=" [
-          { name: 'name', label: 'Support Type' },
+          { name: 'techSupport_name', label: 'Support Type' },
           { name: 'contact', label: 'Contact' }
         ]"
         :options="{ borderless: true }"
@@ -35,13 +32,13 @@ const supportContacts = ref([
         <template v-slot:contact="slotProps">
           <div>
             <div>
-              <a :href="`tel:${slotProps.row.phone}`" class="text-primary underline">
-                {{ slotProps.row.phone }}
+              <a :href="`tel:${slotProps.row.techSupport_phone}`" class="text-primary underline">
+                {{ slotProps.row.techSupport_phone }}
               </a>
             </div>
             <div>
-              <a :href="`mailto:${slotProps.row.email}`" class="text-primary underline">
-                {{ slotProps.row.email }}
+              <a :href="`mailto:${slotProps.row.techSupport_email}`" class="text-primary underline">
+                {{ slotProps.row.techSupport_email }}
               </a>
             </div>
           </div>

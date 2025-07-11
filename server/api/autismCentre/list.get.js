@@ -24,7 +24,8 @@ export default defineEventHandler(async (event) => {
     // Transform the data to match the expected format
     const transformedCentres = centres.map((centre, index) => ({
       no: index + 1,
-      id: centre.center_ID,
+      id: centre.center_ID, // Add this line for frontend compatibility
+      center_ID: centre.center_ID,
       center_name: centre.center_name,
       center_phone: centre.center_phone,
       center_address: centre.center_address,
@@ -40,4 +41,3 @@ export default defineEventHandler(async (event) => {
     };
   }
 });
-  

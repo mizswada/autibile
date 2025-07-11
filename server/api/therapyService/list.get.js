@@ -22,7 +22,6 @@ export default defineEventHandler(async (event) => {
     // Transform the data to match the expected format
     const transformedService = service.map((service, index) => ({
       no: index + 1,
-      id: service.service_id,
       name: service.name,
       description: service.description,
     }));
