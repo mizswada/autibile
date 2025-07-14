@@ -22,8 +22,11 @@ export default defineEventHandler(async (event) => {
 
     const practitioners = await prisma.user_practitioners.findMany({
       where: {
-        deleted_at: null // Filter out soft-deleted records
-      },
+        deleted_at: null, // Filter out soft-deleted records
+        status: {
+          notIn: ['Pending', 'Rejected'], // Exclude both statuses
+        },
+      },      
       orderBy: { created_at: 'desc' },
       include: {
         user: {

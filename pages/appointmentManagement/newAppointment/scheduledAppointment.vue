@@ -184,8 +184,8 @@ const ratingForm = ref({
 const patientOptions = ref([{ label: "--- Please select ---", value: "" }]);
 const serviceOptions = ref([
   { label: "--- Please select ---", value: "" },
-  { label: "Consultation", value: "1" },
-  { label: "Therapy", value: "2" }
+  // { label: "Consultation", value: "1" },
+  // { label: "Therapy", value: "2" }
 ]);
 const therapistDoctorOptions = ref([{ label: "--- Please select ---", value: "" }]);
 const timeSlotOptions = ref([{ label: "--- Please select ---", value: "" }]);
@@ -316,10 +316,11 @@ const { data: optionsData, pending: optionsLoading } = useLazyFetch('/api/appoin
     if (response && response.success) {
       return {
         patients: response.data.patients,
-        practitioners: response.data.practitioners
+        practitioners: response.data.practitioners,
+        services: response.data.services
       };
     }
-    return { patients: [], practitioners: [] };
+    return { patients: [], practitioners: [], services: [] };
   }
 });
 
@@ -329,6 +330,10 @@ watch(optionsData, (newData) => {
     patientOptions.value = [
       { label: "--- Please select ---", value: "" },
       ...newData.patients
+    ];
+    serviceOptions.value = [
+      { label: "--- Please select ---", value: "" },
+      ...newData.services
     ];
     therapistDoctorOptions.value = [
       { label: "--- Please select ---", value: "" },

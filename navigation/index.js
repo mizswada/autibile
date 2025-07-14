@@ -100,6 +100,21 @@ export default [
       },
 
       {
+        title: "Payment",
+        icon: "ic:outline-payment",
+        child: [
+          {
+            title: "Make Payment",
+            path: "/payment",
+          },
+          {
+            title: "Payment History",
+            path: "/payment/history",
+          }
+        ],
+      },
+
+      {
         title: "Appointment Management",
         icon: "ic:outline-calendar-today",
         child: [

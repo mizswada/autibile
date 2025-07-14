@@ -1,42 +1,25 @@
 <script setup>
 definePageMeta({
   title: "Dashboard",
-  // middleware: ["auth"], // This is for Login Auth for page
-  // requiresAuth: true,  // This is use for Login Auth for page
+  // middleware: ["auth"], // Enable when auth is ready
 });
 
-import { ref } from 'vue';
+import { useFetch } from '#app';
 
-const totalUsers = ref(512);
-const totalParents = ref(120);
-const totalDoctors = ref(30);
-const totalTherapists = ref(25);
+const { data: dashboardData, pending, error } = await useFetch('/api/dashboard/dashboard');
 
-// Example appointments for today (replace with real data/fetch in production)
-const today = new Date().toISOString().slice(0, 10);
-const appointments = ref([
-  {
-    patient: "Alice Brown",
-    userType: "Doctor",
-    userName: "Dr. John Smith",
-    date: today,
-    time: "10:00",
-    notes: "First consultation"
-  },
-  {
-    patient: "Bob Green",
-    userType: "Therapist",
-    userName: "Jane Doe",
-    date: today,
-    time: "14:30",
-    notes: "Speech therapy session"
-  }
-]);
+const totalUsers = computed(() => dashboardData.value?.totalUsers || 0);
+const totalParents = computed(() => dashboardData.value?.totalParents || 0);
+const totalDoctors = computed(() => dashboardData.value?.totalDoctors || 0);
+const totalTherapists = computed(() => dashboardData.value?.totalTherapists || 0);
+const appointments = computed(() => dashboardData.value?.appointments || []);
 </script>
 
 <template>
   <div class="p-4">
     <LayoutsBreadcrumb />
+
+    <!-- Summary Cards -->
     <div class="grid grid-cols-1 lg:grid-cols-4 gap-x-6">
       <!-- Total Users -->
       <rs-card>
@@ -50,6 +33,7 @@ const appointments = ref([
           </div>
         </div>
       </rs-card>
+
       <!-- Total Parents -->
       <rs-card>
         <div class="pt-5 pb-3 px-5 flex items-center gap-4">
@@ -62,6 +46,7 @@ const appointments = ref([
           </div>
         </div>
       </rs-card>
+
       <!-- Total Doctors -->
       <rs-card>
         <div class="pt-5 pb-3 px-5 flex items-center gap-4">
@@ -74,6 +59,7 @@ const appointments = ref([
           </div>
         </div>
       </rs-card>
+
       <!-- Total Therapists -->
       <rs-card>
         <div class="pt-5 pb-3 px-5 flex items-center gap-4">
@@ -87,10 +73,14 @@ const appointments = ref([
         </div>
       </rs-card>
     </div>
+
     <!-- Appointments for Today -->
     <div class="mt-8">
       <h2 class="text-xl font-bold mb-4">Today's Appointments</h2>
-      <div v-if="appointments.length > 0" class="card p-4">
+
+      <div v-if="pending" class="text-gray-500">Loading appointments...</div>
+
+      <div v-else-if="appointments && appointments.length > 0" class="card p-4">
         <rs-table
           :data="appointments"
           :columns="[
@@ -105,7 +95,10 @@ const appointments = ref([
           advanced
         />
       </div>
+
       <div v-else class="text-gray-500">No appointments booked for today.</div>
+
+      <div v-if="error" class="text-red-500 mt-2">Error loading appointments.</div>
     </div>
   </div>
 </template>
