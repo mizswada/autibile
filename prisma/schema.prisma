@@ -375,12 +375,11 @@ model tech_supports {
 }
 
 model community {
-  community_id      Int      @id @default(autoincrement())
-  community_author  String   @db.VarChar(255)
-  community_title   String   @db.VarChar(255)
-  community_content String   @db.Text
-  community_date    DateTime @db.Date
-  created_at        DateTime @db.Timestamp(0)
-  updated_at        DateTime @db.Timestamp(0)
-  deleted_at        DateTime @db.Timestamp(0)
+  community_id      Int       @id @default(autoincrement())
+  community_author  String    @db.VarChar(255)
+  community_title   String    @db.VarChar(255)
+  community_content String    @db.Text
+  created_at        DateTime  @db.Timestamp(0)
+  updated_at        DateTime  @db.Timestamp(0)
+  deleted_at        DateTime? @db.Timestamp(0)
 }

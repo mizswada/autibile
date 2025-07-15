@@ -179,10 +179,6 @@ export default [
             title: "Posts Management",
             path: "/communitySupport/postManagement",
           },
-          {
-            title: "Reported Posts",
-            path: "/communitySupport/reportedContent",
-          },
         ],
       },
        {

@@ -1386,10 +1386,6 @@
         "community_content": {
           "type": "string"
         },
-        "community_date": {
-          "type": "string",
-          "format": "date-time"
-        },
         "created_at": {
           "type": "string",
           "format": "date-time"
@@ -1399,7 +1395,10 @@
           "format": "date-time"
         },
         "deleted_at": {
-          "type": "string",
+          "type": [
+            "string",
+            "null"
+          ],
           "format": "date-time"
         }
       }
