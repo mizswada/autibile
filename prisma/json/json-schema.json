@@ -1370,6 +1370,39 @@
           "format": "date-time"
         }
       }
+    },
+    "community": {
+      "type": "object",
+      "properties": {
+        "community_id": {
+          "type": "integer"
+        },
+        "community_author": {
+          "type": "string"
+        },
+        "community_title": {
+          "type": "string"
+        },
+        "community_content": {
+          "type": "string"
+        },
+        "community_date": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
     }
   },
   "type": "object",
@@ -1439,6 +1472,9 @@
     },
     "tech_supports": {
       "$ref": "#/definitions/tech_supports"
+    },
+    "community": {
+      "$ref": "#/definitions/community"
     }
   }
 }
