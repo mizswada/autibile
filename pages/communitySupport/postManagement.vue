@@ -10,13 +10,21 @@ const newPost = ref({
   author: '',
   title: '',
   content: '',
-
 })
+
+const columns = [
+  { name: 'no', label: 'No.' },
+  { name: 'author', label: 'Author' },
+  { name: 'title', label: 'Title' },
+  { name: 'content', label: 'Content' },
+  { name: 'action', label: 'Actions', slot: true }
+]
 
 async function fetchPosts() {
   const { data, error } = await useFetch('/api/communitySupport/list')
   if (data.value) {
     posts.value = data.value.map(post => ({
+      no: post.no,
       id: post.id,
       author: post.author,
       title: post.title,
@@ -96,24 +104,19 @@ async function deletePost(id) {
     <div class="card p-4 mt-4">
       <rs-table
         :data="posts"
-        :columns=" [
-          { name: 'author', label: 'Author' },
-          { name: 'title', label: 'Title' },
-          { name: 'content', label: 'Content' },
-          { name: 'action', label: 'Actions', slot: true }
-        ]"
+        :columns="columns"
         :options="{ borderless: true }"
         advanced
       >
         <template #action="slotProps">
           <div class="flex gap-2">
-            <rs-button size="sm" @click="openEditModal(slotProps.row)">
+            <rs-button size="sm" @click="openEditModal(slotProps.value)">
               <Icon name="material-symbols:edit-outline-rounded" />
             </rs-button>
             <rs-button
               size="sm"
               variant="danger"
-              @click="deletePost(slotProps.row.id)"
+              @click="deletePost(slotProps.value.id)"
             >
               <Icon name="material-symbols:delete-outline" />
             </rs-button>
