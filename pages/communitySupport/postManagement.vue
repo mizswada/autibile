@@ -10,6 +10,7 @@ const newPost = ref({
   author: '',
   title: '',
   content: '',
+
 })
 
 async function fetchPosts() {
@@ -99,7 +100,6 @@ async function deletePost(id) {
           { name: 'author', label: 'Author' },
           { name: 'title', label: 'Title' },
           { name: 'content', label: 'Content' },
-          { name: 'date', label: 'Date' },
           { name: 'action', label: 'Actions', slot: true }
         ]"
         :options="{ borderless: true }"
