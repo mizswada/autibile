@@ -12,6 +12,10 @@ const newPost = ref({
   content: '',
 })
 
+const showDeleteConfirm = ref(false)
+const postToDelete = ref(null)
+const deleteMessage = ref('')
+
 const columns = [
   { name: 'no', label: 'No.' },
   { name: 'author', label: 'Author' },
@@ -83,11 +87,20 @@ async function savePost() {
   }
 }
 
-async function deletePost(id) {
+function confirmDelete(post) {
+  postToDelete.value = post
+  deleteMessage.value = `Are you sure you want to delete the post titled "${post.title}"?`
+  showDeleteConfirm.value = true
+}
+
+async function deletePost() {
+  if (!postToDelete.value) return
   await $fetch('/api/communitySupport/delete', {
     method: 'DELETE',
-    query: { id },
+    query: { id: postToDelete.value.id },
   })
+  showDeleteConfirm.value = false
+  postToDelete.value = null
   await fetchPosts()
 }
 </script>
@@ -116,7 +129,7 @@ async function deletePost(id) {
             <rs-button
               size="sm"
               variant="danger"
-              @click="deletePost(slotProps.value.id)"
+              @click="confirmDelete(slotProps.value)"
             >
               <Icon name="material-symbols:delete-outline" />
             </rs-button>
@@ -152,6 +165,16 @@ async function deletePost(id) {
         label="Content"
         rows="5"
       />
+    </rs-modal>
+    <rs-modal
+      title="Delete Confirmation"
+      ok-title="Delete"
+      cancel-title="Cancel"
+      :ok-callback="deletePost"
+      v-model="showDeleteConfirm"
+      :overlay-close="false"
+    >
+      <p>{{ deleteMessage }}</p>
     </rs-modal>
   </div>
 </template>
