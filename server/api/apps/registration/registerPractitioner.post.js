@@ -34,7 +34,7 @@ export default defineEventHandler(async (event) => {
           userEmail: email,
           userIC: ic,
           userPhone: phone,
-          userStatus: 'Active',
+          userStatus: 'Pending',
           userPassword: hashedPassword,
           userCreatedDate: new Date(),
           userModifiedDate: new Date(),
