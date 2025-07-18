@@ -136,6 +136,12 @@ export default [
       },
 
       {
+        title: "Patient Profile",
+        icon: "material-symbols:person",
+        path: "/patientProfile/select",
+      },
+
+      {
         title: "Manage Autism Centre",
         icon:"ic:outline-home",
         path: "/autismCentre",
