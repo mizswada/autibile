@@ -23,11 +23,9 @@ const form = ref({
   dateOfBirth: '',
   autismDiagnose: '',
   diagnosedDate: '',
-  availableSession: '',
+  availableSession: 0, // Changed to integer with default value 0
   status: '',
 });
-
-const availableSessionOptions = ref([]);
 
 // IC validation
 watch(() => form.value.icNumber, (newVal) => {
@@ -43,22 +41,7 @@ onMounted(async () => {
   isLoading.value = true;
   
   try {
-    // 1. Load dropdown options
-    const availRes = await fetch('/api/parents/lookupAvailSession');
-    const availJson = await availRes.json();
-    const availData = availJson ?? [];
-
-    availableSessionOptions.value = [
-      { label: '-- Please select --', value: '' },
-      ...availData
-        .filter(item => item.lookupID !== undefined && item.lookupID !== null)
-        .map(item => ({
-          label: item.title,
-          value: item.lookupID,
-        })),
-    ];
-
-    // 2. If editing, load existing child data
+    // Load existing child data
     if (childID.value) {
       const res = await fetch(`/api/parents/manageChild/fetchEditChild?childID=${childID.value}`);
       const result = await res.json();
@@ -74,7 +57,7 @@ onMounted(async () => {
           dateOfBirth: child.dob?.split('T')[0] ?? '',
           autismDiagnose: child.autism_diagnose,
           diagnosedDate: child.diagnosed_on?.split('T')[0] ?? '',
-          availableSession: child.available_session,
+          availableSession: parseInt(child.available_session) || 0, // Ensure it's an integer
           status: child.status,
         };
       } else {
@@ -98,7 +81,7 @@ async function saveChild() {
     dateOfBirth: 'Date of Birth',
     autismDiagnose: 'Autism Diagnose',
     diagnosedDate: 'Diagnosed Date',
-    availableSession: 'Available Session',
+    availableSession: 'Available Sessions',
     status: 'Status',
   };
 
@@ -129,6 +112,7 @@ async function saveChild() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...form.value,
+        availableSession: parseInt(form.value.availableSession) || 0, // Ensure it's sent as integer
         childID: parseInt(childID.value),
       }),
     });
@@ -178,11 +162,13 @@ async function saveChild() {
       <FormKit type="text" v-model="form.autismDiagnose" label="Autism Diagnose" />
       <FormKit type="date" v-model="form.diagnosedDate" label="Diagnosed Date" />
       <FormKit
-        type="select"
+        type="number"
         v-model="form.availableSession"
-        label="Available Session"
-        :options="availableSessionOptions"
+        label="Available Sessions"
+        validation="required|number|min:0"
+        placeholder="0"
       />
+      <p class="text-sm text-gray-600 mt-1">Available sessions count. Sessions can be added through package purchases.</p>
       <FormKit
         type="select"
         v-model="form.status"

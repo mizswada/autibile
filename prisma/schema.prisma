@@ -293,6 +293,8 @@ model user_patients {
   update_at               DateTime?                 @default(now()) @db.Timestamp(0)
   deleted_at              DateTime?                 @db.Timestamp(0)
   appointments            appointments[]
+  invoice                 invoice[]
+  payment                 payment[]
   progress_track          progress_track[]
   questionnaires_responds questionnaires_responds[]
   user_parent_patient     user_parent_patient[]
@@ -382,4 +384,54 @@ model community {
   created_at        DateTime  @db.Timestamp(0)
   updated_at        DateTime  @db.Timestamp(0)
   deleted_at        DateTime? @db.Timestamp(0)
+}
+
+/// This model has been renamed to 'Renamedpackage' during introspection, because the original name 'package' is reserved.
+model Renamedpackage {
+  package_id    Int       @id @default(autoincrement())
+  package_name  String?   @db.VarChar(255)
+  description   String?   @db.VarChar(500)
+  amount        Decimal?  @db.Decimal(10, 0)
+  avail_session Int?
+  status        String?   @db.VarChar(255)
+  created_at    DateTime  @db.Timestamp(0)
+  updated_at    DateTime  @db.Timestamp(0)
+  deleted_at    DateTime? @db.Timestamp(0)
+
+  @@map("package")
+}
+
+model invoice {
+  invoice_id    Int            @id @default(autoincrement())
+  patient_id    Int?
+  invoice_type  String?        @db.VarChar(255)
+  description   String?        @db.VarChar(500)
+  amount        Decimal?       @db.Decimal(10, 0)
+  date          DateTime?      @db.Date
+  status        String?        @db.VarChar(255)
+  created_at    DateTime       @db.Timestamp(0)
+  update_at     DateTime       @db.Timestamp(0)
+  deleted_at    DateTime?      @db.Timestamp(0)
+  user_patients user_patients? @relation(fields: [patient_id], references: [patient_id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_ibfk_1")
+  payment       payment[]
+
+  @@index([patient_id], map: "patient_id")
+}
+
+model payment {
+  payment_id     Int           @id @default(autoincrement())
+  patient_id     Int
+  invoice_id     Int?
+  amount         Decimal?      @db.Decimal(10, 0)
+  method         String?       @db.VarChar(255)
+  bank_name      String?       @db.VarChar(255)
+  reference_code String?       @db.VarChar(255)
+  updated_at     DateTime      @db.Timestamp(0)
+  created_at     DateTime      @db.Timestamp(0)
+  deleted_at     DateTime?     @db.Timestamp(0)
+  user_patients  user_patients @relation(fields: [patient_id], references: [patient_id], onDelete: NoAction, onUpdate: NoAction, map: "payment_ibfk_1")
+  invoice        invoice?      @relation(fields: [invoice_id], references: [invoice_id], onDelete: NoAction, onUpdate: NoAction, map: "payment_ibfk_2")
+
+  @@index([invoice_id], map: "invoice_id")
+  @@index([patient_id], map: "patient_id")
 }

@@ -24,7 +24,7 @@ const columns = [
   { name: 'gender', label: 'Gender' },
   { name: 'autismDiagnose', label: 'Autism Diagnose' },
   { name: 'diagnosedDate', label: 'Diagnosed Date' },
-  { name: 'availableSession', label: 'Available Session' },
+  { name: 'availableSession', label: 'Available Sessions' },
   { name: 'status', label: 'Status' },
   { name: 'action', label: 'Actions' }
 ];
@@ -114,15 +114,8 @@ async function performRemoveChild() {
 onMounted(async () => {
   isLoading.value = true;
   try {
-    const [childRes, availRes] = await Promise.all([
-      fetch('/api/parents/manageChild/listChild'),
-      fetch('/api/parents/lookupAvailSession'),
-    ]);
-
+    const childRes = await fetch('/api/parents/manageChild/listChild');
     const result = await childRes.json();
-    const availData = await availRes.json();
-
-    const availMap = Object.fromEntries(availData.map(item => [item.lookupID, item.title]));
 
     if (result.statusCode === 200) {
       rawData.value = result.data.map(p => ({
@@ -135,7 +128,7 @@ onMounted(async () => {
         gender: p.gender,
         autismDiagnose: p.autismDiagnose,
         diagnosedDate: new Date(p.diagnosedDate).toISOString().split('T')[0],
-        availableSession: availMap[p.availableSession] || `Unknown (${p.availableSession})`,
+        availableSession: p.availableSession || 0, // Use actual session count directly
         status: p.status,
       }));
     } else {

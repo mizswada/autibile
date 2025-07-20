@@ -1,74 +1,109 @@
 <script setup>
+import { ref, onMounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+
 definePageMeta({
   title: "Payment Form",
 });
 
-const route = useRoute();
 const router = useRouter();
-
-// Get invoice and payment method from route params
-const invoiceId = route.query.invoiceId;
-const paymentMethodId = route.query.paymentMethod;
-
-// Form data
-const formData = reactive({
-  // Credit Card
-  cardNumber: '',
-  cardName: '',
-  expiryDate: '',
-  cvv: '',
-  
-  // Online Banking
-  bank: '',
-  accountName: '',
-  
-  // E-Wallet
-  walletType: '',
-  walletId: '',
-  
-  // Common fields
-  email: '',
-  phone: '',
-  savePaymentMethod: false
-});
-
-// Options for form selects
-const bankOptions = [
-  { label: 'Maybank', value: 'maybank' },
-  { label: 'CIMB Bank', value: 'cimb' },
-  { label: 'Public Bank', value: 'public_bank' },
-  { label: 'RHB Bank', value: 'rhb' },
-  { label: 'Hong Leong Bank', value: 'hong_leong' }
-];
-
-const walletOptions = [
-  { label: 'Touch n Go', value: 'tng' },
-  { label: 'GrabPay', value: 'grabpay' },
-  { label: 'Boost', value: 'boost' },
-  { label: 'ShopeePay', value: 'shopeepay' }
-];
-
-// Mock invoice data (in a real app, this would be fetched from API)
-const invoice = ref({
-  id: invoiceId || 'INV-001',
-  date: '2023-06-15',
-  dueDate: '2023-07-15',
-  description: 'Therapy Session - Initial Assessment',
-  amount: 350.00,
-  status: 'Unpaid'
-});
-
-// Mock payment method (in a real app, this would be fetched from API)
-const paymentMethod = ref({
-  id: paymentMethodId || 'credit_card',
-  name: paymentMethodId === 'credit_card' ? 'Credit/Debit Card' : 
-        paymentMethodId === 'online_banking' ? 'Online Banking' : 
-        paymentMethodId === 'ewallet' ? 'E-Wallet' : 'Credit/Debit Card'
-});
-
+const route = useRoute();
+const isLoading = ref(true);
 const isSubmitting = ref(false);
-const errorMessage = ref('');
-const successMessage = ref('');
+const message = ref('');
+const messageType = ref('success');
+
+// Get query parameters
+const invoiceId = route.query.invoiceId;
+
+// Invoice data
+const invoiceData = ref(null);
+
+// Payment form data
+const form = ref({
+  method: '',
+  bank_name: '',
+  reference_code: '',
+});
+
+// Payment method options
+const paymentMethods = [
+  { value: 'Online Banking', label: 'Online Banking' },
+  { value: 'Credit Card', label: 'Credit Card' },
+  { value: 'E-Wallet', label: 'E-Wallet' },
+];
+
+function showMessage(msg, type = 'success') {
+  message.value = msg;
+  messageType.value = type;
+  setTimeout(() => (message.value = ''), 3000);
+}
+
+// Fetch invoice details
+const fetchInvoice = async () => {
+  if (!invoiceId) {
+    showMessage('No invoice ID provided', 'error');
+    router.push('/payment');
+    return;
+  }
+
+  isLoading.value = true;
+  try {
+    const response = await $fetch(`/api/payment/getInvoice/${invoiceId}`);
+    if (response.statusCode === 200) {
+      invoiceData.value = response.data;
+    } else {
+      showMessage('Failed to load invoice data', 'error');
+      router.push('/payment');
+    }
+  } catch (error) {
+    console.error('Error fetching invoice:', error);
+    showMessage('An error occurred while loading the invoice', 'error');
+    router.push('/payment');
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+// Submit payment
+const submitPayment = async () => {
+  // Validate form
+  if (!form.value.method || !form.value.bank_name || !form.value.reference_code) {
+    showMessage('Please fill in all required fields', 'error');
+    return;
+  }
+
+  isSubmitting.value = true;
+  try {
+    const response = await $fetch('/api/payment/createPayment', {
+      method: 'POST',
+      body: {
+        invoiceID: parseInt(invoiceId),
+        patientID: invoiceData.value.patient_id,
+        amount: invoiceData.value.amount,
+        method: form.value.method,
+        bank_name: form.value.bank_name,
+        reference_code: form.value.reference_code,
+      },
+    });
+
+    if (response.statusCode === 201) {
+      showMessage('Payment submitted successfully', 'success');
+      
+      // Redirect to payment success page or back to payment list
+      setTimeout(() => {
+        router.push('/payment');
+      }, 2000);
+    } else {
+      showMessage(response.message || 'Failed to submit payment', 'error');
+    }
+  } catch (error) {
+    console.error('Error submitting payment:', error);
+    showMessage(error.data?.message || 'An error occurred while submitting payment', 'error');
+  } finally {
+    isSubmitting.value = false;
+  }
+};
 
 const formatPrice = (price) => {
   return parseFloat(price)
@@ -77,247 +112,168 @@ const formatPrice = (price) => {
     .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 };
 
-const submitPayment = () => {
-  isSubmitting.value = true;
-  errorMessage.value = '';
-  
-  // Simulate API call with timeout
-  setTimeout(() => {
-    isSubmitting.value = false;
-    
-    // In a real app, validate form and process payment here
-    if (Math.random() > 0.2) { // 80% success rate for demo
-      successMessage.value = 'Payment processed successfully!';
-      
-      // Redirect after success message
-      setTimeout(() => {
-        router.push('/payment');
-      }, 2000);
-    } else {
-      errorMessage.value = 'Payment processing failed. Please try again.';
-    }
-  }, 1500);
+const formatDate = (dateString) => {
+  return new Date(dateString).toLocaleDateString('en-MY', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
 };
 
-const goBack = () => {
-  router.push('/payment');
+const formatInvoiceId = (id) => {
+  return `INV-${id.toString().padStart(3, '0')}`;
 };
+
+onMounted(() => {
+  fetchInvoice();
+});
 </script>
 
 <template>
-  <div>
+  <main>
     <LayoutsBreadcrumb />
 
-    <rs-card>
-      <template #header>
-        <div class="flex justify-between items-center">
-          <h5 class="mb-0">Complete Your Payment</h5>
-          <rs-button variant="text" @click="goBack">
-            <NuxtIcon name="ic:outline-arrow-back" class="mr-1" />
-            Back to Invoices
+    <rs-card class="p-6">
+      <!-- Header -->
+      <div class="flex flex-col md:flex-row md:justify-between md:items-center mb-6">
+        <h5 class="text-xl font-semibold mb-4 md:mb-0">Payment Form</h5>
+                 <div class="flex flex-wrap gap-2">
+           <NuxtLink to="/payment">
+             <rs-button variant="ghost" size="sm">
+               <NuxtIcon name="ic:outline-arrow-back" class="mr-1" />
+               Back to Invoices
+             </rs-button>
+           </NuxtLink>
+         </div>
+      </div>
+
+      <!-- Loading State -->
+      <section v-if="isLoading" class="flex justify-center items-center py-12">
+        <div class="text-center">
+          <NuxtIcon name="line-md:loading-twotone-loop" class="text-4xl mb-4" />
+          <p>Loading invoice details...</p>
+        </div>
+      </section>
+
+      <!-- Payment Form -->
+      <section v-else-if="invoiceData" class="space-y-6">
+        <!-- Invoice Summary -->
+        <div class="bg-gray-50 p-6 rounded-lg">
+          <h6 class="font-semibold text-lg mb-4 text-gray-800">Invoice Summary</h6>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <div>
+               <span class="text-sm text-gray-500">Invoice ID:</span>
+               <div class="font-medium">{{ formatInvoiceId(invoiceData.invoice_id) }}</div>
+             </div>
+            <div>
+              <span class="text-sm text-gray-500">Patient:</span>
+              <div class="font-medium">{{ invoiceData.patient_name || 'N/A' }}</div>
+            </div>
+            <div>
+              <span class="text-sm text-gray-500">Description:</span>
+              <div class="font-medium">{{ invoiceData.description }}</div>
+            </div>
+            <div>
+              <span class="text-sm text-gray-500">Date:</span>
+              <div class="font-medium">{{ formatDate(invoiceData.date) }}</div>
+            </div>
+            <div class="md:col-span-2">
+              <span class="text-sm text-gray-500">Amount:</span>
+              <div class="text-2xl font-bold text-green-600">RM {{ formatPrice(invoiceData.amount) }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Payment Form -->
+        <div class="bg-white border border-gray-200 p-6 rounded-lg">
+          <h6 class="font-semibold text-lg mb-4 text-gray-800">Payment Details</h6>
+          
+                     <FormKit type="form" :actions="false">
+            <!-- Payment Method -->
+            <FormKit 
+              type="select" 
+              v-model="form.method" 
+              label="Payment Method" 
+              placeholder="Select payment method"
+              :options="[
+                { label: '-- Please select --', value: '' },
+                ...paymentMethods
+              ]"
+              validation="required|not:"
+            />
+
+            <!-- Bank Name -->
+            <FormKit 
+              type="text" 
+              v-model="form.bank_name" 
+              label="Bank Name / Payment Provider" 
+              placeholder="e.g. Maybank, CIMB, Touch n Go, Boost"
+              validation="required"
+            />
+
+            <!-- Reference Code -->
+            <FormKit 
+              type="text" 
+              v-model="form.reference_code" 
+              label="Reference Code / Transaction ID" 
+              placeholder="e.g. TXN123456789, REF987654321"
+              validation="required"
+            />
+
+                         <!-- Submit Button -->
+             <div class="flex gap-4 mt-6">
+               <rs-button 
+                 type="button"
+                 class="w-full" 
+                 :disabled="isSubmitting"
+                 @click="submitPayment"
+               >
+                 <div class="flex items-center justify-center">
+                   <NuxtIcon v-if="isSubmitting" name="line-md:loading-twotone-loop" class="mr-2" />
+                   <span>{{ isSubmitting ? 'Processing Payment...' : 'Submit Payment' }}</span>
+                 </div>
+               </rs-button>
+
+              <rs-button 
+                variant="ghost" 
+                class="w-full bg-gray-200" 
+                @click="router.push('/payment')" 
+                :disabled="isSubmitting"
+              >
+                Cancel
+              </rs-button>
+            </div>
+          </FormKit>
+        </div>
+
+        <!-- Payment Instructions -->
+        <div class="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+          <h6 class="font-medium text-blue-800 mb-2">Payment Instructions</h6>
+          <div class="text-sm text-blue-700 space-y-2">
+            <p><strong>For Online Banking:</strong> Enter your bank name and the transaction reference number provided by your bank.</p>
+            <p><strong>For Credit Card:</strong> Enter "Credit Card" as bank name and the transaction ID from your card statement.</p>
+            <p><strong>For E-Wallet:</strong> Enter the e-wallet provider name (e.g., Touch n Go, Boost) and the transaction reference.</p>
+            <p class="mt-3"><strong>Note:</strong> Please keep your payment receipt for verification purposes.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Error State -->
+      <section v-else class="flex justify-center items-center py-12">
+        <div class="text-center text-red-500">
+          <NuxtIcon name="ic:outline-error" class="text-4xl mb-4" />
+          <p>Failed to load invoice details</p>
+          <rs-button @click="fetchInvoice" class="mt-4">
+            Try Again
           </rs-button>
         </div>
-      </template>
-      
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <!-- Left Column - Payment Form -->
-        <div class="md:col-span-2 py-7">
-          <div class="px-6">
-            <h5>{{ paymentMethod.name }}</h5>
-            <p class="text-gray-500 mb-6">Please enter your payment details below</p>
-            
-            <div v-if="errorMessage" class="mb-6">
-              <rs-alert variant="danger" dismissible @dismiss="errorMessage = ''">
-                {{ errorMessage }}
-              </rs-alert>
-            </div>
-            
-            <div v-if="successMessage" class="mb-6">
-              <rs-alert variant="success" dismissible @dismiss="successMessage = ''">
-                {{ successMessage }}
-              </rs-alert>
-            </div>
-            
-            <!-- Credit Card Form -->
-            <div v-if="paymentMethod.id === 'credit_card'">
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <FormKit
-                  type="mask"
-                  label="Card Number"
-                  placeholder="**** **** **** ****"
-                  mask="#### #### #### ####"
-                  v-model="formData.cardNumber"
-                  validation="required"
-                  :classes="{
-                    outer: 'md:col-span-2'
-                  }"
-                />
-                <FormKit
-                  type="text"
-                  label="Cardholder Name"
-                  placeholder="Enter cardholder name"
-                  v-model="formData.cardName"
-                  validation="required"
-                  :classes="{
-                    outer: 'md:col-span-2'
-                  }"
-                />
-                <FormKit
-                  type="mask"
-                  label="Expiry Date"
-                  placeholder="MM/YY"
-                  mask="##/##"
-                  v-model="formData.expiryDate"
-                  validation="required"
-                />
-                <FormKit
-                  type="mask"
-                  label="CVV"
-                  placeholder="***"
-                  mask="###"
-                  v-model="formData.cvv"
-                  validation="required"
-                />
-              </div>
-            </div>
-            
-            <!-- Online Banking Form -->
-            <div v-if="paymentMethod.id === 'online_banking'">
-              <div class="grid grid-cols-1 gap-4 mb-6">
-                <FormKit
-                  type="select"
-                  label="Select Bank"
-                  placeholder="Choose your bank"
-                  :options="bankOptions"
-                  v-model="formData.bank"
-                  validation="required"
-                />
-                <FormKit
-                  type="text"
-                  label="Account Name"
-                  placeholder="Enter account name"
-                  v-model="formData.accountName"
-                  validation="required"
-                />
-              </div>
-            </div>
-            
-            <!-- E-Wallet Form -->
-            <div v-if="paymentMethod.id === 'ewallet'">
-              <div class="grid grid-cols-1 gap-4 mb-6">
-                <FormKit
-                  type="select"
-                  label="E-Wallet Provider"
-                  placeholder="Choose your e-wallet"
-                  :options="walletOptions"
-                  v-model="formData.walletType"
-                  validation="required"
-                />
-                <FormKit
-                  type="text"
-                  label="E-Wallet ID / Phone Number"
-                  placeholder="Enter your e-wallet ID or phone number"
-                  v-model="formData.walletId"
-                  validation="required"
-                />
-              </div>
-            </div>
-            
-            <!-- Common Fields -->
-            <div class="text-base font-semibold bg-[rgb(var(--bg-1))] py-3 px-4 my-4 rounded">
-              Contact Information
-            </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <FormKit
-                type="email"
-                label="Email"
-                placeholder="Enter your email"
-                v-model="formData.email"
-                validation="required|email"
-              />
-              <FormKit
-                type="mask"
-                label="Phone Number"
-                placeholder="Enter your phone number"
-                mask="###########"
-                v-model="formData.phone"
-                validation="required"
-              />
-            </div>
-            
-            <FormKit
-              type="checkbox"
-              label="Save payment method for future transactions"
-              v-model="formData.savePaymentMethod"
-            />
-            
-            <rs-button 
-              class="w-full mt-6" 
-              @click="submitPayment"
-              :loading="isSubmitting"
-              :disabled="isSubmitting"
-            >
-              Pay RM {{ formatPrice(invoice.amount) }}
-            </rs-button>
-          </div>
-        </div>
-        
-        <!-- Right Column - Invoice Summary -->
-        <div class="py-7 bg-[rgb(var(--bg-2))] rounded-lg">
-          <div class="px-6">
-            <h5>Invoice Summary</h5>
-            <p class="text-gray-500 mb-4">Review your payment details</p>
-            
-            <div class="bg-[rgb(var(--bg-3))] p-4 rounded-md mb-6">
-              <div class="flex justify-between mb-2">
-                <span>Invoice ID:</span>
-                <span class="font-semibold">{{ invoice.id }}</span>
-              </div>
-              <div class="flex justify-between mb-2">
-                <span>Description:</span>
-                <span class="font-semibold">{{ invoice.description }}</span>
-              </div>
-              <div class="flex justify-between mb-2">
-                <span>Issue Date:</span>
-                <span>{{ invoice.date }}</span>
-              </div>
-              <div class="flex justify-between mb-2">
-                <span>Due Date:</span>
-                <span>{{ invoice.dueDate }}</span>
-              </div>
-            </div>
-            
-            <div class="border-t border-t-[rgb(var(--border-color))] pt-4">
-              <div class="flex justify-between mb-2">
-                <span>Subtotal:</span>
-                <span>RM {{ formatPrice(invoice.amount) }}</span>
-              </div>
-              <div class="flex justify-between mb-2">
-                <span>Tax (0%):</span>
-                <span>RM 0.00</span>
-              </div>
-              <div class="flex justify-between text-lg font-bold mt-3">
-                <span>Total:</span>
-                <span>RM {{ formatPrice(invoice.amount) }}</span>
-              </div>
-            </div>
-            
-            <div class="mt-6">
-              <div class="text-base font-semibold mb-2">Payment Method</div>
-              <div class="flex items-center bg-[rgb(var(--bg-1))] p-3 rounded">
-                <NuxtIcon 
-                  :name="paymentMethod.id === 'credit_card' ? 'ic:outline-credit-card' : 
-                         paymentMethod.id === 'online_banking' ? 'ic:outline-account-balance' : 
-                         'ic:outline-account-balance-wallet'" 
-                  class="mr-3 text-xl" 
-                />
-                <span>{{ paymentMethod.name }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+      </section>
+
+      <!-- Message Display -->
+      <div v-if="message" class="mt-4 p-3 rounded text-white"
+           :class="messageType === 'success' ? 'bg-green-500' : 'bg-red-500'">
+        {{ message }}
       </div>
     </rs-card>
-  </div>
+  </main>
 </template> 
