@@ -388,6 +388,21 @@ model community {
   deleted_at        DateTime? @db.Timestamp(0)
 }
 
+/// This model has been renamed to 'Renamedpackage' during introspection, because the original name 'package' is reserved.
+model Renamedpackage {
+  package_id    Int       @id @default(autoincrement())
+  package_name  String?   @db.VarChar(255)
+  description   String?   @db.VarChar(500)
+  amount        Decimal?  @db.Decimal(10, 0)
+  avail_session Int?
+  status        String?   @db.VarChar(255)
+  created_at    DateTime  @db.Timestamp(0)
+  updated_at    DateTime  @db.Timestamp(0)
+  deleted_at    DateTime? @db.Timestamp(0)
+
+  @@map("package")
+}
+
 model invoice {
   invoice_id    Int            @id @default(autoincrement())
   patient_id    Int?
@@ -403,21 +418,6 @@ model invoice {
   payment       payment[]
 
   @@index([patient_id], map: "patient_id")
-}
-
-/// This model has been renamed to 'Renamedpackage' during introspection, because the original name 'package' is reserved.
-model Renamedpackage {
-  package_id    Int       @id @default(autoincrement())
-  package_name  String?   @db.VarChar(255)
-  description   String?   @db.VarChar(500)
-  amount        Decimal?  @db.Decimal(10, 0)
-  avail_session Int?
-  status        String?   @db.VarChar(255)
-  created_at    DateTime  @db.Timestamp(0)
-  updated_at    DateTime  @db.Timestamp(0)
-  deleted_at    DateTime? @db.Timestamp(0)
-
-  @@map("package")
 }
 
 model payment {

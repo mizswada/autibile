@@ -21,9 +21,6 @@ const isTogglingStatus = ref(false);
 const showConfirmToggleModal = ref(false);
 const pendingToggleChild = ref(null);
 
-const availableSessionOptions = ref([]);
-const sessionMap = ref({});
-
 const message = ref('');
 const messageType = ref('success');
 
@@ -44,7 +41,7 @@ const form = ref({
   dateOfBirth: '',
   autismDiagnose: null,
   diagnosedDate: '',
-  availableSession: '',
+  availableSession: 0,
   status: '',
 });
 
@@ -65,35 +62,25 @@ watch(() => searchIC.value, (newVal) => {
   }
 });
 
-// Fetch children and session data
+// Fetch children data
 async function fetchChildren() {
   isLoading.value = true;
   try {
-    const [childRes, sessionRes] = await Promise.all([
-      fetch(`/api/parents/manageChild/listChild?parentID=${parentID.value}`),
-      fetch('/api/parents/lookupAvailSession')
-    ]);
-
+    const childRes = await fetch(`/api/parents/manageChild/listChild?parentID=${parentID.value}`);
     const childData = await childRes.json();
-    const sessionData = await sessionRes.json();
-
-    sessionMap.value = Object.fromEntries(sessionData.map(s => [s.lookupID, s.title]));
 
     if (childData.statusCode === 200) {
       children.value = childData.data.map(c => ({
         ...c,
         dateOfBirth: c.dateOfBirth ? new Date(c.dateOfBirth).toISOString().split('T')[0] : '',
         diagnosedDate: c.diagnosedDate ? new Date(c.diagnosedDate).toISOString().split('T')[0] : '',
-        availableSessionName: sessionMap.value[c.availableSession] || 'Unknown'
+        // Use the actual available session count directly
+        availableSessionCount: c.availableSession || 0
       }));
     } else {
       showMessage(`Error loading children: ${childData.message}`, 'error');
     }
 
-    availableSessionOptions.value = [
-      { label: '-- Please select --', value: '' },
-      ...sessionData.map(s => ({ label: s.title, value: s.lookupID }))
-    ];
   } catch (err) {
     console.error('Failed to load children:', err);
     showMessage('Failed to load children.', 'error');
@@ -112,17 +99,53 @@ async function saveChild() {
     return;
   }
 
+  // Debug: Log form values
+  console.log('Form values:', form.value);
+  
+  // Additional validation
+  if (!form.value.fullname || !form.value.nickname || !form.value.gender || 
+      !form.value.dateOfBirth || !form.value.autismDiagnose || !form.value.diagnosedDate || 
+      !form.value.status || form.value.status === '-- Please select --' ||
+      form.value.availableSession === null || form.value.availableSession === undefined) {
+    
+    // Debug: Log which fields are missing
+    console.log('Missing fields check:');
+    console.log('fullname:', !!form.value.fullname);
+    console.log('nickname:', !!form.value.nickname);
+    console.log('gender:', !!form.value.gender);
+    console.log('dateOfBirth:', !!form.value.dateOfBirth);
+    console.log('autismDiagnose:', !!form.value.autismDiagnose);
+    console.log('diagnosedDate:', !!form.value.diagnosedDate);
+    console.log('status:', !!form.value.status);
+    console.log('status value:', form.value.status);
+    console.log('availableSession:', form.value.availableSession);
+    
+    showMessage('Please fill in all required fields.', 'error');
+    return;
+  }
+
   isSubmitting.value = true;
   try {
+    const requestBody = { 
+      ...form.value, 
+      parentID: parseInt(parentID.value), 
+      userID: parseInt(userID.value),
+      availableSession: parseInt(form.value.availableSession) || 0
+    };
+    
+    console.log('Sending request:', requestBody); // Debug log
+    
     const response = await fetch('/api/parents/manageChild/insertChild', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form.value, parentID: parseInt(parentID.value), userID: parseInt(userID.value) })
+      body: JSON.stringify(requestBody)
     });
 
+    console.log('Response status:', response.status); // Debug log
     const result = await response.json();
+    console.log('Response result:', result); // Debug log
     if (result.statusCode === 200) {
-      alert('Child added successfully', 'success');
+      showMessage('Child added successfully', 'success');
       showAddForm.value = false;
       form.value = {
         fullname: '',
@@ -132,7 +155,7 @@ async function saveChild() {
         dateOfBirth: '',
         autismDiagnose: null,
         diagnosedDate: '',
-        availableSession: '',
+        availableSession: 0,
         status: '',
       };
       await fetchChildren();
@@ -203,7 +226,8 @@ async function searchICNumber() {
         ...c,
         dateOfBirth: c.dateOfBirth ? new Date(c.dateOfBirth).toISOString().split('T')[0] : '',
         diagnosedDate: c.diagnosedDate ? new Date(c.diagnosedDate).toISOString().split('T')[0] : '',
-        availableSessionName: sessionMap.value[c.availableSession] || 'Unknown'
+        // Use the actual available session count directly
+        availableSessionCount: c.availableSession || 0
       }));
       selectedUser.value = null;
     } else {
@@ -238,7 +262,7 @@ async function addSelectedUserAsChild() {
         dateOfBirth: selectedUser.value.dateOfBirth || '',
         autismDiagnose: selectedUser.value.autismDiagnose || 'N/A',
         diagnosedDate: selectedUser.value.diagnosedDate || new Date().toISOString().split('T')[0],
-        availableSession: selectedUser.value.availableSession || 'defaultSessionID',
+        availableSession: 0, // Set to 0 when adding as child
         status: 'Active',
         parentID: parseInt(parentID.value),
         userID: parseInt(userID.value),
@@ -311,7 +335,7 @@ function closeSearchICForm() {
             <th class="px-3 py-2 border">IC Number</th>
             <th class="px-3 py-2 border">Diagnosed Date</th>
             <th class="px-3 py-2 border">Autism Diagnose</th>
-            <th class="px-3 py-2 border">Session</th>
+            <th class="px-3 py-2 border">Available Sessions</th>
             <th class="px-3 py-2 border">Status</th>
             <th class="px-3 py-2 border">Actions</th>
           </tr>
@@ -324,7 +348,7 @@ function closeSearchICForm() {
             <td class="px-3 py-2 border">{{ child.icNumber }}</td>
             <td class="px-3 py-2 border">{{ child.diagnosedDate }}</td>
             <td class="px-3 py-2 border">{{ child.autismDiagnose }}</td>
-            <td class="px-3 py-2 border">{{ child.availableSessionName }}</td>
+            <td class="px-3 py-2 border text-center">{{ child.availableSessionCount }}</td>
             <td class="px-3 py-2 border text-center">
               <input
                 type="checkbox"
@@ -358,7 +382,8 @@ function closeSearchICForm() {
         <FormKit type="date" v-model="form.dateOfBirth" label="Date of Birth" validation="required" />
         <FormKit type="text" v-model="form.autismDiagnose" label="Autism Diagnose" validation="required"/>
         <FormKit type="date" v-model="form.diagnosedDate" label="Diagnosed Date" validation="required"  />
-        <FormKit type="select" v-model="form.availableSession" label="Available Session" :options="availableSessionOptions" validation="required" />
+        <FormKit type="number" v-model="form.availableSession" label="Available Sessions" validation="required|number|min:0" placeholder="0" />
+        <p class="text-sm text-gray-600 mt-1">Available sessions start at 0 for new children. Sessions can be added later through package purchases.</p>
         <FormKit type="select" v-model="form.status" label="Status" :options="['-- Please select --', 'Active', 'Inactive']" validation="required" />
 
         <div class="flex gap-4 mt-4">
@@ -369,6 +394,12 @@ function closeSearchICForm() {
             </div>
           </rs-button>
           <rs-button variant="ghost" class="w-full bg-gray-200" @click="showAddForm = false" :disabled="isSubmitting">Cancel</rs-button>
+        </div>
+
+        <!-- Message display -->
+        <div v-if="message" class="mt-4 p-3 rounded text-white"
+             :class="messageType === 'success' ? 'bg-green-500' : 'bg-red-500'">
+          {{ message }}
         </div>
       </FormKit>
     </div>
@@ -408,7 +439,7 @@ function closeSearchICForm() {
               <th class="px-4 py-2 border">IC Number</th>
               <th class="px-4 py-2 border">Diagnosed Date</th>
               <th class="px-4 py-2 border">Autism Diagnose</th>
-              <th class="px-4 py-2 border">Session</th>
+              <th class="px-4 py-2 border">Available Sessions</th>
               <th class="px-4 py-2 border">Status</th>
               <th class="px-4 py-2 border text-center">Action</th>
             </tr>
@@ -421,7 +452,7 @@ function closeSearchICForm() {
               <td class="px-4 py-2 border text-center">{{ u.icNumber }}</td>
               <td class="px-4 py-2 border text-center">{{ u.diagnosedDate }}</td>
               <td class="px-4 py-2 border text-center">{{ u.autismDiagnose }}</td>
-              <td class="px-4 py-2 border text-center">{{ u.availableSessionName }}</td>
+              <td class="px-4 py-2 border text-center">{{ u.availableSessionCount }}</td>
               <td class="px-4 py-2 border text-center">{{ u.status }}</td>
               <td class="px-4 py-2 border text-center">
                 <rs-button @click="selectUser(u); addSelectedUserAsChild()" :disabled="isSubmitting">

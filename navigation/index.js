@@ -40,12 +40,7 @@ export default [
       {
         title: "Appointment",
         icon: "ic:outline-calendar-today",
-        child: [
-          {
-            title: "Scheduled Appointment",
-            path: "/appointmentManagement/newAppointment/scheduledAppointment",
-          },
-        ],
+        path: "/appointmentManagement/newAppointment/scheduledAppointment",
       },
       {
         title: "Posting",

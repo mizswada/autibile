@@ -3,97 +3,171 @@ definePageMeta({
   title: "Payment History",
 });
 
-// Sample payment history data (in a real app, this would come from an API)
-const paymentHistory = ref([
-  {
-    id: 'PAY-001',
-    invoiceId: 'INV-003',
-    date: '2023-05-15',
-    amount: 150.00,
-    method: 'Credit Card',
-    status: 'Completed',
-    reference: 'REF123456789'
-  },
-  {
-    id: 'PAY-002',
-    invoiceId: 'INV-004',
-    date: '2023-04-20',
-    amount: 200.00,
-    method: 'Online Banking',
-    status: 'Completed',
-    reference: 'REF987654321'
-  },
-  {
-    id: 'PAY-003',
-    invoiceId: 'INV-005',
-    date: '2023-03-10',
-    amount: 350.00,
-    method: 'E-Wallet',
-    status: 'Completed',
-    reference: 'REF456789123'
-  }
-]);
+// Reactive data
+const paymentHistory = ref([]);
+const invoiceHistory = ref([]);
+const loading = ref(false);
+const error = ref('');
 
-// Sample invoice history data
-const invoiceHistory = ref([
-  {
-    id: 'INV-003',
-    date: '2023-05-10',
-    dueDate: '2023-06-10',
-    description: 'Workshop Registration',
-    amount: 150.00,
-    status: 'Paid',
-    paymentDate: '2023-05-15'
-  },
-  {
-    id: 'INV-004',
-    date: '2023-04-15',
-    dueDate: '2023-05-15',
-    description: 'Monthly Therapy Session',
-    amount: 200.00,
-    status: 'Paid',
-    paymentDate: '2023-04-20'
-  },
-  {
-    id: 'INV-005',
-    date: '2023-03-05',
-    dueDate: '2023-04-05',
-    description: 'Comprehensive Assessment',
-    amount: 350.00,
-    status: 'Paid',
-    paymentDate: '2023-03-10'
-  },
-  {
-    id: 'INV-006',
-    date: '2023-02-10',
-    dueDate: '2023-03-10',
-    description: 'Parent Training Workshop',
-    amount: 120.00,
-    status: 'Paid',
-    paymentDate: '2023-02-15'
-  },
-  {
-    id: 'INV-007',
-    date: '2023-01-05',
-    dueDate: '2023-02-05',
-    description: 'Follow-up Session',
-    amount: 180.00,
-    status: 'Paid',
-    paymentDate: '2023-01-12'
-  }
-]);
+// Pagination
+const currentPage = ref(1);
+const itemsPerPage = ref(10);
+const totalItems = ref(0);
 
+// Filters
+const searchQuery = ref('');
+const statusFilter = ref('all');
+const methodFilter = ref('all');
+const dateRange = ref({
+  startDate: '',
+  endDate: ''
+});
+
+// UI state
 const activeTab = ref('invoices');
 const selectedInvoice = ref(null);
 const showInvoiceDetails = ref(false);
 const selectedPayment = ref(null);
 const showPaymentDetails = ref(false);
 
+// Fetch invoices from API
+const fetchInvoices = async () => {
+  loading.value = true;
+  error.value = '';
+  
+  try {
+    const params = new URLSearchParams({
+      limit: itemsPerPage.value.toString(),
+      offset: ((currentPage.value - 1) * itemsPerPage.value).toString(),
+    });
+
+    if (searchQuery.value) {
+      params.append('search', searchQuery.value);
+    }
+
+    if (statusFilter.value !== 'all' && activeTab.value === 'invoices') {
+      params.append('status', statusFilter.value);
+    }
+
+    if (dateRange.value.startDate) {
+      params.append('startDate', dateRange.value.startDate);
+    }
+
+    if (dateRange.value.endDate) {
+      params.append('endDate', dateRange.value.endDate);
+    }
+
+    const response = await $fetch(`/api/payment/listInvoices?${params}`);
+    
+    if (response.statusCode === 200) {
+      invoiceHistory.value = response.data;
+      totalItems.value = response.pagination.total;
+    } else {
+      error.value = response.message || 'Failed to fetch invoices';
+    }
+  } catch (err) {
+    console.error('Error fetching invoices:', err);
+    error.value = 'An error occurred while fetching invoices';
+  } finally {
+    loading.value = false;
+  }
+};
+
+// Fetch payments from API
+const fetchPayments = async () => {
+  loading.value = true;
+  error.value = '';
+  
+  try {
+    const params = new URLSearchParams({
+      limit: itemsPerPage.value.toString(),
+      offset: ((currentPage.value - 1) * itemsPerPage.value).toString(),
+    });
+
+    if (searchQuery.value) {
+      params.append('search', searchQuery.value);
+    }
+
+    // Note: Payment table doesn't have status field, so we skip status filtering for payments
+    // if (statusFilter.value !== 'all') {
+    //   params.append('status', statusFilter.value);
+    // }
+
+    if (methodFilter.value !== 'all') {
+      params.append('method', methodFilter.value);
+    }
+
+    if (dateRange.value.startDate) {
+      params.append('startDate', dateRange.value.startDate);
+    }
+
+    if (dateRange.value.endDate) {
+      params.append('endDate', dateRange.value.endDate);
+    }
+
+    const response = await $fetch(`/api/payment/listPayments?${params}`);
+    
+    if (response.statusCode === 200) {
+      paymentHistory.value = response.data;
+      totalItems.value = response.pagination.total;
+    } else {
+      error.value = response.message || 'Failed to fetch payments';
+    }
+  } catch (err) {
+    console.error('Error fetching payments:', err);
+    error.value = 'An error occurred while fetching payments';
+  } finally {
+    loading.value = false;
+  }
+};
+
+// Load data when tab changes
+const loadData = () => {
+  currentPage.value = 1;
+  if (activeTab.value === 'invoices') {
+    fetchInvoices();
+  } else {
+    fetchPayments();
+  }
+};
+
+// Watch for tab changes
+watch(activeTab, loadData);
+
+// Watch for filter changes
+watch([searchQuery, statusFilter, methodFilter, dateRange], () => {
+  loadData();
+}, { deep: true });
+
+// Load initial data
+onMounted(() => {
+  loadData();
+});
+
+// Utility functions
 const formatPrice = (price) => {
+  if (!price) return '0.00';
   return parseFloat(price)
     .toFixed(2)
     .toString()
     .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+};
+
+const formatDate = (dateString) => {
+  if (!dateString) return 'N/A';
+  return new Date(dateString).toLocaleDateString('en-MY', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+};
+
+const formatInvoiceId = (id) => {
+  return `INV-${id.toString().padStart(3, '0')}`;
+};
+
+const formatPaymentId = (id) => {
+  return `PAY-${id.toString().padStart(3, '0')}`;
 };
 
 const viewInvoiceDetails = (invoice) => {
@@ -101,9 +175,19 @@ const viewInvoiceDetails = (invoice) => {
   showInvoiceDetails.value = true;
 };
 
-const viewPaymentDetails = (payment) => {
-  selectedPayment.value = payment;
-  showPaymentDetails.value = true;
+const viewPaymentDetails = async (payment) => {
+  try {
+    const response = await $fetch(`/api/payment/getPayment/${payment.payment_id}`);
+    if (response.statusCode === 200) {
+      selectedPayment.value = response.data;
+      showPaymentDetails.value = true;
+    } else {
+      alert('Failed to load payment details');
+    }
+  } catch (err) {
+    console.error('Error fetching payment details:', err);
+    alert('Error loading payment details');
+  }
 };
 
 const closeDetails = () => {
@@ -113,11 +197,10 @@ const closeDetails = () => {
 
 const downloadInvoice = (invoiceId) => {
   // In a real app, this would generate and download a PDF invoice
-  alert(`Downloading invoice ${invoiceId}...`);
+  alert(`Downloading invoice ${formatInvoiceId(invoiceId)}...`);
 };
 
-const printInvoice = (invoiceId) => {
-  const invoice = invoiceHistory.value.find(inv => inv.id === invoiceId);
+const printInvoice = (invoice) => {
   if (!invoice) {
     alert('Invoice not found.');
     return;
@@ -126,7 +209,7 @@ const printInvoice = (invoiceId) => {
   const printContent = `
     <html>
     <head>
-      <title>Invoice ${invoice.id}</title>
+      <title>Invoice ${formatInvoiceId(invoice.invoice_id)}</title>
       <style>
         body { font-family: Arial, sans-serif; padding: 40px; }
         .header, .footer { text-align: center; }
@@ -154,15 +237,15 @@ const printInvoice = (invoiceId) => {
       </div>
 
       <div class="invoice-meta">
-        <p>Invoice No ${invoice.id}</p>
-        <p>Sales Date ${invoice.date}</p>
+        <p>Invoice No ${formatInvoiceId(invoice.invoice_id)}</p>
+        <p>Sales Date ${formatDate(invoice.date)}</p>
         <p>Issued Date ${new Date().toLocaleDateString()}</p>
       </div>
 
       <div>
         <h4>BILL TO</h4>
+        <p>${invoice.patient_name}</p>
         <p>${invoice.description}</p>
-        <p>60195664313</p>
       </div>
 
       <table>
@@ -213,43 +296,46 @@ const printInvoice = (invoiceId) => {
   printWindow.close();
 };
 
-
-
-// Filter and search functionality
-const searchQuery = ref('');
-const statusFilter = ref('all');
-
-const filteredInvoices = computed(() => {
-  let result = [...invoiceHistory.value];
-  
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase();
-    result = result.filter(invoice => 
-      invoice.id.toLowerCase().includes(query) || 
-      invoice.description.toLowerCase().includes(query)
-    );
+// Pagination functions
+const nextPage = () => {
+  if (currentPage.value * itemsPerPage.value < totalItems.value) {
+    currentPage.value++;
+    loadData();
   }
-  
-  if (statusFilter.value !== 'all') {
-    result = result.filter(invoice => invoice.status.toLowerCase() === statusFilter.value);
+};
+
+const prevPage = () => {
+  if (currentPage.value > 1) {
+    currentPage.value--;
+    loadData();
   }
-  
-  return result;
+};
+
+const goToPage = (page) => {
+  currentPage.value = page;
+  loadData();
+};
+
+// Computed properties for pagination
+const totalPages = computed(() => {
+  return Math.ceil(totalItems.value / itemsPerPage.value);
 });
 
-const filteredPayments = computed(() => {
-  let result = [...paymentHistory.value];
+const pageNumbers = computed(() => {
+  const pages = [];
+  const maxPages = 5;
+  let start = Math.max(1, currentPage.value - Math.floor(maxPages / 2));
+  let end = Math.min(totalPages.value, start + maxPages - 1);
   
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase();
-    result = result.filter(payment => 
-      payment.id.toLowerCase().includes(query) || 
-      payment.invoiceId.toLowerCase().includes(query) ||
-      payment.reference.toLowerCase().includes(query)
-    );
+  if (end - start + 1 < maxPages) {
+    start = Math.max(1, end - maxPages + 1);
   }
   
-  return result;
+  for (let i = start; i <= end; i++) {
+    pages.push(i);
+  }
+  
+  return pages;
 });
 </script>
 
@@ -296,22 +382,54 @@ const filteredPayments = computed(() => {
           <div class="flex-1">
             <FormKit
               type="text"
-              placeholder="Search by ID or description"
+              :placeholder="activeTab === 'invoices' ? 'Search by description or patient name' : 'Search by reference or description'"
               v-model="searchQuery"
               outer-class="mb-0"
               prefix-icon="search"
             />
           </div>
-          <div v-if="activeTab === 'invoices'" class="w-full md:w-48">
+          <div class="w-full md:w-48">
             <FormKit
               type="select"
               placeholder="Filter by status"
               v-model="statusFilter"
+              :options="activeTab === 'invoices' ? [
+                { label: 'All', value: 'all' },
+                { label: 'Paid', value: 'Paid' },
+                { label: 'Unpaid', value: 'Unpaid' }
+              ] : [
+                { label: 'All', value: 'all' }
+              ]"
+              outer-class="mb-0"
+            />
+          </div>
+          <div v-if="activeTab === 'payments'" class="w-full md:w-48">
+            <FormKit
+              type="select"
+              placeholder="Filter by method"
+              v-model="methodFilter"
               :options="[
                 { label: 'All', value: 'all' },
-                { label: 'Paid', value: 'paid' },
-                { label: 'Unpaid', value: 'unpaid' }
+                { label: 'Online Banking', value: 'Online Banking' },
+                { label: 'Credit Card', value: 'Credit Card' },
+                { label: 'E-Wallet', value: 'E-Wallet' }
               ]"
+              outer-class="mb-0"
+            />
+          </div>
+          <div class="w-full md:w-48">
+            <FormKit
+              type="date"
+              placeholder="Start Date"
+              v-model="dateRange.startDate"
+              outer-class="mb-0"
+            />
+          </div>
+          <div class="w-full md:w-48">
+            <FormKit
+              type="date"
+              placeholder="End Date"
+              v-model="dateRange.endDate"
               outer-class="mb-0"
             />
           </div>
@@ -320,16 +438,32 @@ const filteredPayments = computed(() => {
       
       <!-- Invoices Tab -->
       <div v-if="activeTab === 'invoices'" class="p-4">
-        <div v-if="filteredInvoices.length === 0" class="text-center py-8">
+        <!-- Loading State -->
+        <div v-if="loading" class="text-center py-8">
+          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p class="text-gray-500">Loading invoices...</p>
+        </div>
+
+        <!-- Error State -->
+        <div v-else-if="error" class="text-center py-8">
+          <NuxtIcon name="ic:outline-error" class="text-6xl mb-4 text-red-400" />
+          <p class="text-red-500 mb-4">{{ error }}</p>
+          <rs-button @click="loadData" variant="outline">Retry</rs-button>
+        </div>
+
+        <!-- Empty State -->
+        <div v-else-if="invoiceHistory.length === 0" class="text-center py-8">
           <NuxtIcon name="ic:outline-receipt" class="text-6xl mb-4 text-gray-400" />
           <p class="text-gray-500">No invoices found matching your criteria</p>
         </div>
         
+        <!-- Data Table -->
         <div v-else class="overflow-x-auto">
           <table class="min-w-full divide-y divide-[rgb(var(--border-color))]">
             <thead>
               <tr>
                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Invoice ID</th>
+                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Patient</th>
                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Description</th>
                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Issue Date</th>
                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Due Date</th>
@@ -339,11 +473,12 @@ const filteredPayments = computed(() => {
               </tr>
             </thead>
             <tbody class="divide-y divide-[rgb(var(--border-color))]">
-              <tr v-for="invoice in filteredInvoices" :key="invoice.id" class="hover:bg-[rgb(var(--bg-2))]">
-                <td class="px-6 py-4 whitespace-nowrap">{{ invoice.id }}</td>
+              <tr v-for="invoice in invoiceHistory" :key="invoice.invoice_id" class="hover:bg-[rgb(var(--bg-2))]">
+                <td class="px-6 py-4 whitespace-nowrap">{{ formatInvoiceId(invoice.invoice_id) }}</td>
+                <td class="px-6 py-4 whitespace-nowrap">{{ invoice.patient_name }}</td>
                 <td class="px-6 py-4">{{ invoice.description }}</td>
-                <td class="px-6 py-4 whitespace-nowrap">{{ invoice.date }}</td>
-                <td class="px-6 py-4 whitespace-nowrap">{{ invoice.dueDate }}</td>
+                <td class="px-6 py-4 whitespace-nowrap">{{ formatDate(invoice.date) }}</td>
+                <td class="px-6 py-4 whitespace-nowrap">{{ formatDate(invoice.due_date) }}</td>
                 <td class="px-6 py-4 whitespace-nowrap">RM {{ formatPrice(invoice.amount) }}</td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <rs-badge :variant="invoice.status === 'Paid' ? 'success' : 'warning'">
@@ -351,38 +486,92 @@ const filteredPayments = computed(() => {
                   </rs-badge>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                <div class="flex space-x-2">
+                  <div class="flex space-x-2">
                     <rs-button variant="text" @click="viewInvoiceDetails(invoice)">
-                    <Icon name="mdi:eye" />
+                      <Icon name="mdi:eye" />
                     </rs-button>
-                    <rs-button variant="text" @click="downloadInvoice(invoice.id)">
-                    <Icon name="mdi:download" />
+                    <rs-button variant="text" @click="downloadInvoice(invoice.invoice_id)">
+                      <Icon name="mdi:download" />
                     </rs-button>
-                    <rs-button variant="text" @click="printInvoice(invoice.id)">
-                    <Icon name="mdi:printer" />
+                    <rs-button variant="text" @click="printInvoice(invoice)">
+                      <Icon name="mdi:printer" />
                     </rs-button>
-                </div>
+                  </div>
                 </td>
-
               </tr>
             </tbody>
           </table>
+
+          <!-- Pagination -->
+          <div v-if="totalPages > 1" class="mt-6 flex items-center justify-between">
+            <div class="text-sm text-gray-500">
+              Showing {{ (currentPage - 1) * itemsPerPage + 1 }} to {{ Math.min(currentPage * itemsPerPage, totalItems) }} of {{ totalItems }} results
+            </div>
+            <div class="flex items-center space-x-2">
+              <rs-button 
+                variant="outline" 
+                size="sm" 
+                @click="prevPage" 
+                :disabled="currentPage === 1"
+              >
+                Previous
+              </rs-button>
+              
+              <div class="flex space-x-1">
+                <rs-button 
+                  v-for="page in pageNumbers" 
+                  :key="page"
+                  variant="outline" 
+                  size="sm" 
+                  @click="goToPage(page)"
+                  :class="page === currentPage ? 'bg-primary text-white' : ''"
+                >
+                  {{ page }}
+                </rs-button>
+              </div>
+              
+              <rs-button 
+                variant="outline" 
+                size="sm" 
+                @click="nextPage" 
+                :disabled="currentPage === totalPages"
+              >
+                Next
+              </rs-button>
+            </div>
+          </div>
         </div>
       </div>
       
       <!-- Payments Tab -->
       <div v-if="activeTab === 'payments'" class="p-4">
-        <div v-if="filteredPayments.length === 0" class="text-center py-8">
+        <!-- Loading State -->
+        <div v-if="loading" class="text-center py-8">
+          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p class="text-gray-500">Loading payments...</p>
+        </div>
+
+        <!-- Error State -->
+        <div v-else-if="error" class="text-center py-8">
+          <NuxtIcon name="ic:outline-error" class="text-6xl mb-4 text-red-400" />
+          <p class="text-red-500 mb-4">{{ error }}</p>
+          <rs-button @click="loadData" variant="outline">Retry</rs-button>
+        </div>
+
+        <!-- Empty State -->
+        <div v-else-if="paymentHistory.length === 0" class="text-center py-8">
           <NuxtIcon name="ic:outline-credit-card" class="text-6xl mb-4 text-gray-400" />
           <p class="text-gray-500">No payments found matching your criteria</p>
         </div>
         
+        <!-- Data Table -->
         <div v-else class="overflow-x-auto">
           <table class="min-w-full divide-y divide-[rgb(var(--border-color))]">
             <thead>
               <tr>
                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Payment ID</th>
-                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Invoice ID</th>
+                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Patient</th>
+                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Invoice</th>
                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Date</th>
                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Amount</th>
                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Method</th>
@@ -391,15 +580,21 @@ const filteredPayments = computed(() => {
               </tr>
             </thead>
             <tbody class="divide-y divide-[rgb(var(--border-color))]">
-              <tr v-for="payment in filteredPayments" :key="payment.id" class="hover:bg-[rgb(var(--bg-2))]">
-                <td class="px-6 py-4 whitespace-nowrap">{{ payment.id }}</td>
-                <td class="px-6 py-4 whitespace-nowrap">{{ payment.invoiceId }}</td>
-                <td class="px-6 py-4 whitespace-nowrap">{{ payment.date }}</td>
+              <tr v-for="payment in paymentHistory" :key="payment.payment_id" class="hover:bg-[rgb(var(--bg-2))]">
+                <td class="px-6 py-4 whitespace-nowrap">{{ formatPaymentId(payment.payment_id) }}</td>
+                <td class="px-6 py-4 whitespace-nowrap">{{ payment.patient_name }}</td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div>
+                    <div class="font-medium">{{ formatInvoiceId(payment.invoice_id) }}</div>
+                    <div class="text-sm text-gray-500">{{ payment.invoice_description }}</div>
+                  </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">{{ formatDate(payment.created_at) }}</td>
                 <td class="px-6 py-4 whitespace-nowrap">RM {{ formatPrice(payment.amount) }}</td>
                 <td class="px-6 py-4 whitespace-nowrap">{{ payment.method }}</td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <rs-badge variant="success">
-                    {{ payment.status }}
+                    Completed
                   </rs-badge>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
@@ -410,6 +605,45 @@ const filteredPayments = computed(() => {
               </tr>
             </tbody>
           </table>
+
+          <!-- Pagination -->
+          <div v-if="totalPages > 1" class="mt-6 flex items-center justify-between">
+            <div class="text-sm text-gray-500">
+              Showing {{ (currentPage - 1) * itemsPerPage + 1 }} to {{ Math.min(currentPage * itemsPerPage, totalItems) }} of {{ totalItems }} results
+            </div>
+            <div class="flex items-center space-x-2">
+              <rs-button 
+                variant="outline" 
+                size="sm" 
+                @click="prevPage" 
+                :disabled="currentPage === 1"
+              >
+                Previous
+              </rs-button>
+              
+              <div class="flex space-x-1">
+                <rs-button 
+                  v-for="page in pageNumbers" 
+                  :key="page"
+                  variant="outline" 
+                  size="sm" 
+                  @click="goToPage(page)"
+                  :class="page === currentPage ? 'bg-primary text-white' : ''"
+                >
+                  {{ page }}
+                </rs-button>
+              </div>
+              
+              <rs-button 
+                variant="outline" 
+                size="sm" 
+                @click="nextPage" 
+                :disabled="currentPage === totalPages"
+              >
+                Next
+              </rs-button>
+            </div>
+          </div>
         </div>
       </div>
     </rs-card>
@@ -418,7 +652,7 @@ const filteredPayments = computed(() => {
     <rs-modal v-model="showInvoiceDetails" title="Invoice Details">
       <div v-if="selectedInvoice" class="p-4">
         <div class="flex justify-between items-center mb-6">
-          <h5>Invoice {{ selectedInvoice.id }}</h5>
+          <h5>Invoice {{ formatInvoiceId(selectedInvoice.invoice_id) }}</h5>
           <rs-badge :variant="selectedInvoice.status === 'Paid' ? 'success' : 'warning'">
             {{ selectedInvoice.status }}
           </rs-badge>
@@ -426,14 +660,22 @@ const filteredPayments = computed(() => {
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <div>
+            <p class="text-sm text-gray-500">Patient</p>
+            <p class="font-medium">{{ selectedInvoice.patient_name }}</p>
+          </div>
+          <div>
+            <p class="text-sm text-gray-500">Invoice Type</p>
+            <p class="font-medium">{{ selectedInvoice.invoice_type || 'N/A' }}</p>
+          </div>
+          <div>
             <p class="text-sm text-gray-500">Issue Date</p>
-            <p class="font-medium">{{ selectedInvoice.date }}</p>
+            <p class="font-medium">{{ formatDate(selectedInvoice.date) }}</p>
           </div>
           <div>
             <p class="text-sm text-gray-500">Due Date</p>
-            <p class="font-medium">{{ selectedInvoice.dueDate }}</p>
+            <p class="font-medium">{{ formatDate(selectedInvoice.due_date) }}</p>
           </div>
-          <div>
+          <div class="md:col-span-2">
             <p class="text-sm text-gray-500">Description</p>
             <p class="font-medium">{{ selectedInvoice.description }}</p>
           </div>
@@ -441,18 +683,26 @@ const filteredPayments = computed(() => {
             <p class="text-sm text-gray-500">Amount</p>
             <p class="font-medium">RM {{ formatPrice(selectedInvoice.amount) }}</p>
           </div>
-          <div v-if="selectedInvoice.status === 'Paid'">
+          <div v-if="selectedInvoice.status === 'Paid' && selectedInvoice.payment_date">
             <p class="text-sm text-gray-500">Payment Date</p>
-            <p class="font-medium">{{ selectedInvoice.paymentDate }}</p>
+            <p class="font-medium">{{ formatDate(selectedInvoice.payment_date) }}</p>
+          </div>
+          <div v-if="selectedInvoice.payment_method">
+            <p class="text-sm text-gray-500">Payment Method</p>
+            <p class="font-medium">{{ selectedInvoice.payment_method }}</p>
+          </div>
+          <div v-if="selectedInvoice.payment_reference">
+            <p class="text-sm text-gray-500">Payment Reference</p>
+            <p class="font-medium">{{ selectedInvoice.payment_reference }}</p>
           </div>
         </div>
         
         <!-- <div class="flex justify-end space-x-2">
-          <rs-button variant="outline" @click="downloadInvoice(selectedInvoice.id)">
+          <rs-button variant="outline" @click="downloadInvoice(selectedInvoice.invoice_id)">
             <NuxtIcon name="ic:outline-download" class="mr-1" />
             Download
           </rs-button>
-          <rs-button variant="outline" @click="printInvoice(selectedInvoice.id)">
+          <rs-button variant="outline" @click="printInvoice(selectedInvoice)">
             <NuxtIcon name="ic:outline-print" class="mr-1" />
             Print
           </rs-button>
@@ -465,20 +715,28 @@ const filteredPayments = computed(() => {
     <rs-modal v-model="showPaymentDetails" title="Payment Details">
       <div v-if="selectedPayment" class="p-4">
         <div class="flex justify-between items-center mb-6">
-          <h5>Payment {{ selectedPayment.id }}</h5>
+          <h5>Payment {{ formatPaymentId(selectedPayment.payment_id) }}</h5>
           <rs-badge variant="success">
-            {{ selectedPayment.status }}
+            Completed
           </rs-badge>
         </div>
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <div>
+            <p class="text-sm text-gray-500">Patient</p>
+            <p class="font-medium">{{ selectedPayment.patient_name }}</p>
+          </div>
+          <div>
             <p class="text-sm text-gray-500">Invoice ID</p>
-            <p class="font-medium">{{ selectedPayment.invoiceId }}</p>
+            <p class="font-medium">{{ formatInvoiceId(selectedPayment.invoice_id) }}</p>
+          </div>
+          <div>
+            <p class="text-sm text-gray-500">Invoice Description</p>
+            <p class="font-medium">{{ selectedPayment.invoice_description }}</p>
           </div>
           <div>
             <p class="text-sm text-gray-500">Payment Date</p>
-            <p class="font-medium">{{ selectedPayment.date }}</p>
+            <p class="font-medium">{{ formatDate(selectedPayment.created_at) }}</p>
           </div>
           <div>
             <p class="text-sm text-gray-500">Amount</p>
@@ -489,8 +747,20 @@ const filteredPayments = computed(() => {
             <p class="font-medium">{{ selectedPayment.method }}</p>
           </div>
           <div>
+            <p class="text-sm text-gray-500">Bank Name</p>
+            <p class="font-medium">{{ selectedPayment.bank_name || 'N/A' }}</p>
+          </div>
+          <div>
             <p class="text-sm text-gray-500">Reference Number</p>
-            <p class="font-medium">{{ selectedPayment.reference }}</p>
+            <p class="font-medium">{{ selectedPayment.reference_code }}</p>
+          </div>
+          <div v-if="selectedPayment.invoice_type">
+            <p class="text-sm text-gray-500">Invoice Type</p>
+            <p class="font-medium">{{ selectedPayment.invoice_type }}</p>
+          </div>
+          <div v-if="selectedPayment.patient_available_sessions !== undefined">
+            <p class="text-sm text-gray-500">Available Sessions</p>
+            <p class="font-medium">{{ selectedPayment.patient_available_sessions }}</p>
           </div>
         </div>
         

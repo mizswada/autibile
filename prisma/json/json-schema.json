@@ -1424,6 +1424,59 @@
         }
       }
     },
+    "Renamedpackage": {
+      "type": "object",
+      "properties": {
+        "package_id": {
+          "type": "integer"
+        },
+        "package_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "amount": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "avail_session": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    },
     "invoice": {
       "type": "object",
       "properties": {
@@ -1491,59 +1544,6 @@
           "items": {
             "$ref": "#/definitions/payment"
           }
-        }
-      }
-    },
-    "Renamedpackage": {
-      "type": "object",
-      "properties": {
-        "package_id": {
-          "type": "integer"
-        },
-        "package_name": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "description": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "amount": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "avail_session": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "status": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "created_at": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "updated_at": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "deleted_at": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "date-time"
         }
       }
     },
@@ -1679,11 +1679,11 @@
     "community": {
       "$ref": "#/definitions/community"
     },
-    "invoice": {
-      "$ref": "#/definitions/invoice"
-    },
     "renamedpackage": {
       "$ref": "#/definitions/Renamedpackage"
+    },
+    "invoice": {
+      "$ref": "#/definitions/invoice"
     },
     "payment": {
       "$ref": "#/definitions/payment"
