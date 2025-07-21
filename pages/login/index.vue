@@ -33,16 +33,33 @@ const login = async () => {
       userStore.setRoles(data.data.roles);
       userStore.setIsAuthenticated(true);
 
+      // Determine redirect path based on user role
+      const userRoles = data.data.roles || [];
+      const isAdmin = userRoles.some(role => 
+        role.includes('Admin') || role.includes('Administrator')
+      );
+      const isDoctor = userRoles.some(role => 
+        role.includes('Practitioners') || role.includes('Doctor')
+      );
+
+      let redirectPath = "/dashboard";
+      
+      if (isAdmin) {
+        redirectPath = "/dashboard";
+      } else if (isDoctor) {
+        redirectPath = "/dashboard";
+      }
+
       $swal.fire({
         position: "center",
         title: "Success",
-        text: "Login Success",
+        text: `Login Success - Welcome ${isAdmin ? 'Administrator' : isDoctor ? 'Doctor' : 'User'}!`,
         icon: "success",
         timer: 2000,
         showConfirmButton: false,
       });
 
-      window.location.href = "/dashboard";
+      window.location.href = redirectPath;
     } else {
       $swal.fire({
         title: "Error!",
