@@ -78,14 +78,17 @@ export default defineEventHandler(async (event) => {
       `refreshToken=${refreshToken}; HttpOnly; Secure; SameSite=Lax; Path=/`,
     ]);
 
+    // Return tokens in response body
     return {
-        statusCode: 200,
-        message: "Login success",
-        data: {
-          username: user.userUsername,
-          roles: roleNames,
-        },
-      };   
+      statusCode: 200,
+      message: "Login success",
+      data: {
+        username: user.userUsername,
+        roles: roleNames,
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+      },
+    };
   } catch (error) {
     console.log(error);
     return {

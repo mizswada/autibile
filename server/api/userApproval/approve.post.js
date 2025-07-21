@@ -15,6 +15,11 @@ export default defineEventHandler(async (event) => {
         data: { status: 'Active' },
       });
   
+      await prisma.user.update({
+        where: { userID: updatedPractitioner.user_id },
+        data: { userStatus: 'Active' },
+      });
+  
       return {
         statusCode: 200,
         message: 'Practitioner approved successfully',

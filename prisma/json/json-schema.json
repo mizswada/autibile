@@ -1606,6 +1606,81 @@
           ]
         }
       }
+    },
+    "referrals": {
+      "type": "object",
+      "properties": {
+        "referrals_id": {
+          "type": "integer"
+        },
+        "referrals_recepient": {
+          "type": "string"
+        },
+        "hospital": {
+          "type": "string"
+        },
+        "referrals_date": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "refferrals_reason": {
+          "type": "string"
+        },
+        "history_presentingConcerns": {
+          "type": "string"
+        },
+        "history_developmentalMilestone": {
+          "type": "string"
+        },
+        "history_behavioralConcerns": {
+          "type": "string"
+        },
+        "history_medicalHistory": {
+          "type": "string"
+        },
+        "history_medication": {
+          "type": "string"
+        },
+        "history_family": {
+          "type": "string"
+        },
+        "history_other": {
+          "type": "string"
+        },
+        "physical_examination": {
+          "type": "string"
+        },
+        "general_appearance": {
+          "type": "string"
+        },
+        "systemic_examination": {
+          "type": "string"
+        },
+        "current_medications": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
     }
   },
   "type": "object",
@@ -1687,6 +1762,9 @@
     },
     "payment": {
       "$ref": "#/definitions/payment"
+    },
+    "referrals": {
+      "$ref": "#/definitions/referrals"
     }
   }
 }
