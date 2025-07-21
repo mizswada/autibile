@@ -199,6 +199,14 @@ onMounted(fetchPatients);
                       <Icon name="material-symbols:visibility" class="mr-1" />
                       View
                     </rs-button>
+                    <rs-button 
+                      @click="$router.push(`/patientProfile?patientId=${patient.childID}`)" 
+                      color="secondary"
+                      size="sm"
+                    >
+                      <Icon name="material-symbols:person" class="mr-1" />
+                      Profile
+                    </rs-button>
                     <!-- <rs-button 
                       @click="generateReport(patient.childID)" 
                       :loading="isGenerating[patient.childID]"

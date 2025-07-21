@@ -26,10 +26,10 @@ const props = defineProps({
 const slots = useSlots();
 
 const tabs = ref(slots.default().map((tab) => tab.props));
-const selectedTitle = ref(tabs.value[0]["title"]);
+const selectedTitle = ref(tabs.value.length > 0 && tabs.value[0] ? tabs.value[0]["title"] : '');
 
 tabs.value.forEach((tab) => {
-  if (typeof tab.active !== "undefined") {
+  if (tab && typeof tab.active !== "undefined") {
     selectedTitle.value = tab.title;
   }
 });
@@ -112,6 +112,7 @@ provide("selectedTitle", selectedTitle);
           role="presentation"
           v-for="(val, index) in tabs"
           :key="index"
+          v-if="val && val.title"
           @click="selectedTitle = val.title"
         >
           <a
