@@ -330,7 +330,12 @@ const updateAppointmentStatus = async (appointmentId, newStatus) => {
     });
 
     if (data.value && data.value.success) {
-      successMessage.value = "Appointment status updated successfully!";
+      // Check if the status was changed to "Completed" (41)
+      if (newStatus === 41) {
+        successMessage.value = "Appointment marked as completed! One session has been deducted from the patient's available sessions.";
+      } else {
+        successMessage.value = "Appointment status updated successfully!";
+      }
       await refreshAppointments(); // Refresh the list
     } else {
       errorMessage.value = data.value?.message || "Failed to update appointment status";
@@ -354,9 +359,16 @@ const handleStatusChange = (appointment, newStatus) => {
     41: 'Completed'
   };
   
-  // Confirm before updating
-  if (confirm(`Are you sure you want to mark this appointment as "${statusLabels[newStatus]}"?`)) {
-    updateAppointmentStatus(appointment.id, newStatus);
+  // Special confirmation for completed status
+  if (newStatus === 41) {
+    if (confirm(`Are you sure you want to mark this appointment as "Completed"? This will deduct one session from the patient's available sessions.`)) {
+      updateAppointmentStatus(appointment.id, newStatus);
+    }
+  } else {
+    // Confirm before updating for other statuses
+    if (confirm(`Are you sure you want to mark this appointment as "${statusLabels[newStatus]}"?`)) {
+      updateAppointmentStatus(appointment.id, newStatus);
+    }
   }
 };
 

@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
 
     if (
       !nickname || !gender || !icNumber || !dateOfBirth || !autismDiagnose ||
-      !diagnosedDate || !availableSession || !status || !parentID || !userID
+      !diagnosedDate || availableSession === null || availableSession === undefined || !status || !parentID || !userID
     ) {
       return {
         statusCode: 400,
@@ -48,7 +48,7 @@ export default defineEventHandler(async (event) => {
           autism_diagnose: autismDiagnose,
           diagnosed_on: new Date(diagnosedDate),
           status,
-          available_session: availableSession,
+          available_session: parseInt(availableSession) || 0,
           created_at: new Date(),
         },
       });

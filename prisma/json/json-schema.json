@@ -797,6 +797,12 @@
         "service_id": {
           "type": "integer"
         },
+        "therapy_centerID": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "name": {
           "type": "string"
         },
@@ -1102,6 +1108,18 @@
             "$ref": "#/definitions/appointments"
           }
         },
+        "invoice": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/invoice"
+          }
+        },
+        "payment": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/payment"
+          }
+        },
         "progress_track": {
           "type": "array",
           "items": {
@@ -1232,6 +1250,9 @@
           "type": "integer"
         },
         "center_name": {
+          "type": "string"
+        },
+        "center_logo": {
           "type": "string"
         },
         "center_phone": {
@@ -1402,6 +1423,189 @@
           "format": "date-time"
         }
       }
+    },
+    "Renamedpackage": {
+      "type": "object",
+      "properties": {
+        "package_id": {
+          "type": "integer"
+        },
+        "package_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "amount": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "avail_session": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    },
+    "invoice": {
+      "type": "object",
+      "properties": {
+        "invoice_id": {
+          "type": "integer"
+        },
+        "invoice_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "amount": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "update_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "user_patients": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/user_patients"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "payment": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/payment"
+          }
+        }
+      }
+    },
+    "payment": {
+      "type": "object",
+      "properties": {
+        "payment_id": {
+          "type": "integer"
+        },
+        "amount": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "method": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "bank_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reference_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "user_patients": {
+          "$ref": "#/definitions/user_patients"
+        },
+        "invoice": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/invoice"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
     }
   },
   "type": "object",
@@ -1474,6 +1678,15 @@
     },
     "community": {
       "$ref": "#/definitions/community"
+    },
+    "renamedpackage": {
+      "$ref": "#/definitions/Renamedpackage"
+    },
+    "invoice": {
+      "$ref": "#/definitions/invoice"
+    },
+    "payment": {
+      "$ref": "#/definitions/payment"
     }
   }
 }

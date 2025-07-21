@@ -1,61 +1,40 @@
 <script setup>
+import { ref, onMounted } from 'vue';
+import logo from '@/assets/img/logo/splash.png';
+
 definePageMeta({
-  title: "Payment",
+  title: "Payment - Unpaid Invoices",
 });
 
-// Sample invoice data (in a real app, this would come from an API)
-const invoices = ref([
-  {
-    id: 'INV-001',
-    date: '2023-06-15',
-    dueDate: '2023-07-15',
-    description: 'Therapy Session - Initial Assessment',
-    amount: 350.00,
-    status: 'Unpaid'
-  },
-  {
-    id: 'INV-002',
-    date: '2023-06-22',
-    dueDate: '2023-07-22',
-    description: 'Therapy Session - Follow-up',
-    amount: 250.00,
-    status: 'Unpaid'
-  },
-  {
-    id: 'INV-003',
-    date: '2023-05-10',
-    dueDate: '2023-06-10',
-    description: 'Workshop Registration',
-    amount: 150.00,
-    status: 'Paid'
-  }
-]);
-
-const selectedInvoice = ref(null);
-const showPaymentMethods = ref(false);
-const selectedPaymentMethod = ref(null);
 const router = useRouter();
+const invoices = ref([]);
+const loading = ref(true);
+const error = ref('');
+const selectedInvoice = ref(null);
 
-const paymentMethods = [
-  { 
-    id: 'credit_card', 
-    name: 'Credit/Debit Card', 
-    icon: 'ic:outline-credit-card',
-    description: 'Pay securely using your credit or debit card'
-  },
-  { 
-    id: 'online_banking', 
-    name: 'Online Banking', 
-    icon: 'ic:outline-account-balance',
-    description: 'Direct transfer from your bank account'
-  },
-  { 
-    id: 'ewallet', 
-    name: 'E-Wallet', 
-    icon: 'ic:outline-account-balance-wallet',
-    description: 'Pay using your preferred e-wallet'
+// Fetch invoices from API
+const fetchInvoices = async () => {
+  loading.value = true;
+  error.value = '';
+  
+  try {
+    // Only fetch unpaid invoices
+    const response = await $fetch('/api/payment/listInvoices?status=Unpaid');
+    
+    if (response.statusCode === 200) {
+      invoices.value = response.data;
+    } else {
+      error.value = response.message || 'Failed to fetch invoices';
+    }
+  } catch (err) {
+    console.error('Error fetching invoices:', err);
+    error.value = 'An error occurred while fetching invoices';
+  } finally {
+    loading.value = false;
   }
-];
+};
+
+
 
 const formatPrice = (price) => {
   return parseFloat(price)
@@ -64,22 +43,33 @@ const formatPrice = (price) => {
     .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 };
 
-const selectInvoice = (invoice) => {
-  selectedInvoice.value = invoice;
-  showPaymentMethods.value = true;
+const formatDate = (dateString) => {
+  return new Date(dateString).toLocaleDateString('en-MY', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
 };
 
-const selectPaymentMethod = (method) => {
-  selectedPaymentMethod.value = method;
+const formatInvoiceId = (id) => {
+  return `INV-${id.toString().padStart(3, '0')}`;
+};
+
+const selectInvoice = (invoice) => {
+  selectedInvoice.value = invoice;
 };
 
 const proceedToPayment = () => {
-  // Navigate to the payment form with invoice and payment method information
+  if (!selectedInvoice.value) {
+    alert('Please select an invoice to proceed with payment.');
+    return;
+  }
+  
+  // Navigate to the payment form with invoice information
   router.push({
     path: '/payment/paymentForm',
     query: {
-      invoiceId: selectedInvoice.value.id,
-      paymentMethod: selectedPaymentMethod.value.id
+      invoiceId: selectedInvoice.value.invoice_id
     }
   });
 };
@@ -91,14 +81,18 @@ const printInvoice = () => {
   }
 
   const invoice = selectedInvoice.value;
+  console.log('Logo URL:', logo);
+  const absoluteLogo = window.location.origin + '/img/logo-splash.png';
+  console.log('Absolute Logo:', absoluteLogo);
 
   const printContent = `
     <html>
     <head>
-      <title>Invoice ${invoice.id}</title>
+      <title>Invoice ${invoice.invoice_id}</title>
       <style>
         body { font-family: Arial, sans-serif; padding: 40px; }
         .header, .footer { text-align: center; }
+        .logo { max-width: 150px; margin-bottom: 10px; }
         .company-info { text-align: left; }
         .invoice-meta { text-align: right; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
@@ -112,6 +106,7 @@ const printInvoice = () => {
     </head>
     <body>
       <div class="header">
+        <img src="${absoluteLogo}" class="logo" />
         <h2>Autibile</h2>
         <div class="company-info">
           47150 Puchong, Selangor.<br>
@@ -123,15 +118,15 @@ const printInvoice = () => {
       </div>
 
       <div class="invoice-meta">
-        <p>Invoice No ${invoice.id}</p>
-        <p>Sales Date ${invoice.date}</p>
+        <p>Invoice No ${formatInvoiceId(invoice.invoice_id)}</p>
+        <p>Sales Date ${formatDate(invoice.date)}</p>
         <p>Issued Date ${new Date().toLocaleDateString()}</p>
       </div>
 
       <div>
         <h4>BILL TO</h4>
-        <p>${invoice.description}</p>
-        <p>60195664313</p>
+        <p>${invoice.patient_name || 'N/A'}</p>
+        <p>Patient ID: ${invoice.patient_id || 'N/A'}</p>
       </div>
 
       <table>
@@ -162,7 +157,6 @@ const printInvoice = () => {
       </div>
 
       <div class="signature">
-        <div><strong>Signature:</strong></div>
         <div><strong>REMARK:</strong></div>
       </div>
 
@@ -182,7 +176,13 @@ const printInvoice = () => {
   printWindow.close();
 };
 
+const getStatusBadgeVariant = (status) => {
+  return status === 'Paid' ? 'success' : 'warning';
+};
 
+onMounted(() => {
+  fetchInvoices();
+});
 </script>
 
 <template>
@@ -192,8 +192,14 @@ const printInvoice = () => {
     <rs-card>
         <template #header>
         <div class="flex justify-between items-center">
-            <h5 class="mb-0">Payment & Invoicing</h5>
+            <h5 class="mb-0">Payment</h5>
             <div class="flex space-x-2">
+            <NuxtLink to="/payment/packages">
+                <rs-button variant="primary">
+                <NuxtIcon name="ic:outline-package" class="mr-1" />
+                View Packages
+                </rs-button>
+            </NuxtLink>
             <NuxtLink to="/payment/create">
                 <rs-button variant="primary">
                 <NuxtIcon name="ic:outline-add" class="mr-1" />
@@ -216,35 +222,73 @@ const printInvoice = () => {
         </div>
         </template>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <!-- Left Column - Invoice List -->
-        <div class="py-7 bg-[rgb(var(--bg-2))] rounded-lg">
+        <div class="lg:col-span-2 py-7 bg-[rgb(var(--bg-2))] rounded-lg">
           <div class="px-10">
-            <h5>Invoices</h5>
-            <p>Select an invoice to make a payment.</p>
+            <h5>Unpaid Invoices</h5>
+            <p>Select an unpaid invoice to make a payment.</p>
           </div>
-          <div class="mt-7 px-10">
+          
+          <!-- Loading State -->
+          <div v-if="loading" class="mt-7 px-10 flex justify-center items-center h-64">
+            <div class="text-center">
+              <NuxtIcon name="line-md:loading-twotone-loop" class="text-4xl mb-4" />
+              <p>Loading unpaid invoices...</p>
+            </div>
+          </div>
+
+          <!-- Error State -->
+          <div v-else-if="error" class="mt-7 px-10 flex justify-center items-center h-64">
+            <div class="text-center text-red-500">
+              <NuxtIcon name="ic:outline-error" class="text-4xl mb-4" />
+              <p>{{ error }}</p>
+              <rs-button @click="fetchInvoices" class="mt-4">
+                Try Again
+              </rs-button>
+            </div>
+          </div>
+
+          <!-- Empty State -->
+          <div v-else-if="invoices.length === 0" class="mt-7 px-10 flex justify-center items-center h-64">
+            <div class="text-center text-gray-500">
+              <NuxtIcon name="ic:outline-receipt" class="text-4xl mb-4" />
+              <p>No unpaid invoices found</p>
+              <p class="text-sm mt-2">All invoices have been paid or there are no invoices to display.</p>
+              <NuxtLink to="/payment/history">
+                <rs-button class="mt-4 mx-auto block">
+                  View Payment History
+                </rs-button>
+              </NuxtLink>
+            </div>
+          </div>
+
+          <!-- Invoice List -->
+          <div v-else class="mt-7 px-10">
             <rs-card 
               v-for="invoice in invoices" 
-              :key="invoice.id" 
-              class="mb-4 p-5 cursor-pointer hover:shadow-md transition-shadow"
-              :class="{'border-2 border-primary': selectedInvoice && selectedInvoice.id === invoice.id}"
+              :key="invoice.invoice_id" 
+              class="mb-4 p-5 cursor-pointer hover:shadow-md transition-shadow bg-gray-100"
+              :class="{'border-2 border-primary': selectedInvoice && selectedInvoice.invoice_id === invoice.invoice_id}"
               @click="selectInvoice(invoice)"
             >
               <div class="flex justify-between items-start">
                 <div>
-                  <h6 class="mb-2">{{ invoice.id }}</h6>
+                  <h6 class="mb-2">{{ formatInvoiceId(invoice.invoice_id) }}</h6>
                   <p class="mb-1">{{ invoice.description }}</p>
                   <div class="text-sm text-gray-500">
-                    <span>Issue Date: {{ invoice.date }}</span>
+                    <span>Patient: {{ invoice.patient_name || 'N/A' }}</span>
                     <span class="mx-2">|</span>
-                    <span>Due Date: {{ invoice.dueDate }}</span>
+                    <span>Date: {{ formatDate(invoice.date) }}</span>
+                  </div>
+                  <div class="text-sm text-gray-500 mt-1">
+                    <span>Type: {{ invoice.invoice_type }}</span>
                   </div>
                 </div>
                 <div class="text-right">
                   <div class="text-xl font-semibold">RM {{ formatPrice(invoice.amount) }}</div>
                   <rs-badge 
-                    :variant="invoice.status === 'Paid' ? 'success' : 'warning'"
+                    :variant="getStatusBadgeVariant(invoice.status)"
                     class="mt-2"
                   >
                     {{ invoice.status }}
@@ -255,15 +299,15 @@ const printInvoice = () => {
           </div>
         </div>
 
-        <!-- Right Column - Payment Methods -->
+        <!-- Right Column - Selected Invoice Summary -->
         <div class="py-7 bg-[rgb(var(--bg-2))] rounded-lg border-l border-l-[rgb(var(--border-color))]">
           <div class="px-10">
-            <h5>Payment Methods</h5>
+            <h5>Selected Invoice</h5>
             <p v-if="!selectedInvoice">Please select an invoice first.</p>
-            <p v-else>Choose your preferred payment method.</p>
+            <p v-else>Review invoice details before payment.</p>
           </div>
           
-          <div v-if="showPaymentMethods" class="mt-7 px-10">
+          <div v-if="selectedInvoice" class="mt-7 px-10">
             <!-- Invoice Summary -->
             <div class="mb-6">
               <div class="text-base font-semibold bg-[rgb(var(--bg-1))] py-3 px-4 rounded-t-md">
@@ -272,15 +316,23 @@ const printInvoice = () => {
               <div class="bg-[rgb(var(--bg-3))] p-4 rounded-b-md">
                 <div class="flex justify-between mb-2">
                   <span>Invoice ID:</span>
-                  <span class="font-semibold">{{ selectedInvoice.id }}</span>
+                  <span class="font-semibold">{{ formatInvoiceId(selectedInvoice.invoice_id) }}</span>
+                </div>
+                <div class="flex justify-between mb-2">
+                  <span>Patient:</span>
+                  <span class="font-semibold">{{ selectedInvoice.patient_name || 'N/A' }}</span>
                 </div>
                 <div class="flex justify-between mb-2">
                   <span>Description:</span>
-                  <span class="font-semibold">{{ selectedInvoice.description }}</span>
+                  <span class="font-semibold text-right block w-2/3 break-words">{{ selectedInvoice.description }}</span>
                 </div>
                 <div class="flex justify-between mb-2">
-                  <span>Due Date:</span>
-                  <span class="font-semibold">{{ selectedInvoice.dueDate }}</span>
+                  <span>Type:</span>
+                  <span class="font-semibold">{{ selectedInvoice.invoice_type }}</span>
+                </div>
+                <div class="flex justify-between mb-2">
+                  <span>Date:</span>
+                  <span class="font-semibold">{{ formatDate(selectedInvoice.date) }}</span>
                 </div>
                 <div class="flex justify-between text-lg font-bold mt-3">
                   <span>Total Amount:</span>
@@ -289,43 +341,19 @@ const printInvoice = () => {
               </div>
             </div>
 
-            <!-- Payment Method Selection -->
-            <div class="text-base font-semibold bg-[rgb(var(--bg-1))] py-3 px-4 my-4">
-              Select Payment Method
-            </div>
-            
-            <div class="space-y-4">
-              <rs-card 
-                v-for="method in paymentMethods" 
-                :key="method.id"
-                class="p-4 cursor-pointer hover:shadow-md transition-shadow"
-                :class="{'border-2 border-primary': selectedPaymentMethod && selectedPaymentMethod.id === method.id}"
-                @click="selectPaymentMethod(method)"
-              >
-                <div class="flex items-center">
-                  <div class="mr-4 text-2xl">
-                    <NuxtIcon :name="method.icon" />
-                  </div>
-                  <div>
-                    <h6 class="mb-1">{{ method.name }}</h6>
-                    <p class="text-sm text-gray-500">{{ method.description }}</p>
-                  </div>
-                </div>
-              </rs-card>
-            </div>
-
+            <!-- Payment Button -->
             <rs-button 
-              class="w-full mt-6" 
-              :disabled="!selectedPaymentMethod"
+              class="w-full" 
               @click="proceedToPayment"
             >
-              Proceed to Payment
+              <NuxtIcon name="ic:outline-payment" class="mr-2" />
+              Pay Now
             </rs-button>
           </div>
           
           <div v-else class="mt-7 px-10 flex justify-center items-center h-64">
             <div class="text-center text-gray-500">
-              <NuxtIcon name="ic:outline-payment" class="text-6xl mb-4" />
+              <NuxtIcon name="ic:outline-receipt" class="text-6xl mb-4" />
               <p>Select an invoice from the left to proceed with payment</p>
             </div>
           </div>
