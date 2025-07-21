@@ -53,6 +53,32 @@ export default defineEventHandler(async (event) => {
 
     const roleNames = roles.map((r) => r.role.roleName);
 
+    // Restrict login: Only Admins and Practitioners of type Doctor (status Active)
+    const isAdmin = roleNames.some((role) => role.includes("Admin"));
+    const isPractitioner = roleNames.some((role) => role === "Practitioners");
+    let isDoctor = false;
+
+    if (isPractitioner) {
+      // Check if this practitioner is a Doctor and Active
+      const doctor = await prisma.user_practitioners.findFirst({
+        where: {
+          user_id: user.userID,
+          type: "Doctor",
+          status: "Active",
+        },
+      });
+      if (doctor) {
+        isDoctor = true;
+      }
+    }
+
+    if (!isAdmin && !isDoctor) {
+      return {
+        statusCode: 403,
+        message: "You are not authorized to log in. Only administrators and active doctors are allowed.",
+      };
+    }
+
     const accessToken = generateAccessToken({
       username: user.userUsername,
       roles: roleNames,

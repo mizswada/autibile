@@ -1,16 +1,20 @@
 <script setup>
-import Menu from "~/navigation/index.js";
+import { getNavigationByRole } from "~/navigation/index.js";
 import RSItem from "~/components/layouts/sidemenu/Item.vue";
+import { useUserStore } from "~/stores/user";
 
-// const menuItem = Menu;
+const userStore = useUserStore();
 
-const props = defineProps({
-  menuItem: {
-    type: Array,
-    default: () => Menu,
-    required: false,
-  },
+// Get navigation based on user roles
+const menuItem = computed(() => {
+  const userRoles = userStore.roles || [];
+  return getNavigationByRole(userRoles);
 });
+
+// Watch for role changes and update navigation
+watch(() => userStore.roles, (newRoles) => {
+  // Navigation will automatically update due to computed property
+}, { deep: true });
 
 onMounted(() => {
   try {
