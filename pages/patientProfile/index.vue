@@ -9,6 +9,10 @@ const patientId = computed(() => route.query.patientId || route.params.id);
 const isLoading = ref(true);
 const error = ref(null);
 const activeTab = ref('Patient Details');
+const retryCount = ref(0);
+const maxRetries = 3;
+const retryDelay = 3000; // 3 seconds
+const isRetrying = ref(false);
 
 // Data
 const patientDetails = ref(null);
@@ -17,6 +21,8 @@ const appointments = ref([]);
 const questionnaires = ref([]);
 const doctorReferrals = ref([]);
 const collapsedQnA = ref({});
+const scoreThresholds = ref({});
+const thresholdsLoading = ref(false);
 
 // Tabs
 const tabs = [
@@ -39,6 +45,7 @@ onMounted(async () => {
 async function loadAllData() {
   isLoading.value = true;
   error.value = null;
+  isRetrying.value = false;
 
   try {
     await Promise.all([
@@ -48,11 +55,21 @@ async function loadAllData() {
       fetchQuestionnaires(),
       fetchDoctorReferrals()
     ]);
+    retryCount.value = 0; // Reset on success
   } catch (err) {
     console.error(err);
-    error.value = 'Failed to load patient data';
+    if (retryCount.value < maxRetries) {
+      isRetrying.value = true;
+      retryCount.value++;
+      setTimeout(() => {
+        loadAllData();
+      }, retryDelay);
+    } else {
+      error.value = 'Failed to load patient data';
+      isRetrying.value = false;
+    }
   } finally {
-    isLoading.value = false;
+    if (!isRetrying.value) isLoading.value = false;
   }
 }
 
@@ -87,7 +104,24 @@ async function fetchAppointments() {
 async function fetchQuestionnaires() {
   const res = await fetch(`/api/questionnaire/responses/list?patientId=${patientId.value}`);
   const data = await res.json();
-  if (data.statusCode === 200) questionnaires.value = data.data;
+  if (data.statusCode === 200) {
+    questionnaires.value = data.data;
+    // Fetch thresholds for all unique questionnaire_ids
+    const uniqueIds = [...new Set(data.data.map(q => q.questionnaire_id))];
+    thresholdsLoading.value = true;
+    await Promise.all(uniqueIds.map(async (qid) => {
+      if (!scoreThresholds.value[qid]) {
+        const tRes = await fetch(`/api/questionnaire/thresholds?questionnaireId=${qid}`);
+        const tData = await tRes.json();
+        if (tData.statusCode === 200 && Array.isArray(tData.data)) {
+          scoreThresholds.value[qid] = tData.data;
+        } else {
+          scoreThresholds.value[qid] = [];
+        }
+      }
+    }));
+    thresholdsLoading.value = false;
+  }
 }
 
 async function fetchDoctorReferrals() {
@@ -170,6 +204,12 @@ function formatDateOnly(dateString) {
   if (!dateString) return '';
   return dateString.split('T')[0];
 }
+
+function getScoreInterpretation(q) {
+  const thresholds = scoreThresholds.value[q.questionnaire_id] || [];
+  const score = parseInt(q.total_score);
+  return thresholds.find(t => score >= t.scoring_min && score <= t.scoring_max) || null;
+}
 </script>
 
 <template>
@@ -185,7 +225,8 @@ function formatDateOnly(dateString) {
     <!-- Loading -->
     <div v-if="isLoading" class="flex justify-center items-center py-20">
       <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-primary"></div>
-      <span class="ml-4 text-gray-600">Loading patient data...</span>
+      <span v-if="isRetrying" class="ml-4 text-gray-600">Retrying to load data...</span>
+      <span v-else class="ml-4 text-gray-600">Loading patient data...</span>
     </div>
 
     <!-- Error -->
@@ -376,10 +417,10 @@ function formatDateOnly(dateString) {
                           Score
                         </th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Completion Date
+                          Level
                         </th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Level
+                          Recommendation
                         </th>
                       </tr>
                     </thead>
@@ -391,19 +432,11 @@ function formatDateOnly(dateString) {
                             {{ displayScore(q.total_score) }}
                           </span>
                         </td>
-                        <td class="px-6 py-4 text-sm text-gray-900">{{ new Date(q.created_at).toLocaleDateString() }}</td>
-                        <td class="px-6 py-4 text-sm">
-                          <span class="px-2 py-1 text-xs rounded-full"
-                                :class="{
-                                  'bg-red-100 text-red-800': parseInt(q.total_score) > 70,
-                                  'bg-yellow-100 text-yellow-800': parseInt(q.total_score) > 40 && parseInt(q.total_score) <= 70,
-                                  'bg-green-100 text-green-800': parseInt(q.total_score) <= 40
-                                }">
-                            {{ 
-                              parseInt(q.total_score) > 70 ? 'High' :
-                              parseInt(q.total_score) > 40 ? 'Medium' : 'Low'
-                            }}
-                          </span>
+                        <td class="px-6 py-4 text-sm text-gray-900">
+                          {{ getScoreInterpretation(q)?.interpretation || '-' }}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-900">
+                          {{ getScoreInterpretation(q)?.recommendation || '-' }}
                         </td>
                       </tr>
                     </tbody>
@@ -426,19 +459,6 @@ function formatDateOnly(dateString) {
                         <span class="font-medium">Total Score:</span>
                         <span class="ml-2 text-lg font-bold" :class="getScoreClass(q.total_score)">
                           {{ displayScore(q.total_score) }}
-                        </span>
-                      </div>
-                      <div>
-                        <span class="px-3 py-1 text-sm rounded-full"
-                              :class="{
-                                'bg-red-100 text-red-800': parseInt(q.total_score) > 70,
-                                'bg-yellow-100 text-yellow-800': parseInt(q.total_score) > 40 && parseInt(q.total_score) <= 70,
-                                'bg-green-100 text-green-800': parseInt(q.total_score) <= 40
-                              }">
-                          {{ 
-                            parseInt(q.total_score) > 70 ? 'High Concern' :
-                            parseInt(q.total_score) > 40 ? 'Moderate Concern' : 'Low Concern'
-                          }}
                         </span>
                       </div>
                     </div>
@@ -489,13 +509,7 @@ function formatDateOnly(dateString) {
                   <div class="mt-4 p-3 bg-blue-50 rounded-lg border-l-4 border-blue-500">
                     <h6 class="font-medium text-blue-800 mb-1">Recommendation</h6>
                     <p class="text-sm text-blue-700">
-                      {{ 
-                        parseInt(q.total_score) > 70 ? 
-                          `Based on the high score (${q.total_score}) in ${q.questionnaire_title}, we recommend immediate intervention and regular therapy sessions.` :
-                        parseInt(q.total_score) > 40 ? 
-                          `Based on the moderate score (${q.total_score}) in ${q.questionnaire_title}, we recommend scheduled therapy sessions and regular monitoring.` :
-                          `Based on the low score (${q.total_score}) in ${q.questionnaire_title}, we recommend periodic check-ins and monitoring for any changes.`
-                      }}
+                      {{ getScoreInterpretation(q)?.recommendation || '-' }}
                     </p>
                   </div>
                 </div>
