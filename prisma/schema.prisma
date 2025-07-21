@@ -210,13 +210,14 @@ model questionnaires_responds {
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model service {
-  service_id   Int            @id @default(autoincrement())
-  name         String         @db.VarChar(255)
-  description  String         @db.VarChar(255)
-  created_at   DateTime       @db.Timestamp(0)
-  updated_at   DateTime       @default(now()) @db.Timestamp(0)
-  deleted_at   DateTime?      @db.Timestamp(0)
-  appointments appointments[]
+  service_id       Int            @id @default(autoincrement())
+  therapy_centerID Int?
+  name             String         @db.VarChar(255)
+  description      String         @db.VarChar(255)
+  created_at       DateTime       @db.Timestamp(0)
+  updated_at       DateTime       @default(now()) @db.Timestamp(0)
+  deleted_at       DateTime?      @db.Timestamp(0)
+  appointments     appointments[]
 }
 
 model survey_list {
@@ -328,6 +329,7 @@ model user_practitioners {
 model therapyst_center {
   center_ID       Int       @id @default(autoincrement())
   center_name     String    @db.VarChar(255)
+  center_logo     String    @db.VarChar(255)
   center_phone    String    @db.VarChar(15)
   center_address  String    @db.Text
   center_location String    @db.VarChar(255)

@@ -1,8 +1,9 @@
 <script setup>
 import { ref, onMounted } from 'vue';
+import logo from '@/assets/img/logo/splash.png';
 
 definePageMeta({
-  title: "Payment",
+  title: "Payment - Unpaid Invoices",
 });
 
 const router = useRouter();
@@ -17,7 +18,8 @@ const fetchInvoices = async () => {
   error.value = '';
   
   try {
-    const response = await $fetch('/api/payment/listInvoices');
+    // Only fetch unpaid invoices
+    const response = await $fetch('/api/payment/listInvoices?status=Unpaid');
     
     if (response.statusCode === 200) {
       invoices.value = response.data;
@@ -79,6 +81,9 @@ const printInvoice = () => {
   }
 
   const invoice = selectedInvoice.value;
+  console.log('Logo URL:', logo);
+  const absoluteLogo = window.location.origin + '/img/logo-splash.png';
+  console.log('Absolute Logo:', absoluteLogo);
 
   const printContent = `
     <html>
@@ -87,6 +92,7 @@ const printInvoice = () => {
       <style>
         body { font-family: Arial, sans-serif; padding: 40px; }
         .header, .footer { text-align: center; }
+        .logo { max-width: 150px; margin-bottom: 10px; }
         .company-info { text-align: left; }
         .invoice-meta { text-align: right; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
@@ -100,6 +106,7 @@ const printInvoice = () => {
     </head>
     <body>
       <div class="header">
+        <img src="${absoluteLogo}" class="logo" />
         <h2>Autibile</h2>
         <div class="company-info">
           47150 Puchong, Selangor.<br>
@@ -150,7 +157,6 @@ const printInvoice = () => {
       </div>
 
       <div class="signature">
-        <div><strong>Signature:</strong></div>
         <div><strong>REMARK:</strong></div>
       </div>
 
@@ -186,7 +192,7 @@ onMounted(() => {
     <rs-card>
         <template #header>
         <div class="flex justify-between items-center">
-            <h5 class="mb-0">Payment & Invoicing</h5>
+            <h5 class="mb-0">Payment</h5>
             <div class="flex space-x-2">
             <NuxtLink to="/payment/packages">
                 <rs-button variant="primary">
@@ -200,12 +206,6 @@ onMounted(() => {
                 Create Invoice
                 </rs-button>
             </NuxtLink>
-            <!-- <NuxtLink to="/payment/invoices">
-                <rs-button variant="primary">
-                <NuxtIcon name="ic:outline-receipt" class="mr-1" />
-                View Invoices
-                </rs-button>
-            </NuxtLink> -->
             <NuxtLink to="/payment/history">
                 <rs-button variant="primary">
                 <NuxtIcon name="ic:outline-history" class="mr-1" />
@@ -226,15 +226,15 @@ onMounted(() => {
         <!-- Left Column - Invoice List -->
         <div class="lg:col-span-2 py-7 bg-[rgb(var(--bg-2))] rounded-lg">
           <div class="px-10">
-            <h5>Invoices</h5>
-            <p>Select an invoice to make a payment.</p>
+            <h5>Unpaid Invoices</h5>
+            <p>Select an unpaid invoice to make a payment.</p>
           </div>
           
           <!-- Loading State -->
           <div v-if="loading" class="mt-7 px-10 flex justify-center items-center h-64">
             <div class="text-center">
               <NuxtIcon name="line-md:loading-twotone-loop" class="text-4xl mb-4" />
-              <p>Loading invoices...</p>
+              <p>Loading unpaid invoices...</p>
             </div>
           </div>
 
@@ -253,10 +253,11 @@ onMounted(() => {
           <div v-else-if="invoices.length === 0" class="mt-7 px-10 flex justify-center items-center h-64">
             <div class="text-center text-gray-500">
               <NuxtIcon name="ic:outline-receipt" class="text-4xl mb-4" />
-              <p>No invoices found</p>
-              <NuxtLink to="/payment/create">
-                <rs-button class="mt-4">
-                  Create Your First Invoice
+              <p>No unpaid invoices found</p>
+              <p class="text-sm mt-2">All invoices have been paid or there are no invoices to display.</p>
+              <NuxtLink to="/payment/history">
+                <rs-button class="mt-4 mx-auto block">
+                  View Payment History
                 </rs-button>
               </NuxtLink>
             </div>
@@ -323,7 +324,7 @@ onMounted(() => {
                 </div>
                 <div class="flex justify-between mb-2">
                   <span>Description:</span>
-                  <span class="font-semibold">{{ selectedInvoice.description }}</span>
+                  <span class="font-semibold text-right block w-2/3 break-words">{{ selectedInvoice.description }}</span>
                 </div>
                 <div class="flex justify-between mb-2">
                   <span>Type:</span>

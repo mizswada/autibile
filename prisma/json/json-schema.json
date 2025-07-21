@@ -797,6 +797,12 @@
         "service_id": {
           "type": "integer"
         },
+        "therapy_centerID": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "name": {
           "type": "string"
         },
@@ -1244,6 +1250,9 @@
           "type": "integer"
         },
         "center_name": {
+          "type": "string"
+        },
+        "center_logo": {
           "type": "string"
         },
         "center_phone": {
