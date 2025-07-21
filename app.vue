@@ -7,6 +7,11 @@ useHead({
   },
 });
 
+// Apply role-based middleware globally
+definePageMeta({
+  middleware: ['role']
+});
+
 const nuxtApp = useNuxtApp();
 const loading = ref(true);
 

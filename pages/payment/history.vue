@@ -29,6 +29,8 @@ const selectedInvoice = ref(null);
 const showInvoiceDetails = ref(false);
 const selectedPayment = ref(null);
 const showPaymentDetails = ref(false);
+const isGeneratingPdf = ref(false);
+const isGeneratingAllPdf = ref(false);
 
 // Fetch invoices from API
 const fetchInvoices = async () => {
@@ -195,9 +197,332 @@ const closeDetails = () => {
   showPaymentDetails.value = false;
 };
 
-const downloadInvoice = (invoiceId) => {
-  // In a real app, this would generate and download a PDF invoice
-  alert(`Downloading invoice ${formatInvoiceId(invoiceId)}...`);
+const downloadAllInvoices = async () => {
+  try {
+    if (invoiceHistory.value.length === 0) {
+      alert('No invoices to download.');
+      return;
+    }
+
+    isGeneratingAllPdf.value = true;
+
+    // Import jsPDF dynamically
+    const { default: jsPDF } = await import('jspdf');
+    
+    // Create a PDF with A4 dimensions
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    
+    let currentPage = 1;
+    let yPosition = 20;
+    
+    // Add header with company info on the left
+    pdf.setFontSize(18);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Autibile', 20, yPosition);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(10);
+    yPosition += 10;
+    
+    // Company address on the left
+    pdf.text('47150 Puchong, Selangor.', 20, yPosition);
+    yPosition += 5;
+    pdf.text('1 - 4, Prima Bizwalk Business Park', 20, yPosition);
+    yPosition += 5;
+    pdf.text('Jalan Tasik Prima 6/2', 20, yPosition);
+    yPosition += 5;
+    pdf.text('Taman Tasik Prima', 20, yPosition);
+    yPosition += 15;
+    
+    // Title
+    pdf.setFontSize(16);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('INVOICE HISTORY REPORT', pageWidth / 2, yPosition, { align: 'center' });
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(10);
+    yPosition += 10;
+    pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 15;
+    
+    // Summary table
+    pdf.setFontSize(12);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('SUMMARY:', 20, yPosition);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(10);
+    yPosition += 8;
+    
+    const totalInvoices = invoiceHistory.value.length;
+    const paidInvoices = invoiceHistory.value.filter(inv => inv.status === 'Paid').length;
+    const unpaidInvoices = totalInvoices - paidInvoices;
+    const totalAmount = invoiceHistory.value.reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
+    const paidAmount = invoiceHistory.value
+      .filter(inv => inv.status === 'Paid')
+      .reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
+    
+    pdf.text(`Total Invoices: ${totalInvoices}`, 20, yPosition);
+    yPosition += 5;
+    pdf.text(`Paid Invoices: ${paidInvoices}`, 20, yPosition);
+    yPosition += 5;
+    pdf.text(`Unpaid Invoices: ${unpaidInvoices}`, 20, yPosition);
+    yPosition += 5;
+    pdf.text(`Total Amount: RM ${formatPrice(totalAmount)}`, 20, yPosition);
+    yPosition += 5;
+    pdf.text(`Paid Amount: RM ${formatPrice(paidAmount)}`, 20, yPosition);
+    yPosition += 5;
+    pdf.text(`Outstanding Amount: RM ${formatPrice(totalAmount - paidAmount)}`, 20, yPosition);
+    yPosition += 15;
+    
+    // Invoice details table
+    pdf.setFontSize(12);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('INVOICE DETAILS:', 20, yPosition);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(10);
+    yPosition += 8;
+    
+    // Table headers with proper column positioning
+    const headers = ['Invoice No', 'Patient', 'Amount', 'Date', 'Status'];
+    const colWidths = [30, 50, 25, 25, 20];
+    const startX = 20;
+    const colPositions = [startX + 5, startX + 35, startX + 85, startX + 110, startX + 135];
+    
+    pdf.setFont(undefined, 'bold');
+    headers.forEach((header, index) => {
+      pdf.text(header, colPositions[index], yPosition);
+    });
+    pdf.setFont(undefined, 'normal');
+    yPosition += 5;
+    
+    // Table content
+    for (const invoice of invoiceHistory.value) {
+      // Check if we need a new page
+      if (yPosition > pageHeight - 30) {
+        pdf.addPage();
+        currentPage++;
+        yPosition = 20;
+        
+        // Repeat headers on new page
+        pdf.setFont(undefined, 'bold');
+        headers.forEach((header, index) => {
+          pdf.text(header, colPositions[index], yPosition);
+        });
+        pdf.setFont(undefined, 'normal');
+        yPosition += 5;
+      }
+      
+      pdf.text(formatInvoiceId(invoice.invoice_id), colPositions[0], yPosition);
+      
+      // Truncate patient name if too long
+      const patientName = invoice.patient_name.length > 15 ? 
+        invoice.patient_name.substring(0, 12) + '...' : invoice.patient_name;
+      pdf.text(patientName, colPositions[1], yPosition);
+      
+      pdf.text(`RM ${formatPrice(invoice.amount)}`, colPositions[2], yPosition);
+      pdf.text(formatDate(invoice.date), colPositions[3], yPosition);
+      pdf.text(invoice.status, colPositions[4], yPosition);
+      
+      yPosition += 5;
+    }
+    
+    // Add page numbers
+    const totalPages = pdf.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      pdf.setPage(i);
+      pdf.setFontSize(8);
+      pdf.text(`Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+    }
+    
+    // Save the PDF with a formatted filename
+    const filename = `Invoice_History_Report_${new Date().toISOString().slice(0, 10)}.pdf`;
+    pdf.save(filename);
+    
+    // Show success message
+    alert('Invoice history report downloaded successfully!');
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    alert('Error generating PDF: ' + (error.message || 'Unknown error'));
+  } finally {
+    isGeneratingAllPdf.value = false;
+  }
+};
+
+const downloadInvoice = async (invoiceId) => {
+  try {
+    // Find the invoice data
+    const invoice = invoiceHistory.value.find(inv => inv.invoice_id === invoiceId);
+    if (!invoice) {
+      alert('Invoice not found.');
+      return;
+    }
+
+    isGeneratingPdf.value = true;
+
+    // Import jsPDF dynamically
+    const { default: jsPDF } = await import('jspdf');
+    
+    // Create a PDF with A4 dimensions
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    
+    // Add header with company info on the left
+    pdf.setFontSize(18);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Autibile', 20, 20);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(10);
+    
+    // Company address on the left
+    pdf.text('47150 Puchong, Selangor.', 20, 30);
+    pdf.text('1 - 4, Prima Bizwalk Business Park', 20, 35);
+    pdf.text('Jalan Tasik Prima 6/2', 20, 40);
+    pdf.text('Taman Tasik Prima', 20, 45);
+    
+    // Invoice details on the right
+    pdf.setFontSize(12);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('INVOICE', pageWidth - 20, 20, { align: 'right' });
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(10);
+    pdf.text(`Invoice No: ${formatInvoiceId(invoice.invoice_id)}`, pageWidth - 20, 30, { align: 'right' });
+    pdf.text(`Date: ${formatDate(invoice.date)}`, pageWidth - 20, 35, { align: 'right' });
+    pdf.text(`Due Date: ${formatDate(invoice.due_date)}`, pageWidth - 20, 40, { align: 'right' });
+    pdf.text(`Status: ${invoice.status}`, pageWidth - 20, 45, { align: 'right' });
+    
+    // Bill to section
+    let yPosition = 60;
+    pdf.setFontSize(12);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('BILL TO:', 20, yPosition);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(10);
+    yPosition += 8;
+    pdf.text(`Patient: ${invoice.patient_name}`, 20, yPosition);
+    yPosition += 5;
+    pdf.text(`Patient ID: ${invoice.patient_id}`, 20, yPosition);
+    yPosition += 5;
+    pdf.text(`Invoice Type: ${invoice.invoice_type || 'N/A'}`, 20, yPosition);
+    
+    // Table
+    yPosition += 15;
+    
+    // Define table column positions and widths
+    const tableStartX = 20;
+    const tableWidth = pageWidth - 40; // 170mm for A4
+    const colWidths = [70, 25, 25, 15, 25]; // Description, Price, Discount, Qty, Amount
+    const colPositions = [
+      tableStartX + 5,           // Description: 25mm
+      tableStartX + 75,          // Price: 75mm
+      tableStartX + 100,         // Discount: 100mm
+      tableStartX + 125,         // Qty: 125mm
+      tableStartX + 140          // Amount: 140mm
+    ];
+    
+    // Table headers
+    pdf.setFont(undefined, 'bold');
+    pdf.rect(tableStartX, yPosition - 5, tableWidth, 8);
+    pdf.text('Description', colPositions[0], yPosition);
+    pdf.text('Price', colPositions[1], yPosition);
+    pdf.text('Discount', colPositions[2], yPosition);
+    pdf.text('Qty', colPositions[3], yPosition);
+    pdf.text('Amount', colPositions[4], yPosition);
+    pdf.setFont(undefined, 'normal');
+    
+    // Table content
+    yPosition += 8;
+    pdf.rect(tableStartX, yPosition - 5, tableWidth, 8);
+    
+    // Truncate description if too long
+    const description = invoice.description.length > 25 ? 
+      invoice.description.substring(0, 22) + '...' : invoice.description;
+    pdf.text(description, colPositions[0], yPosition);
+    pdf.text(`RM ${formatPrice(invoice.amount)}`, colPositions[1], yPosition);
+    pdf.text('RM 0.00', colPositions[2], yPosition);
+    pdf.text('1', colPositions[3], yPosition);
+    pdf.text(`RM ${formatPrice(invoice.amount)}`, colPositions[4], yPosition);
+    
+    // Summary section
+    yPosition += 20;
+    const summaryX = pageWidth - 60;
+    const summaryWidth = 50;
+    
+    pdf.setFont(undefined, 'bold');
+    pdf.text('SUMMARY', summaryX, yPosition);
+    pdf.setFont(undefined, 'normal');
+    yPosition += 8;
+    
+    // Summary rows
+    pdf.text('Sub Total:', summaryX, yPosition);
+    pdf.text(`RM ${formatPrice(invoice.amount)}`, summaryX + summaryWidth, yPosition, { align: 'right' });
+    yPosition += 5;
+    
+    pdf.text('Tax (0%):', summaryX, yPosition);
+    pdf.text('RM 0.00', summaryX + summaryWidth, yPosition, { align: 'right' });
+    yPosition += 5;
+    
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Grand Total:', summaryX, yPosition);
+    pdf.text(`RM ${formatPrice(invoice.amount)}`, summaryX + summaryWidth, yPosition, { align: 'right' });
+    pdf.setFont(undefined, 'normal');
+    
+    // Payment information if available
+    if (invoice.payment_date || invoice.payment_method || invoice.payment_reference) {
+      yPosition += 15;
+      pdf.setFontSize(12);
+      pdf.setFont(undefined, 'bold');
+      pdf.text('PAYMENT INFORMATION:', 20, yPosition);
+      pdf.setFont(undefined, 'normal');
+      pdf.setFontSize(10);
+      yPosition += 8;
+      
+      if (invoice.payment_date) {
+        pdf.text(`Payment Date: ${formatDate(invoice.payment_date)}`, 20, yPosition);
+        yPosition += 5;
+      }
+      if (invoice.payment_method) {
+        pdf.text(`Payment Method: ${invoice.payment_method}`, 20, yPosition);
+        yPosition += 5;
+      }
+      if (invoice.payment_reference) {
+        pdf.text(`Reference: ${invoice.payment_reference}`, 20, yPosition);
+        yPosition += 5;
+      }
+    }
+    
+    // Terms and conditions
+    yPosition += 15;
+    pdf.setFontSize(10);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Terms and Conditions:', 20, yPosition);
+    pdf.setFont(undefined, 'normal');
+    yPosition += 5;
+    pdf.setFontSize(8);
+    pdf.text('1. Payment is due within 30 days of invoice date.', 20, yPosition);
+    yPosition += 4;
+    pdf.text('2. Late payments may incur additional charges.', 20, yPosition);
+    yPosition += 4;
+    pdf.text('3. This is a computer generated invoice.', 20, yPosition);
+    yPosition += 4;
+    pdf.text('4. Thank you for choosing Autibile.', 20, yPosition);
+    
+    // Footer
+    pdf.setFontSize(8);
+    pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+    
+    // Save the PDF with a formatted filename
+    const filename = `Invoice_${formatInvoiceId(invoice.invoice_id)}_${invoice.patient_name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`;
+    pdf.save(filename);
+    
+    // Show success message
+    alert('Invoice PDF downloaded successfully!');
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    alert('Error generating PDF: ' + (error.message || 'Unknown error'));
+  } finally {
+    isGeneratingPdf.value = false;
+  }
 };
 
 const printInvoice = (invoice) => {
@@ -347,12 +672,24 @@ const pageNumbers = computed(() => {
       <template #header>
         <div class="flex justify-between items-center">
           <h5 class="mb-0">Payment History</h5>
-          <NuxtLink to="/payment">
-            <rs-button variant="outline">
-              <NuxtIcon name="ic:outline-payment" class="mr-1" />
-              Make a Payment
+          <div class="flex space-x-2">
+            <rs-button 
+              v-if="activeTab === 'invoices' && invoiceHistory.length > 0"
+              variant="primary" 
+              @click="downloadAllInvoices"
+              :loading="isGeneratingAllPdf"
+              :disabled="isGeneratingAllPdf"
+            >
+              <NuxtIcon name="ic:outline-download" class="mr-1" />
+              {{ isGeneratingAllPdf ? 'Generating PDF...' : 'Download All Invoices' }}
             </rs-button>
-          </NuxtLink>
+            <NuxtLink to="/payment">
+              <rs-button variant="outline">
+                <NuxtIcon name="ic:outline-payment" class="mr-1" />
+                Make a Payment
+              </rs-button>
+            </NuxtLink>
+          </div>
         </div>
       </template>
       
@@ -490,7 +827,12 @@ const pageNumbers = computed(() => {
                     <rs-button variant="text" @click="viewInvoiceDetails(invoice)">
                       <Icon name="mdi:eye" />
                     </rs-button>
-                    <rs-button variant="text" @click="downloadInvoice(invoice.invoice_id)">
+                    <rs-button 
+                      variant="text" 
+                      @click="downloadInvoice(invoice.invoice_id)"
+                      :loading="isGeneratingPdf"
+                      :disabled="isGeneratingPdf"
+                    >
                       <Icon name="mdi:download" />
                     </rs-button>
                     <rs-button variant="text" @click="printInvoice(invoice)">

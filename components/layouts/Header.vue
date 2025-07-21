@@ -62,6 +62,26 @@ const username = computed(() => {
   return userStore.username || 'User';
 });
 
+// Get user role display
+const userRoleDisplay = computed(() => {
+  if (userStore.isAdmin) {
+    return 'Administrator';
+  } else if (userStore.isDoctor) {
+    return 'Doctor';
+  }
+  return 'User';
+});
+
+// Get role badge color
+const roleBadgeColor = computed(() => {
+  if (userStore.isAdmin) {
+    return 'bg-purple-100 text-purple-800';
+  } else if (userStore.isDoctor) {
+    return 'bg-blue-100 text-blue-800';
+  }
+  return 'bg-gray-100 text-gray-800';
+});
+
 // Focus on search input
 function toggleSearch() {
   document.getElementById("header-search").value = "";
@@ -236,6 +256,7 @@ onMounted(() => {
               class="grid grid-cols-1 text-left ml-3 flex-none"
             >
               <p class="font-semibold text-sm truncate w-24 mb-0">{{ username }}</p>
+              <span class="text-xs px-2 py-1 rounded-full {{ roleBadgeColor }}">{{ userRoleDisplay }}</span>
             </div>
             <Icon name="ic:outline-keyboard-arrow-down" class="ml-3" />
           </button>
