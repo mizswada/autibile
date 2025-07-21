@@ -14,27 +14,28 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    // Find active Doctor practitioner user
     const user = await prisma.user.findFirst({
-        where: {
-          userEmail: username,
-          userStatus: "Active",
-          userrole: {
-            some: {
-              role: {
-                roleName: "Practitioners",
-              },
-            },
-          },
-          user_practitioners: {
-            some: { 
-              type: "Doctor",
-              status: "Active"
+      where: {
+        userEmail: username,
+        userStatus: "Active",
+        userrole: {
+          some: {
+            role: {
+              roleName: "Practitioners",
             },
           },
         },
-      });      
+        user_practitioners: {
+          some: { 
+            type: "Doctor",
+            status: "Active"
+          },
+        },
+      },
+    });
 
-    console.log('user',user);
+    console.log('user', user);
 
     if (!user) {
       return {
@@ -44,6 +45,7 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    // Verify password
     const hashedPassword = sha256(password).toString();
     if (user.userPassword !== hashedPassword) {
       return {
@@ -52,22 +54,10 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    // Get user roles
-    const roles = await prisma.userrole.findMany({
-      where: {
-        userRoleUserID: user.userID,
-      },
-      select: {
-        role: {
-          select: {
-            roleName: true,
-          },
-        },
-      },
-    });
+    // Assign role as Doctor directly
+    const roleNames = ['Doctor'];
 
-    const roleNames = roles.map((r) => r.role.roleName);
-
+    // Generate tokens with Doctor role
     const accessToken = generateAccessToken({
       username: user.userUsername,
       roles: roleNames,
@@ -78,20 +68,22 @@ export default defineEventHandler(async (event) => {
       roles: roleNames,
     });
 
-    // Set cookie httpOnly
+    // Set HttpOnly cookies
     event.res.setHeader("Set-Cookie", [
       `accessToken=${accessToken}; HttpOnly; Secure; SameSite=Lax; Path=/`,
       `refreshToken=${refreshToken}; HttpOnly; Secure; SameSite=Lax; Path=/`,
     ]);
 
     return {
-        statusCode: 200,
-        message: "Login success",
-        data: {
-          username: user.userUsername,
-          roles: roleNames,
-        },
-      };   
+      statusCode: 200,
+      message: "Login success",
+      data: {
+        username: user.userUsername,
+        roles: roleNames,
+        accessToken,
+        refreshToken,
+      },
+    };
   } catch (error) {
     console.log(error);
     return {
