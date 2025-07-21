@@ -1,29 +1,45 @@
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event);
-    const { patientId, doctorName, specialty, hospital, date, reason, notes, status, followUpDate } = body;
+    const {
+      patientId,
+      recipient,
+      hospital,
+      date,
+      diagnosis,
+      reason,
+      notes,
+      history,
+      physicalExamination,
+      generalAppearance,
+      systemicExamination,
+      currentMedications,
+      medicationDetails
+    } = body;
 
     // Validate required fields
-    if (!patientId || !doctorName || !specialty || !hospital || !date || !reason) {
+    if (!patientId || !recipient || !hospital || !date || !reason) {
       throw createError({
         statusCode: 400,
-        statusMessage: 'Missing required fields: patientId, doctorName, specialty, hospital, date, and reason are required'
+        statusMessage: 'Missing required fields: patientId, recipient, hospital, date, and reason are required'
       });
     }
 
-    // In a real implementation, you would save to the database
-    // For now, we'll just return a success response with the referral data
     const newReferral = {
-      id: Date.now(), // Generate a unique ID
+      id: Date.now(),
       patientId: parseInt(patientId),
-      doctorName,
-      specialty,
+      recipient,
       hospital,
       date,
+      diagnosis: Array.isArray(diagnosis) ? diagnosis : [],
       reason,
       notes: notes || '',
-      status: status || 'Scheduled',
-      followUpDate: followUpDate || null,
+      history: history || {},
+      physicalExamination: physicalExamination || '',
+      generalAppearance: generalAppearance || '',
+      systemicExamination: Array.isArray(systemicExamination) ? systemicExamination : [],
+      currentMedications: currentMedications || 'No',
+      medicationDetails: currentMedications === 'Yes' ? medicationDetails || '' : '',
       createdAt: new Date().toISOString()
     };
 
@@ -35,11 +51,10 @@ export default defineEventHandler(async (event) => {
 
   } catch (error) {
     console.error('Error creating referral:', error);
-    
     return {
       statusCode: 500,
       data: null,
       message: 'Failed to create referral'
     };
   }
-}); 
+});

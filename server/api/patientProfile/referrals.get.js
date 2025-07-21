@@ -14,43 +14,78 @@ export default defineEventHandler(async (event) => {
     }
 
     // Mock data for doctor referrals
-    // In a real implementation, you would fetch from the database
     const mockReferrals = [
       {
         id: 1,
         patientId: parseInt(patientId),
-        doctorName: 'Dr. Sarah Johnson',
-        specialty: 'Pediatric Neurology',
+        recipient: 'Consultant Paediatrician',
         hospital: 'General Hospital Kuala Lumpur',
         date: '2024-01-15',
-        followUpDate: '2024-02-15',
-        reason: 'Assessment for autism spectrum disorder and developmental delays',
+        diagnosis: ['Autism Spectrum Disorder', 'Developmental Delay'],
+        reason: 'Assessment and intervention for speech and language delay',
         notes: 'Patient shows signs of social communication difficulties and repetitive behaviors. Recommend comprehensive evaluation.',
-        status: 'Completed'
+        history: {
+          presentingConcerns: 'Speech delay',
+          developmentalMilestone: 'Delayed walking',
+          behavioralConcerns: 'Repetitive behaviors',
+          medicalHistory: 'No major illness',
+          medicationAllergies: 'None',
+          familySocialBackground: 'Supportive family',
+          otherHistory: 'NA'
+        },
+        physicalExamination: 'Normal',
+        generalAppearance: 'Alert, cooperative',
+        systemicExamination: ['Neurology'],
+        currentMedications: 'No',
+        medicationDetails: ''
       },
       {
         id: 2,
         patientId: parseInt(patientId),
-        doctorName: 'Dr. Michael Chen',
-        specialty: 'Child Psychiatry',
+        recipient: 'Child Psychiatrist',
         hospital: 'University Malaya Medical Centre',
         date: '2024-02-20',
-        followUpDate: '2024-03-20',
-        reason: 'Behavioral therapy consultation and medication review',
+        diagnosis: ['ADHD'],
+        reason: 'Behavioural management',
         notes: 'Patient responding well to current therapy. Consider adjusting medication dosage based on recent assessments.',
-        status: 'In Progress'
+        history: {
+          presentingConcerns: 'Hyperactivity',
+          developmentalMilestone: 'Normal',
+          behavioralConcerns: 'Impulsivity',
+          medicalHistory: 'Asthma',
+          medicationAllergies: 'Salbutamol',
+          familySocialBackground: 'Single parent',
+          otherHistory: 'NA'
+        },
+        physicalExamination: 'NA',
+        generalAppearance: 'Restless',
+        systemicExamination: ['Neurology', 'Other'],
+        currentMedications: 'Yes',
+        medicationDetails: 'Methylphenidate 10mg OD'
       },
       {
         id: 3,
         patientId: parseInt(patientId),
-        doctorName: 'Dr. Aisha Rahman',
-        specialty: 'Occupational Therapy',
+        recipient: 'Occupational Therapist',
         hospital: 'National Autism Society Malaysia',
         date: '2024-03-10',
-        followUpDate: '2024-04-10',
-        reason: 'Sensory integration therapy and motor skills development',
+        diagnosis: ['Sensory Processing Disorder'],
+        reason: 'Sensory integration therapy',
         notes: 'Patient shows improvement in fine motor skills. Continue with current therapy plan and add new exercises.',
-        status: 'Scheduled'
+        history: {
+          presentingConcerns: 'Sensory issues',
+          developmentalMilestone: 'Normal',
+          behavioralConcerns: 'NA',
+          medicalHistory: 'NA',
+          medicationAllergies: 'NA',
+          familySocialBackground: 'NA',
+          otherHistory: 'NA'
+        },
+        physicalExamination: 'NA',
+        generalAppearance: 'NA',
+        systemicExamination: [],
+        currentMedications: 'No',
+        medicationDetails: ''
       }
     ];
 
@@ -71,4 +106,4 @@ export default defineEventHandler(async (event) => {
       message: 'Failed to fetch referrals'
     };
   }
-}); 
+});
