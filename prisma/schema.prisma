@@ -298,6 +298,7 @@ model user_patients {
   payment                 payment[]
   progress_track          progress_track[]
   questionnaires_responds questionnaires_responds[]
+  referrals               referrals[]
   user_parent_patient     user_parent_patient[]
   user                    user?                     @relation(fields: [user_id], references: [userID], onUpdate: NoAction, map: "user_patients_ibfk_1")
 
@@ -439,24 +440,28 @@ model payment {
 }
 
 model referrals {
-  referrals_id                   Int       @id @default(autoincrement())
-  referrals_recepient            String    @db.Text
-  hospital                       String    @db.Text
-  referrals_date                 DateTime  @db.Date
-  refferrals_reason              String    @db.Text
-  history_presentingConcerns     String    @db.Text
-  history_developmentalMilestone String    @db.Text
-  history_behavioralConcerns     String    @db.Text
-  history_medicalHistory         String    @db.Text
-  history_medication             String    @db.Text
-  history_family                 String    @db.Text
-  history_other                  String    @db.Text
-  physical_examination           String    @db.Text
-  general_appearance             String    @db.Text
-  systemic_examination           String    @db.Text
-  current_medications            String    @db.Text
-  notes                          String    @db.Text
-  created_at                     DateTime  @db.Timestamp(0)
-  updated_at                     DateTime? @db.Timestamp(0)
-  deleted_at                     DateTime? @db.Timestamp(0)
+  referrals_id                   Int            @id @default(autoincrement())
+  patient_id                     Int?
+  referrals_recepient            String?        @db.Text
+  hospital                       String?        @db.Text
+  referrals_date                 DateTime?      @db.Date
+  refferrals_reason              String?        @db.Text
+  history_presentingConcerns     String?        @db.Text
+  history_developmentalMilestone String?        @db.Text
+  history_behavioralConcerns     String?        @db.Text
+  history_medicalHistory         String?        @db.Text
+  history_medication             String?        @db.Text
+  history_family                 String?        @db.Text
+  history_other                  String?        @db.Text
+  physical_examination           String?        @db.Text
+  general_appearance             String?        @db.Text
+  systemic_examination           String?        @db.Text
+  current_medications            String?        @db.Text
+  notes                          String?        @db.Text
+  created_at                     DateTime       @db.Timestamp(0)
+  updated_at                     DateTime       @db.Timestamp(0)
+  deleted_at                     DateTime?      @db.Timestamp(0)
+  user_patients                  user_patients? @relation(fields: [patient_id], references: [patient_id], onDelete: NoAction, onUpdate: NoAction, map: "referrals_ibfk_1")
+
+  @@index([patient_id], map: "patient_id")
 }

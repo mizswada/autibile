@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    // Find active Therapist user
+    // Find active Doctor practitioner user
     const user = await prisma.user.findFirst({
       where: {
         userEmail: username,
@@ -22,20 +22,27 @@ export default defineEventHandler(async (event) => {
         userrole: {
           some: {
             role: {
-              roleName: "Practitioners", // keep this if your DB roleName is still 'Practitioners'
+              roleName: "Practitioners",
             },
           },
         },
         user_practitioners: {
           some: { 
             type: "Therapist",
-            status: "Active" // optionally add status check for therapist as well
+            status: "Active"
+          },
+        },
+      },
+      include: {
+        user_practitioners: {
+          select: {
+            practitioner_id: true,
           },
         },
       },
     });
 
-    console.log('user', user);
+   // console.log('user', user);
 
     if (!user) {
       return {
@@ -54,8 +61,25 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    // Assign role as Therapist directly
+    // Assign role as Doctor directly
     const roleNames = ['Therapist'];
+
+    const practitionerId = user.user_practitioners.length > 0 ? user.user_practitioners[0].practitioner_id : null;
+    
+    const userPractitioners = await prisma.user_practitioners.findFirst({
+      where: {
+        practitioner_id: practitionerId,
+        AND: [
+          {
+            registration_no: { not: null },
+          },
+          {
+            registration_no: { not: '' },
+          },
+        ],
+      },
+    });
+    
 
     // Generate tokens with Therapist role
     const accessToken = generateAccessToken({
@@ -80,8 +104,10 @@ export default defineEventHandler(async (event) => {
       data: {
         username: user.userUsername,
         roles: roleNames,
-        accessToken,
-        refreshToken,
+        practitionerId: practitionerId,
+        hasPractitionerInfo: !!userPractitioners,
+        accessToken: accessToken,
+        refreshToken: refreshToken,
       },
     };
   } catch (error) {
