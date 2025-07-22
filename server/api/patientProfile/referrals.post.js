@@ -1,3 +1,6 @@
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
+
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event);
@@ -25,23 +28,25 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    const newReferral = {
-      id: Date.now(),
-      patientId: parseInt(patientId),
-      recipient,
-      hospital,
-      date,
-      diagnosis: Array.isArray(diagnosis) ? diagnosis : [],
-      reason,
-      notes: notes || '',
-      history: history || {},
-      physicalExamination: physicalExamination || '',
-      generalAppearance: generalAppearance || '',
-      systemicExamination: Array.isArray(systemicExamination) ? systemicExamination : [],
-      currentMedications: currentMedications || 'No',
-      medicationDetails: currentMedications === 'Yes' ? medicationDetails || '' : '',
-      createdAt: new Date().toISOString()
-    };
+    const newReferral = await prisma.referrals.create({
+      data: {
+        id: Date.now(),
+        patientId: parseInt(patientId),
+        recipient,
+        hospital,
+        date,
+        diagnosis: Array.isArray(diagnosis) ? diagnosis : [],
+        reason,
+        notes: notes || '',
+        history: history || {},
+        physicalExamination: physicalExamination || '',
+        generalAppearance: generalAppearance || '',
+        systemicExamination: Array.isArray(systemicExamination) ? systemicExamination : [],
+        currentMedications: currentMedications || 'No',
+        medicationDetails: currentMedications === 'Yes' ? medicationDetails || '' : '',
+        createdAt: new Date().toISOString()
+      }
+    });
 
     return {
       statusCode: 201,
