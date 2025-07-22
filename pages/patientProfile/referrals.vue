@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
+import jsPDF from 'jspdf';
 
 const route = useRoute();
 const patientId = computed(() => route.query.patientId || route.params.id);
@@ -12,25 +13,73 @@ const error = ref(null);
 const showAddModal = ref(false);
 const selectedReferral = ref(null);
 
+// Recipient options
+const recipientOptions = [
+  'Consultant Paediatrician',
+  'Developmental Paediatrician',
+  'Speech-Language Therapist',
+  'Occupational Therapist',
+  'Clinical Psychologist',
+  'Child Psychiatrist',
+  'Physiotherapist',
+  'Educational Psychologist',
+  'Dietitian',
+  'Social Worker',
+  'Other'
+];
+
+// Reason options
+const reasonOptions = [
+  'Assessment and intervention for speech and language delay',
+  'Behavioural management',
+  'Sensory integration therapy',
+  'Feeding difficulties',
+  'Occupational therapy for motor skills',
+  'Evaluation of sleep problems',
+  'Social skills training',
+  'Psychological assessment',
+  'Nutritional concerns',
+  'Special education support',
+  'Others'
+];
+
+// Systemic examination options
+const systemicOptions = [
+  'Cardiovascular',
+  'Respiratory',
+  'Abdomen',
+  'Neurology',
+  'Other'
+];
+
 // Form data
 const referralForm = ref({
-  doctorName: '',
-  specialty: '',
+  recipient: '',
+  customRecipient: '',
   hospital: '',
   date: new Date().toISOString().slice(0, 10),
+  diagnosis: [],
   reason: '',
+  customReason: '',
   notes: '',
-  status: 'Scheduled',
-  followUpDate: ''
+  history: {
+    presentingConcerns: '',
+    developmentalMilestone: '',
+    behavioralConcerns: '',
+    medicalHistory: '',
+    medicationAllergies: '',
+    familySocialBackground: '',
+    otherHistory: ''
+  },
+  physicalExamination: '',
+  generalAppearance: '',
+  systemicExamination: [],
+  customSystemic: '',
+  currentMedications: 'No',
+  medicationDetails: ''
 });
 
-// Status options
-const statusOptions = [
-  { label: 'Scheduled', value: 'Scheduled' },
-  { label: 'In Progress', value: 'In Progress' },
-  { label: 'Completed', value: 'Completed' },
-  { label: 'Cancelled', value: 'Cancelled' }
-];
+const diagnosisInput = ref('');
 
 onMounted(async () => {
   if (patientId.value) {
@@ -65,15 +114,31 @@ async function fetchReferrals() {
 function openAddModal() {
   showAddModal.value = true;
   referralForm.value = {
-    doctorName: '',
-    specialty: '',
+    recipient: '',
+    customRecipient: '',
     hospital: '',
     date: new Date().toISOString().slice(0, 10),
+    diagnosis: [],
     reason: '',
+    customReason: '',
     notes: '',
-    status: 'Scheduled',
-    followUpDate: ''
+    history: {
+      presentingConcerns: '',
+      developmentalMilestone: '',
+      behavioralConcerns: '',
+      medicalHistory: '',
+      medicationAllergies: '',
+      familySocialBackground: '',
+      otherHistory: ''
+    },
+    physicalExamination: '',
+    generalAppearance: '',
+    systemicExamination: [],
+    customSystemic: '',
+    currentMedications: 'No',
+    medicationDetails: ''
   };
+  diagnosisInput.value = '';
 }
 
 function closeAddModal() {
@@ -83,6 +148,16 @@ function closeAddModal() {
 
 async function saveReferral() {
   try {
+    const recipientValue = referralForm.value.recipient === 'Other'
+      ? referralForm.value.customRecipient
+      : referralForm.value.recipient;
+    const reasonValue = referralForm.value.reason === 'Others'
+      ? referralForm.value.customReason
+      : referralForm.value.reason;
+    const systemicValue = referralForm.value.systemicExamination.map(opt =>
+      opt === 'Other' ? referralForm.value.customSystemic : opt
+    );
+
     const response = await fetch('/api/patientProfile/referrals', {
       method: 'POST',
       headers: {
@@ -90,14 +165,23 @@ async function saveReferral() {
       },
       body: JSON.stringify({
         patientId: parseInt(patientId.value),
-        ...referralForm.value
+        recipient: recipientValue,
+        hospital: referralForm.value.hospital,
+        date: referralForm.value.date,
+        diagnosis: referralForm.value.diagnosis,
+        reason: reasonValue,
+        notes: referralForm.value.notes,
+        history: referralForm.value.history,
+        physicalExamination: referralForm.value.physicalExamination,
+        generalAppearance: referralForm.value.generalAppearance,
+        systemicExamination: systemicValue,
+        currentMedications: referralForm.value.currentMedications,
+        medicationDetails: referralForm.value.currentMedications === 'Yes' ? referralForm.value.medicationDetails : ''
       })
     });
 
     const result = await response.json();
-    
     if (result.statusCode === 201) {
-      // Add the new referral to the list
       referrals.value.unshift(result.data);
       closeAddModal();
     } else {
@@ -110,7 +194,36 @@ async function saveReferral() {
 
 function editReferral(referral) {
   selectedReferral.value = referral;
-  referralForm.value = { ...referral };
+  referralForm.value = {
+    recipient: recipientOptions.includes(referral.recipient) ? referral.recipient : 'Other',
+    customRecipient: recipientOptions.includes(referral.recipient) ? '' : referral.recipient,
+    hospital: referral.hospital,
+    date: referral.date,
+    diagnosis: Array.isArray(referral.diagnosis) ? referral.diagnosis : [],
+    reason: reasonOptions.includes(referral.reason) ? referral.reason : 'Others',
+    customReason: reasonOptions.includes(referral.reason) ? '' : referral.reason,
+    notes: referral.notes,
+    history: referral.history || {
+      presentingConcerns: '',
+      developmentalMilestone: '',
+      behavioralConcerns: '',
+      medicalHistory: '',
+      medicationAllergies: '',
+      familySocialBackground: '',
+      otherHistory: ''
+    },
+    physicalExamination: referral.physicalExamination || '',
+    generalAppearance: referral.generalAppearance || '',
+    systemicExamination: Array.isArray(referral.systemicExamination)
+      ? referral.systemicExamination.map(opt => systemicOptions.includes(opt) ? opt : 'Other')
+      : [],
+    customSystemic: Array.isArray(referral.systemicExamination)
+      ? referral.systemicExamination.find(opt => !systemicOptions.includes(opt)) || ''
+      : '',
+    currentMedications: referral.currentMedications || 'No',
+    medicationDetails: referral.medicationDetails || ''
+  };
+  diagnosisInput.value = '';
   showAddModal.value = true;
 }
 
@@ -130,19 +243,50 @@ function formatDate(dateString) {
   }).format(date);
 }
 
-function getStatusColor(status) {
-  switch (status) {
-    case 'Completed':
-      return 'bg-green-100 text-green-800';
-    case 'In Progress':
-      return 'bg-blue-100 text-blue-800';
-    case 'Scheduled':
-      return 'bg-yellow-100 text-yellow-800';
-    case 'Cancelled':
-      return 'bg-red-100 text-red-800';
-    default:
-      return 'bg-gray-100 text-gray-800';
+// Diagnosis tag management
+function addDiagnosis() {
+  const val = diagnosisInput.value.trim();
+  if (val && !referralForm.value.diagnosis.includes(val)) {
+    referralForm.value.diagnosis.push(val);
+    diagnosisInput.value = '';
   }
+}
+function removeDiagnosis(idx) {
+  referralForm.value.diagnosis.splice(idx, 1);
+}
+
+// PDF download for a single referral
+function downloadReferralPdf(referral) {
+  const doc = new jsPDF();
+  let y = 10;
+  doc.setFontSize(16);
+  doc.text('Patient Referral', 10, y);
+  y += 10;
+
+  doc.setFontSize(12);
+  doc.text(`Recipient: ${referral.recipient}`, 10, y); y += 8;
+  doc.text(`Hospital: ${referral.hospital}`, 10, y); y += 8;
+  doc.text(`Referral Date: ${formatDate(referral.date)}`, 10, y); y += 8;
+  doc.text(`Diagnosis: ${Array.isArray(referral.diagnosis) ? referral.diagnosis.join(', ') : ''}`, 10, y); y += 8;
+  doc.text(`Reason: ${referral.reason}`, 10, y); y += 8;
+  doc.text(`History:`, 10, y); y += 8;
+  if (referral.history) {
+    Object.entries(referral.history).forEach(([key, val]) => {
+      doc.text(`  ${key}: ${val || 'NA'}`, 10, y); y += 6;
+    });
+  }
+  doc.text(`Physical Examination: ${referral.physicalExamination || 'NA'}`, 10, y); y += 8;
+  doc.text(`General Appearance: ${referral.generalAppearance || 'NA'}`, 10, y); y += 8;
+  doc.text(`Systemic Examination: ${Array.isArray(referral.systemicExamination) ? referral.systemicExamination.join(', ') : ''}`, 10, y); y += 8;
+  doc.text(`Current Medications: ${referral.currentMedications}`, 10, y); y += 8;
+  if (referral.currentMedications === 'Yes') {
+    doc.text(`Medication Details: ${referral.medicationDetails}`, 10, y); y += 8;
+  }
+  if (referral.notes) {
+    doc.text(`Notes: ${referral.notes}`, 10, y); y += 8;
+  }
+
+  doc.save(`referral_${referral.id}.pdf`);
 }
 </script>
 
@@ -192,13 +336,7 @@ function getStatusColor(status) {
         >
           <div class="flex justify-between items-start mb-4">
             <div class="flex items-center space-x-3">
-              <h3 class="text-lg font-semibold text-gray-900">{{ referral.doctorName }}</h3>
-              <span 
-                class="px-2 py-1 text-xs rounded-full font-medium"
-                :class="getStatusColor(referral.status)"
-              >
-                {{ referral.status }}
-              </span>
+              <h3 class="text-lg font-semibold text-gray-900">{{ referral.recipient }}</h3>
             </div>
             <div class="flex space-x-2">
               <rs-button variant="outline" size="sm" @click="editReferral(referral)">
@@ -207,14 +345,13 @@ function getStatusColor(status) {
               <rs-button variant="outline" size="sm" @click="deleteReferral(referral.id)">
                 <Icon name="material-symbols:delete" size="16" class="text-red-500" />
               </rs-button>
+              <rs-button variant="outline" size="sm" @click="downloadReferralPdf(referral)">
+                <Icon name="material-symbols:download" size="16" />
+              </rs-button>
             </div>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div>
-              <span class="text-sm font-medium text-gray-500">Specialty:</span>
-              <p class="text-gray-900">{{ referral.specialty }}</p>
-            </div>
             <div>
               <span class="text-sm font-medium text-gray-500">Hospital:</span>
               <p class="text-gray-900">{{ referral.hospital }}</p>
@@ -224,14 +361,57 @@ function getStatusColor(status) {
               <p class="text-gray-900">{{ formatDate(referral.date) }}</p>
             </div>
             <div>
-              <span class="text-sm font-medium text-gray-500">Follow-up Date:</span>
-              <p class="text-gray-900">{{ formatDate(referral.followUpDate) }}</p>
+              <span class="text-sm font-medium text-gray-500">Diagnosis:</span>
+              <div>
+                <span
+                  v-for="(diag, idx) in referral.diagnosis"
+                  :key="idx"
+                  class="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded mr-1 mb-1 text-xs"
+                >{{ diag }}</span>
+              </div>
             </div>
-          </div>
-
-          <div class="mb-4">
-            <span class="text-sm font-medium text-gray-500">Reason for Referral:</span>
-            <p class="text-gray-900 mt-1">{{ referral.reason }}</p>
+            <div>
+              <span class="text-sm font-medium text-gray-500">Reason for Referral:</span>
+              <p class="text-gray-900">{{ referral.reason }}</p>
+            </div>
+            <div>
+              <span class="text-sm font-medium text-gray-500">History:</span>
+              <ul class="text-gray-900 text-sm list-disc ml-4">
+                <li><strong>Presenting Concerns:</strong> {{ referral.history?.presentingConcerns || 'NA' }}</li>
+                <li><strong>Developmental Milestone:</strong> {{ referral.history?.developmentalMilestone || 'NA' }}</li>
+                <li><strong>Behavioral Concerns:</strong> {{ referral.history?.behavioralConcerns || 'NA' }}</li>
+                <li><strong>Medical History:</strong> {{ referral.history?.medicalHistory || 'NA' }}</li>
+                <li><strong>Medication/Allergies:</strong> {{ referral.history?.medicationAllergies || 'NA' }}</li>
+                <li><strong>Family/Social Background:</strong> {{ referral.history?.familySocialBackground || 'NA' }}</li>
+                <li><strong>Other Relevant History:</strong> {{ referral.history?.otherHistory || 'NA' }}</li>
+              </ul>
+            </div>
+            <div>
+              <span class="text-sm font-medium text-gray-500">Physical Examination:</span>
+              <p class="text-gray-900">{{ referral.physicalExamination || 'NA' }}</p>
+            </div>
+            <div>
+              <span class="text-sm font-medium text-gray-500">General Appearance:</span>
+              <p class="text-gray-900">{{ referral.generalAppearance || 'NA' }}</p>
+            </div>
+            <div>
+              <span class="text-sm font-medium text-gray-500">Systemic Examination:</span>
+              <div>
+                <span
+                  v-for="(sys, idx) in referral.systemicExamination"
+                  :key="idx"
+                  class="inline-block bg-purple-100 text-purple-800 px-2 py-1 rounded mr-1 mb-1 text-xs"
+                >{{ sys }}</span>
+              </div>
+            </div>
+            <div>
+              <span class="text-sm font-medium text-gray-500">Current Medications:</span>
+              <span class="text-gray-900">{{ referral.currentMedications }}</span>
+              <div v-if="referral.currentMedications === 'Yes'">
+                <span class="text-sm font-medium text-gray-500">Details:</span>
+                <p class="text-gray-900">{{ referral.medicationDetails }}</p>
+              </div>
+            </div>
           </div>
 
           <div v-if="referral.notes">
@@ -251,24 +431,26 @@ function getStatusColor(status) {
       <div class="space-y-4">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Doctor Name *</label>
-            <input
-              v-model="referralForm.doctorName"
-              type="text"
+            <label class="block text-sm font-medium text-gray-700 mb-1">Recipient *</label>
+            <select
+              v-model="referralForm.recipient"
               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-              placeholder="Dr. John Smith"
               required
-            />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Specialty *</label>
-            <input
-              v-model="referralForm.specialty"
-              type="text"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-              placeholder="Pediatric Neurology"
-              required
-            />
+            >
+              <option value="" disabled>Select recipient</option>
+              <option v-for="option in recipientOptions" :key="option" :value="option">
+                {{ option }}
+              </option>
+            </select>
+            <div v-if="referralForm.recipient === 'Other'" class="mt-2">
+              <input
+                v-model="referralForm.customRecipient"
+                type="text"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                placeholder="Enter recipient"
+                required
+              />
+            </div>
           </div>
         </div>
 
@@ -293,41 +475,129 @@ function getStatusColor(status) {
               required
             />
           </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Follow-up Date</label>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Diagnosis</label>
+          <div class="flex flex-wrap gap-2 mb-2">
+            <span
+              v-for="(diag, idx) in referralForm.diagnosis"
+              :key="idx"
+              class="inline-flex items-center bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs"
+            >
+              {{ diag }}
+              <button type="button" class="ml-1 text-blue-500 hover:text-blue-700" @click="removeDiagnosis(idx)">
+                &times;
+              </button>
+            </span>
+          </div>
+          <div class="flex">
             <input
-              v-model="referralForm.followUpDate"
-              type="date"
+              v-model="diagnosisInput"
+              type="text"
+              class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+              placeholder="Add diagnosis and press Enter"
+              @keyup.enter="addDiagnosis"
+            />
+            <rs-button variant="primary" class="ml-2" @click="addDiagnosis">Add</rs-button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Reason for Referral *</label>
+          <select
+            v-model="referralForm.reason"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+            required
+          >
+            <option value="" disabled>Select reason</option>
+            <option v-for="option in reasonOptions" :key="option" :value="option">
+              {{ option === 'Others' ? 'Others' : option }}
+            </option>
+          </select>
+          <div v-if="referralForm.reason === 'Others'" class="mt-2">
+            <input
+              v-model="referralForm.customReason"
+              type="text"
               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+              placeholder="Enter reason"
+              required
             />
           </div>
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-          <select
-            v-model="referralForm.status"
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-          >
-            <option 
-              v-for="option in statusOptions" 
-              :key="option.value" 
-              :value="option.value"
-            >
-              {{ option.label }}
-            </option>
-          </select>
+          <label class="block text-sm font-medium text-gray-700 mb-1">History</label>
+          <div class="space-y-2">
+            <input v-model="referralForm.history.presentingConcerns" type="text" class="w-full mb-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="Presenting Concerns (or NA)" />
+            <input v-model="referralForm.history.developmentalMilestone" type="text" class="w-full mb-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="Developmental Milestone (or NA)" />
+            <input v-model="referralForm.history.behavioralConcerns" type="text" class="w-full mb-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="Behavioral Concerns (or NA)" />
+            <input v-model="referralForm.history.medicalHistory" type="text" class="w-full mb-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="Medical History (or NA)" />
+            <input v-model="referralForm.history.medicationAllergies" type="text" class="w-full mb-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="Medication/Allergies (or NA)" />
+            <input v-model="referralForm.history.familySocialBackground" type="text" class="w-full mb-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="Family/Social Background (or NA)" />
+            <input v-model="referralForm.history.otherHistory" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="Other Relevant History (or NA)" />
+          </div>
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Reason for Referral *</label>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Physical Examination (Optional)</label>
           <textarea
-            v-model="referralForm.reason"
-            rows="3"
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-            placeholder="Describe the reason for this referral..."
-            required
+            v-model="referralForm.physicalExamination"
+            rows="2"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md"
+            placeholder="Physical examination findings (or NA)"
           ></textarea>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">General Appearance</label>
+          <textarea
+            v-model="referralForm.generalAppearance"
+            rows="2"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md"
+            placeholder="General appearance (or NA)"
+          ></textarea>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Systemic Examination</label>
+          <div class="flex flex-wrap gap-2 mb-2">
+            <label v-for="option in systemicOptions" :key="option" class="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                :value="option"
+                v-model="referralForm.systemicExamination"
+              />
+              <span>{{ option }}</span>
+            </label>
+          </div>
+          <div v-if="referralForm.systemicExamination.includes('Other')" class="mt-2">
+            <input
+              v-model="referralForm.customSystemic"
+              type="text"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md"
+              placeholder="Specify other system"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Current Medications</label>
+          <select
+            v-model="referralForm.currentMedications"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md"
+          >
+            <option value="No">No</option>
+            <option value="Yes">Yes</option>
+          </select>
+          <div v-if="referralForm.currentMedications === 'Yes'" class="mt-2">
+            <input
+              v-model="referralForm.medicationDetails"
+              type="text"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md"
+              placeholder="Specify name and dose"
+            />
+          </div>
         </div>
 
         <div>
@@ -351,4 +621,4 @@ function getStatusColor(status) {
       </template>
     </rs-modal>
   </div>
-</template> 
+</template>
