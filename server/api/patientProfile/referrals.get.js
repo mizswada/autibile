@@ -15,8 +15,8 @@ export default defineEventHandler(async (event) => {
 
     // Fetch referrals from the database
     const patientReferrals = await prisma.referrals.findMany({
-      where: { patientId: parseInt(patientId) },
-      orderBy: { date: 'desc' }
+      where: { patient_id: parseInt(patientId) },
+      orderBy: { referrals_date: 'desc' }
     });
 
     return {

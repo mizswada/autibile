@@ -30,21 +30,25 @@ export default defineEventHandler(async (event) => {
 
     const newReferral = await prisma.referrals.create({
       data: {
-        id: Date.now(),
-        patientId: parseInt(patientId),
-        recipient,
+        patient_id: parseInt(patientId),
+        referrals_recepient: recipient,
         hospital,
-        date,
-        diagnosis: Array.isArray(diagnosis) ? diagnosis : [],
-        reason,
+        referrals_date: new Date(date),
+        refferrals_reason: reason,
+        history_presentingConcerns: history?.presentingConcerns || '',
+        history_developmentalMilestone: history?.developmentalMilestone || '',
+        history_behavioralConcerns: history?.behavioralConcerns || '',
+        history_medicalHistory: history?.medicalHistory || '',
+        history_medication: history?.medicationAllergies || '',
+        history_family: history?.familySocialBackground || '',
+        history_other: history?.otherHistory || '',
+        physical_examination: physicalExamination || '',
+        general_appearance: generalAppearance || '',
+        systemic_examination: Array.isArray(systemicExamination) ? systemicExamination.join(', ') : '',
+        current_medications: currentMedications || 'No',
         notes: notes || '',
-        history: history || {},
-        physicalExamination: physicalExamination || '',
-        generalAppearance: generalAppearance || '',
-        systemicExamination: Array.isArray(systemicExamination) ? systemicExamination : [],
-        currentMedications: currentMedications || 'No',
-        medicationDetails: currentMedications === 'Yes' ? medicationDetails || '' : '',
-        createdAt: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       }
     });
 
@@ -59,7 +63,8 @@ export default defineEventHandler(async (event) => {
     return {
       statusCode: 500,
       data: null,
-      message: 'Failed to create referral'
+      message: 'Failed to create referral',
+      debug: error?.message || error
     };
   }
 });

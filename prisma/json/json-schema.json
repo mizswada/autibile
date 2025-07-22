@@ -1132,6 +1132,12 @@
             "$ref": "#/definitions/questionnaires_responds"
           }
         },
+        "referrals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/referrals"
+          }
+        },
         "user_parent_patient": {
           "type": "array",
           "items": {
@@ -1614,63 +1620,108 @@
           "type": "integer"
         },
         "referrals_recepient": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "hospital": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "referrals_date": {
-          "type": "string",
+          "type": [
+            "string",
+            "null"
+          ],
           "format": "date-time"
         },
         "refferrals_reason": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "history_presentingConcerns": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "history_developmentalMilestone": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "history_behavioralConcerns": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "history_medicalHistory": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "history_medication": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "history_family": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "history_other": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "physical_examination": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "general_appearance": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "systemic_examination": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "current_medications": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "notes": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "created_at": {
           "type": "string",
           "format": "date-time"
         },
         "updated_at": {
-          "type": [
-            "string",
-            "null"
-          ],
+          "type": "string",
           "format": "date-time"
         },
         "deleted_at": {
@@ -1679,6 +1730,16 @@
             "null"
           ],
           "format": "date-time"
+        },
+        "user_patients": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/user_patients"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     }
