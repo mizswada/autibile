@@ -26,9 +26,16 @@ export default defineEventHandler(async (event) => {
           },
         },
       },
+      include: {
+        user_parents: {
+          select: {
+            parent_id: true,
+          },
+        },
+      },
     });
-
-    console.log('user',user);
+    
+    //console.log('user',user);
 
     if (!user) {
       return {
@@ -78,6 +85,18 @@ export default defineEventHandler(async (event) => {
       `refreshToken=${refreshToken}; HttpOnly; Secure; SameSite=Lax; Path=/`,
     ]);
 
+    const parentId = user.user_parents.length > 0 ? user.user_parents[0].parent_id : null;
+    
+    const userParents = await prisma.user_parents.findFirst({
+      where: {
+        parent_id: parentId,
+        parent_relationship: {
+          not: null,
+        },
+      },
+    });
+    
+
     // Return tokens in response body
     return {
       statusCode: 200,
@@ -85,8 +104,10 @@ export default defineEventHandler(async (event) => {
       data: {
         username: user.userUsername,
         roles: roleNames,
+        parentId: parentId,
         accessToken: accessToken,
         refreshToken: refreshToken,
+        hasParentInfo: !!userParents,
       },
     };
   } catch (error) {

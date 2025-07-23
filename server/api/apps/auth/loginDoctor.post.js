@@ -33,9 +33,16 @@ export default defineEventHandler(async (event) => {
           },
         },
       },
+      include: {
+        user_practitioners: {
+          select: {
+            practitioner_id: true,
+          },
+        },
+      },
     });
 
-    console.log('user', user);
+   // console.log('user', user);
 
     if (!user) {
       return {
@@ -56,6 +63,23 @@ export default defineEventHandler(async (event) => {
 
     // Assign role as Doctor directly
     const roleNames = ['Doctor'];
+
+    const practitionerId = user.user_practitioners.length > 0 ? user.user_practitioners[0].practitioner_id : null;
+    
+    const userPractitioners = await prisma.user_practitioners.findFirst({
+      where: {
+        practitioner_id: practitionerId,
+        AND: [
+          {
+            registration_no: { not: null },
+          },
+          {
+            registration_no: { not: '' },
+          },
+        ],
+      },
+    });
+    
 
     // Generate tokens with Doctor role
     const accessToken = generateAccessToken({
@@ -80,8 +104,10 @@ export default defineEventHandler(async (event) => {
       data: {
         username: user.userUsername,
         roles: roleNames,
-        accessToken,
-        refreshToken,
+        practitionerId: practitionerId,
+        hasPractitionerInfo: !!userPractitioners,
+        accessToken: accessToken,
+        refreshToken: refreshToken,
       },
     };
   } catch (error) {

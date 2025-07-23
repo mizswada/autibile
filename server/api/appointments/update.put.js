@@ -41,8 +41,8 @@ export default defineEventHandler(async (event) => {
       };
     }
     
-    // Check if status is being changed to "Completed" and validate available sessions
-    if (status !== undefined && parseInt(status) === 41 && existingAppointment.status !== 41) {
+    // Check if status is being changed to "Cancelled" (37) - add back 1 session
+    if (status !== undefined && parseInt(status) === 37 && existingAppointment.status !== 37) {
       // Get the patient's current available sessions
       const patient = await prisma.user_patients.findUnique({
         where: {
@@ -55,20 +55,22 @@ export default defineEventHandler(async (event) => {
         }
       });
       
-      if (!patient) {
-        return {
-          success: false,
-          message: 'Patient not found for this appointment'
-        };
-      }
-      
-      const currentSessions = patient.available_session || 0;
-      
-      if (currentSessions <= 0) {
-        return {
-          success: false,
-          message: `Cannot mark appointment as completed. Patient ${patient.fullname} has no available sessions (${currentSessions}). Please purchase more sessions first.`
-        };
+      if (patient) {
+        const currentSessions = patient.available_session || 0;
+        const newSessions = currentSessions + 1;
+        
+        // Add back 1 session when appointment is cancelled
+        await prisma.user_patients.update({
+          where: {
+            patient_id: patient.patient_id
+          },
+          data: {
+            available_session: newSessions,
+            update_at: new Date()
+          }
+        });
+        
+        console.log(`Added back 1 session to patient ${patient.patient_id} (${patient.fullname}) when cancelling. Previous: ${currentSessions}, New: ${newSessions}`);
       }
     }
     
@@ -113,46 +115,9 @@ export default defineEventHandler(async (event) => {
     // Always update the updated_at timestamp
     updateData.updated_at = new Date();
     
-    // Check if status is being changed to "Completed" (status = 41)
-    if (status !== undefined && parseInt(status) === 41 && existingAppointment.status !== 41) {
-      // Get the patient's current available sessions
-      const patient = await prisma.user_patients.findUnique({
-        where: {
-          patient_id: existingAppointment.patient_id
-        },
-        select: {
-          patient_id: true,
-          fullname: true,
-          available_session: true
-        }
-      });
-      
-      if (patient) {
-        const currentSessions = patient.available_session || 0;
-        
-        if (currentSessions > 0) {
-          // Deduct one session
-          const newSessions = currentSessions - 1;
-          
-          // Update patient's available sessions
-          await prisma.user_patients.update({
-            where: {
-              patient_id: patient.patient_id
-            },
-            data: {
-              available_session: newSessions,
-              update_at: new Date()
-            }
-          });
-          
-          console.log(`Deducted 1 session from patient ${patient.patient_id} (${patient.fullname}). Previous: ${currentSessions}, New: ${newSessions}`);
-        } else {
-          console.log(`Warning: Patient ${patient.patient_id} (${patient.fullname}) has no available sessions to deduct`);
-        }
-      } else {
-        console.log(`Warning: Patient not found for appointment ${appointment_id}`);
-      }
-    }
+    // Note: Sessions are now deducted when booking, not when completing
+    // When status is changed to "Completed" (41), no session deduction is needed
+    // as the session was already deducted at booking time
     
     // Update the appointment
     const updatedAppointment = await prisma.appointments.update({

@@ -65,7 +65,7 @@ export default defineEventHandler(async (event) => {
     
         parent_gender: '',
         parent_dob: null,
-        parent_phone: '',
+        parent_phone: phone,
         parent_add1: '',
         parent_add2: '',
         parent_add3: '',
