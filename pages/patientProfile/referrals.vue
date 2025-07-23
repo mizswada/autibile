@@ -297,10 +297,13 @@ function downloadReferralPdf(referral) {
         <h1 class="text-2xl font-bold text-gray-900">Doctor Referrals</h1>
         <p class="text-gray-600 mt-1">Manage patient doctor referrals and medical consultations</p>
       </div>
-      <rs-button variant="primary" @click="openAddModal">
-        <Icon name="material-symbols:add" class="mr-1" />
-        New Referral
-      </rs-button>
+      <router-link
+        :to="{ path: '/patientProfile/addReferral', query: { patientId: patientId } }"
+        class="rs-button rs-button--primary flex items-center"
+      >
+        <Icon name="material-symbols:add" variant="primary" class="mr-1" />
+        Add Referral
+      </router-link>
     </div>
 
     <!-- Loading State -->
@@ -322,10 +325,13 @@ function downloadReferralPdf(referral) {
         <Icon name="material-symbols:medical-services" size="64" class="mx-auto mb-4 text-gray-300" />
         <h3 class="text-lg font-medium text-gray-600 mb-2">No Referrals Found</h3>
         <p class="text-gray-500">Start by adding a new doctor referral for this patient.</p>
-        <rs-button variant="primary" class="mt-4" @click="openAddModal">
+        <router-link
+          :to="{ path: '/patientProfile/addReferral', query: { patientId: patientId } }"
+          class="rs-button rs-button--primary mt-4 flex items-center justify-center"
+        >
           <Icon name="material-symbols:add" class="mr-1" />
           Add First Referral
-        </rs-button>
+        </router-link>
       </div>
 
       <div v-else class="space-y-4">
