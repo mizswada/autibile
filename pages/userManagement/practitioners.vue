@@ -329,6 +329,7 @@ watch(() => showModal.value, (newVal) => {
     <rs-table 
       v-else
       :data="tableData" 
+      :options="{ variant: 'default', striped: true, borderless: true }"
       :columns="[
         { name: 'username', label: 'Username' },
         { name: 'fullName', label: 'Full Name' },
