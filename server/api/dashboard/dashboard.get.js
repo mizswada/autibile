@@ -33,6 +33,9 @@ export default defineEventHandler(async (event) => {
           lte: todayEnd,
         },
         deleted_at: null,
+        status: {
+          not: 37, // Exclude cancelled appointments
+        },
       },
       select: {
         appointment_id: true,

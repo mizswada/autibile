@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
 
 export default defineEventHandler(async (event) => {
+  const prisma = new PrismaClient();
   try {
     const body = await readBody(event);
     const { patientId } = body;
@@ -14,9 +14,9 @@ export default defineEventHandler(async (event) => {
     }
     
     // Fetch patient data
-    const patient = await prisma.children.findUnique({
+    const patient = await prisma.user_patients.findUnique({
       where: {
-        childID: parseInt(patientId)
+        patient_id: parseInt(patientId)
       }
     });
     
@@ -27,17 +27,26 @@ export default defineEventHandler(async (event) => {
       };
     }
     
-    // Fetch parent data
-    const parent = await prisma.parents.findUnique({
+    // Fetch parent data using the relationship table
+    const parentRelationship = await prisma.user_parent_patient.findFirst({
       where: {
-        parentID: patient.parentID
+        patient_id: parseInt(patientId)
       }
     });
+    
+    let parent = null;
+    if (parentRelationship) {
+      parent = await prisma.user_parents.findUnique({
+        where: {
+          parent_id: parentRelationship.parent_id
+        }
+      });
+    }
     
     // Fetch questionnaire responses
     const responses = await prisma.questionnaires_responds.findMany({
       where: {
-        patientID: parseInt(patientId)
+        patient_id: parseInt(patientId)
       },
       include: {
         questionnaires: true
@@ -51,9 +60,6 @@ export default defineEventHandler(async (event) => {
       responses,
       generatedAt: new Date().toISOString()
     };
-    
-    // In a real implementation, you would generate the PDF here
-    // For now, we'll just return the data that would be used for the PDF
     
     return {
       statusCode: 200,
