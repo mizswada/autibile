@@ -101,7 +101,15 @@ function formatDate(dateString) {
 }
 
 function goBack() {
-  navigateTo('/questionnaire/results');
+  const patientId = route.query.patientId;
+  
+  if (patientId) {
+    // If we came from patient profile, go back there
+    navigateTo(`/patientProfile?patientId=${patientId}`);
+  } else {
+    // Otherwise go to questionnaire results list
+    navigateTo('/questionnaire/results');
+  }
 }
 
 function toggleView() {

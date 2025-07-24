@@ -11,6 +11,8 @@ import listPlugin from '@fullcalendar/list';
 import interactionPlugin from '@fullcalendar/interaction';
 import Loading from '@/components/Loading.vue';
 
+const userStore = useUserStore();
+
 const calendarOptions = ref({
   plugins: [dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin],
   initialView: 'dayGridMonth',
@@ -59,6 +61,7 @@ const fetchAppointments = async () => {
 
   if (error.value) {
     console.error('Error fetching appointments:', error.value);
+    isPageLoading.value = false; // Set loading to false even on error
     return;
   }
 
@@ -80,6 +83,9 @@ const fetchAppointments = async () => {
     textColor: '#fff',
     extendedProps: appt.extendedProps,
   }));
+  
+  // Set page loading to false after appointments are loaded
+  isPageLoading.value = false;
 };
 
 // Function to handle clicking on a calendar event
@@ -142,14 +148,21 @@ function getStatusColor(status) {
   return statusColors[status] || '#14452F';
 }
 
-onMounted(fetchAppointments);
+onMounted(() => {
+  fetchAppointments();
+  
+  // Set a timeout to prevent infinite loading
+  setTimeout(() => {
+    isPageLoading.value = false;
+  }, 10000); // 10 second timeout
+});
 
-const userStore = useUserStore();
 const currentUserId = userStore.userID || 1; // fallback to 1 if not set
 
 // Loading states
 const isLoading = ref(false);
 const isLoadingSlots = ref(false); // Separate loading state for time slots
+const isPageLoading = ref(true); // Page loading state for initial load
 const errorMessage = ref("");
 const successMessage = ref("");
 
@@ -913,7 +926,7 @@ const saveRating = async () => {
 };
 
 // Add a state to track active tab
-const activeTab = ref('calendar'); // Changed from 'list' to 'calendar'
+const activeTab = ref('calendar'); // Default to calendar view
 
 // Add state for delete and cancel functionality
 const showDeleteModal = ref(false);
@@ -1022,17 +1035,28 @@ const cancelAppointment = async () => {
 
 <template>
   <ClientOnly>
-    <div v-if="!appointmentsLoading">
+    <!-- Page Loading State -->
+    <div v-if="isPageLoading" class="flex justify-center items-center h-screen">
+      <div class="text-center">
+        <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4"></div>
+        <p class="text-gray-500 text-lg">Loading calendar...</p>
+        <p class="text-gray-400 text-sm mt-2">Please wait while we fetch your appointment data</p>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div v-else>
       <div class="p-4">
         <div class="flex justify-between items-center mb-4">
           <h1 class="text-2xl font-bold">Appointments Management</h1>
-          <rs-button variant="primary" @click="openAddAppointmentModal">
+          <!-- Only show New Appointment button for non-doctors -->
+          <rs-button v-if="!userStore.isDoctor" variant="primary" @click="openAddAppointmentModal">
             <Icon name="material-symbols:add" class="mr-1" /> New Appointment
           </rs-button>
         </div>
 
-        <!-- Tab Navigation -->
-        <div class="flex border-b mb-4">
+        <!-- Tab Navigation - Only show for non-doctors -->
+        <div v-if="!userStore.isDoctor" class="flex border-b mb-4">
            <button 
             @click="activeTab = 'calendar'" 
             class="py-2 px-4 focus:outline-none"
@@ -1049,8 +1073,8 @@ const cancelAppointment = async () => {
           </button>
         </div>
 
-        <!-- List View -->
-        <div v-if="activeTab === 'list'">
+        <!-- List View - Only show for non-doctors -->
+        <div v-if="!userStore.isDoctor && activeTab === 'list'">
           <rs-card class="p-4">
             <!-- Success/Error Messages -->
             <div v-if="successMessage" class="mb-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
@@ -1062,7 +1086,10 @@ const cancelAppointment = async () => {
 
             <!-- Loading indicator -->
             <div v-if="appointmentsLoading" class="flex justify-center my-8">
-              <Loading />
+              <div class="text-center">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                <p class="text-gray-500">Refreshing appointments...</p>
+              </div>
             </div>
 
             <!-- No appointments message -->
@@ -1122,10 +1149,24 @@ const cancelAppointment = async () => {
           </rs-card>
         </div>
 
-        <!-- Calendar View -->
-        <div v-if="activeTab === 'calendar'">
+        <!-- Calendar View - Show for doctors or when calendar tab is active -->
+        <div v-if="userStore.isDoctor || activeTab === 'calendar'">
           <rs-card class="p-4">
-            <FullCalendar :options="calendarOptions" />
+            <!-- Doctor-specific header -->
+            <div v-if="userStore.isDoctor" class="mb-4">
+              <h2 class="text-lg font-semibold text-gray-800 mb-2">Your Appointment Calendar</h2>
+              <p class="text-sm text-gray-600">View and manage your scheduled appointments. Click on any appointment to view details.</p>
+            </div>
+            
+            <!-- Calendar Loading State -->
+            <div v-if="appointmentsLoading" class="flex justify-center items-center h-64">
+              <div class="text-center">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                <p class="text-gray-500">Refreshing calendar...</p>
+              </div>
+            </div>
+            
+            <FullCalendar v-else :options="calendarOptions" />
           </rs-card>
         </div>
       </div>

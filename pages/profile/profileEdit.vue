@@ -11,6 +11,12 @@ const profile = ref({
   currentPassword: '',
   newPassword: '',
   confirmPassword: '',
+  // Doctor-specific fields (from user_practitioners table)
+  registration_no: '',
+  specialty: '',
+  department: '',
+  qualifications: '',
+  experience_years: '',
 });
 
 const isLoading = ref(false);
@@ -46,6 +52,12 @@ async function fetchUserProfile() {
         email: result.data.userEmail || '',
         phone: result.data.userPhone || '',
         ic: result.data.userIC || '',
+        // Load doctor-specific data if available
+        registration_no: result.data.practitioner?.registration_no || '',
+        specialty: result.data.practitioner?.specialty || '',
+        department: result.data.practitioner?.department || '',
+        qualifications: result.data.practitioner?.qualifications || '',
+        experience_years: result.data.practitioner?.experience_years?.toString() || '',
       };
     } else {
       showMessage(result.message || 'Failed to load profile data', 'error');
@@ -65,6 +77,23 @@ async function saveProfile() {
   if (!profile.value.fullName || !profile.value.email || !profile.value.phone) {
     showMessage('Please fill in all required fields', 'error');
     return;
+  }
+  
+  // Validate doctor-specific fields if user is a doctor
+  if (userStore.isDoctor) {
+    if (!profile.value.registration_no || !profile.value.specialty || 
+        !profile.value.department || !profile.value.qualifications || 
+        !profile.value.experience_years) {
+      showMessage('Please fill in all required professional information fields', 'error');
+      return;
+    }
+    
+    // Validate experience_years is a positive number
+    const years = parseInt(profile.value.experience_years);
+    if (isNaN(years) || years < 0) {
+      showMessage('Please enter a valid number of years of experience', 'error');
+      return;
+    }
   }
   
   // Validate email format
@@ -102,6 +131,15 @@ async function saveProfile() {
       email: profile.value.email,
       phone: profile.value.phone,
     };
+    
+    // Add doctor-specific fields if user is a doctor
+    if (userStore.isDoctor) {
+      payload.registration_no = profile.value.registration_no;
+      payload.specialty = profile.value.specialty;
+      payload.department = profile.value.department;
+      payload.qualifications = profile.value.qualifications;
+      payload.experience_years = profile.value.experience_years;
+    }
     
     // Only include password fields if changing password
     if (profile.value.newPassword) {
@@ -238,6 +276,70 @@ function togglePasswordVisibility() {
               label="IC Number"
               placeholder="Enter your IC number"
               disabled
+            />
+            
+            <!-- Doctor Information Section - Only show for doctors -->
+            <div v-if="userStore.isDoctor" class="md:col-span-2 mt-6">
+              <h2 class="text-lg font-semibold mb-4 pb-2 border-b">Professional Information</h2>
+              <p class="text-sm text-gray-600 mb-4">Update your professional details and credentials</p>
+            </div>
+            
+            <FormKit
+              v-if="userStore.isDoctor"
+              type="text"
+              v-model="profile.registration_no"
+              name="registration_no"
+              label="Registration Number"
+              placeholder="Enter your professional registration number"
+              validation="required"
+              :validation-messages="{ required: 'Registration number is required' }"
+            />
+            
+            <FormKit
+              v-if="userStore.isDoctor"
+              type="text"
+              v-model="profile.specialty"
+              name="specialty"
+              label="Specialty"
+              placeholder="e.g., Child Psychology, Autism Therapy, Speech Therapy"
+              validation="required"
+              :validation-messages="{ required: 'Specialty is required' }"
+            />
+            
+            <FormKit
+              v-if="userStore.isDoctor"
+              type="text"
+              v-model="profile.department"
+              name="department"
+              label="Department"
+              placeholder="e.g., Psychology Department, Therapy Center"
+              validation="required"
+              :validation-messages="{ required: 'Department is required' }"
+            />
+            
+            <FormKit
+              v-if="userStore.isDoctor"
+              type="text"
+              v-model="profile.qualifications"
+              name="qualifications"
+              label="Qualifications"
+              placeholder="e.g., PhD in Psychology, Master's in Special Education"
+              validation="required"
+              :validation-messages="{ required: 'Qualifications are required' }"
+            />
+            
+            <FormKit
+              v-if="userStore.isDoctor"
+              type="number"
+              v-model="profile.experience_years"
+              name="experience_years"
+              label="Years of Experience"
+              placeholder="Enter number of years"
+              validation="required|number"
+              :validation-messages="{ 
+                required: 'Years of experience is required',
+                number: 'Please enter a valid number'
+              }"
             />
             
             <!-- Change Password Section -->

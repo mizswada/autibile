@@ -20,9 +20,16 @@ const parentDetails = ref(null);
 const appointments = ref([]);
 const questionnaires = ref([]);
 const doctorReferrals = ref([]);
+const diaryReportData = ref(null);
 const collapsedQnA = ref({});
 const scoreThresholds = ref({});
 const thresholdsLoading = ref(false);
+const isGeneratingReport = ref(false);
+
+// Pagination for appointments
+const currentPage = ref(1);
+const itemsPerPage = ref(10);
+const appointmentsLoading = ref(false);
 
 // Tabs
 const tabs = [
@@ -30,8 +37,28 @@ const tabs = [
   'Parent Details',
   'Appointments',
   'Questionnaires',
-  'Doctor Referrals'
+  'Doctor Referrals',
+  'Diary Report'
 ];
+
+// Computed properties for appointments pagination
+const paginatedAppointments = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage.value;
+  const end = start + itemsPerPage.value;
+  return appointments.value.slice(start, end);
+});
+
+const totalPages = computed(() => {
+  return Math.ceil(appointments.value.length / itemsPerPage.value);
+});
+
+const hasNextPage = computed(() => {
+  return currentPage.value < totalPages.value;
+});
+
+const hasPrevPage = computed(() => {
+  return currentPage.value > 1;
+});
 
 onMounted(async () => {
   if (!patientId.value) {
@@ -53,7 +80,8 @@ async function loadAllData() {
       fetchParentDetails(),
       fetchAppointments(),
       fetchQuestionnaires(),
-      fetchDoctorReferrals()
+      fetchDoctorReferrals(),
+      fetchDiaryReport()
     ]);
     retryCount.value = 0; // Reset on success
   } catch (err) {
@@ -96,9 +124,45 @@ async function fetchParentDetails() {
 }
 
 async function fetchAppointments() {
-  const res = await fetch(`/api/appointments/list?patient_id=${patientId.value}`);
-  const data = await res.json();
-  if (data.success) appointments.value = data.data;
+  appointmentsLoading.value = true;
+  try {
+    // For patient profile, we want to show ALL appointments including cancelled and deleted ones
+    const res = await fetch(`/api/appointments/listAll?patient_id=${patientId.value}`);
+    const data = await res.json();
+    if (data.success) {
+      appointments.value = data.data;
+      // Reset to first page when data changes
+      currentPage.value = 1;
+    }
+  } catch (error) {
+    console.error('Error fetching appointments:', error);
+  } finally {
+    appointmentsLoading.value = false;
+  }
+}
+
+// Pagination functions
+function goToPage(page) {
+  if (page >= 1 && page <= totalPages.value) {
+    currentPage.value = page;
+  }
+}
+
+function nextPage() {
+  if (hasNextPage.value) {
+    currentPage.value++;
+  }
+}
+
+function prevPage() {
+  if (hasPrevPage.value) {
+    currentPage.value--;
+  }
+}
+
+function changeItemsPerPage(newCount) {
+  itemsPerPage.value = parseInt(newCount);
+  currentPage.value = 1; // Reset to first page
 }
 
 async function fetchQuestionnaires() {
@@ -128,6 +192,30 @@ async function fetchDoctorReferrals() {
   const res = await fetch(`/api/patientProfile/referrals?patientId=${patientId.value}`);
   const data = await res.json();
   if (data.statusCode === 200) doctorReferrals.value = data.data;
+}
+
+async function fetchDiaryReport() {
+  const res = await fetch('/api/diaryReport/generatePdf', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ patientId: patientId.value })
+  });
+  const data = await res.json();
+  if (data.statusCode === 200) diaryReportData.value = data.data;
+}
+
+async function generateDiaryReport() {
+  isGeneratingReport.value = true;
+  try {
+    await fetchDiaryReport();
+    // You could add a success message here if needed
+  } catch (error) {
+    console.error('Error generating diary report:', error);
+  } finally {
+    isGeneratingReport.value = false;
+  }
 }
 
 function calculateAge(dob) {
@@ -216,7 +304,7 @@ function getScoreInterpretation(q) {
   <div class="max-w-7xl mx-auto p-6 bg-gray-50 min-h-screen">
     <div class="flex items-center justify-between mb-8">
       <h1 class="text-3xl font-bold">Patient Profile</h1>
-      <rs-button variant="outline" @click="$router.go(-1)">
+      <rs-button variant="outline" @click="navigateTo('/patientProfile/select')">
         <Icon name="material-symbols:arrow-back" class="mr-1" />
         Back
       </rs-button>
@@ -305,93 +393,183 @@ function getScoreInterpretation(q) {
         <div v-else-if="activeTab === 'Appointments'">
           <div class="bg-white rounded-xl shadow p-6">
             <h2 class="text-xl font-semibold mb-4 bg-purple-50 text-purple-800 border-b border-purple-200 p-2 rounded-lg">Appointments</h2>
-            <ul v-if="appointments && appointments.length" class="space-y-4">
-              <li
-                v-for="appt in appointments"
-                :key="appt.appointment_id || appt.id"
-                class="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
-              >
-                <!-- Main Appointment Info -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-                  <div>
-                    <span class="font-medium text-gray-700">Patient:</span>
-                    <p class="text-gray-900">{{ getPatientName(appt) }}</p>
-                  </div>
-                  <div>
-                    <span class="font-medium text-gray-700">Practitioner:</span>
-                    <p class="text-gray-900">{{ getPractitionerName(appt) }}</p>
-                  </div>
-                  <div>
-                    <span class="font-medium text-gray-700">Service:</span>
-                    <p class="text-gray-900">{{ getServiceName(appt) }}</p>
-                  </div>
-                  <div>
-                    <span class="font-medium text-gray-700">Date:</span>
-                    <p class="text-gray-900">{{ new Date(appt.start || appt.date).toLocaleDateString() }}</p>
-                  </div>
-                  <div>
-                    <span class="font-medium text-gray-700">Time:</span>
-                    <p class="text-gray-900">{{ getTimeSlot(appt) }}</p>
-                  </div>
-                  <div>
-                    <span class="font-medium text-gray-700">Status:</span>
-                    <p class="text-gray-900">
-                      <span 
-                        class="px-2 py-1 text-xs font-semibold rounded-full"
-                        :class="{
-                          'bg-yellow-100 text-yellow-800': (appt.extendedProps && appt.extendedProps.status) === 36 || appt.status === 36,
-                          'bg-red-100 text-red-800': (appt.extendedProps && appt.extendedProps.status) === 37 || appt.status === 37,
-                          'bg-blue-100 text-blue-800': (appt.extendedProps && appt.extendedProps.status) === 38 || appt.status === 38,
-                          'bg-green-100 text-green-800': (appt.extendedProps && appt.extendedProps.status) === 39 || appt.status === 39,
-                          'bg-purple-100 text-purple-800': (appt.extendedProps && appt.extendedProps.status) === 40 || appt.status === 40,
-                          'bg-indigo-100 text-indigo-800': (appt.extendedProps && appt.extendedProps.status) === 41 || appt.status === 41,
-                          'bg-gray-100 text-gray-800': true
-                        }"
+            
+            <!-- Loading State -->
+            <div v-if="appointmentsLoading" class="flex justify-center items-center py-8">
+              <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+              <span class="ml-2 text-gray-600">Loading appointments...</span>
+            </div>
+
+            <!-- Appointments Table -->
+            <div v-else-if="appointments && appointments.length" class="space-y-4">
+              <!-- Table Controls -->
+              <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-4">
+                  <label class="text-sm text-gray-600">Show:</label>
+                  <select 
+                    v-model="itemsPerPage" 
+                    @change="changeItemsPerPage(itemsPerPage)"
+                    class="border border-gray-300 rounded px-2 py-1 text-sm"
+                  >
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                  </select>
+                  <span class="text-sm text-gray-600">entries per page</span>
+                </div>
+                <div class="text-sm text-gray-600">
+                  Showing {{ (currentPage - 1) * itemsPerPage + 1 }} to {{ Math.min(currentPage * itemsPerPage, appointments.length) }} of {{ appointments.length }} appointments
+                </div>
+              </div>
+
+              <!-- Table -->
+              <div class="border rounded-lg overflow-hidden">
+                <div class="overflow-x-auto">
+                  <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                      <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          No
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Date
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Time
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Service
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Practitioner
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Rating
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Comments
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                      <tr 
+                        v-for="appt in paginatedAppointments" 
+                        :key="appt.appointment_id || appt.id"
+                        class="hover:bg-gray-50 transition-colors"
                       >
-                        {{ getStatus(appt) }}
-                      </span>
-                    </p>
-                  </div>
-                  <div>
-                    <span class="font-medium text-gray-700">Session Number:</span>
-                    <p class="text-gray-900">{{ getSessionNumber(appt) }}</p>
-                  </div>
+                        <td class="px-6 py-4 text-sm text-gray-900">
+                          <span class="font-medium">{{ getSessionNumber(appt) }}</span>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-900">
+                          {{ new Date(appt.start || appt.date).toLocaleDateString() }}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-900">
+                          {{ getTimeSlot(appt) }}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-900">
+                          {{ getServiceName(appt) }}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-900">
+                          {{ getPractitionerName(appt) }}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-900">
+                          <span 
+                            class="px-2 py-1 text-xs font-semibold rounded-full"
+                            :class="{
+                              'bg-yellow-100 text-yellow-800': (appt.extendedProps && appt.extendedProps.status) === 36 || appt.status === 36,
+                              'bg-red-100 text-red-800': (appt.extendedProps && appt.extendedProps.status) === 37 || appt.status === 37,
+                              'bg-blue-100 text-blue-800': (appt.extendedProps && appt.extendedProps.status) === 38 || appt.status === 38,
+                              'bg-green-100 text-green-800': (appt.extendedProps && appt.extendedProps.status) === 39 || appt.status === 39,
+                              'bg-purple-100 text-purple-800': (appt.extendedProps && appt.extendedProps.status) === 40 || appt.status === 40,
+                              'bg-indigo-100 text-indigo-800': (appt.extendedProps && appt.extendedProps.status) === 41 || appt.status === 41,
+                              'bg-gray-100 text-gray-800': true
+                            }"
+                          >
+                            {{ getStatus(appt) }}
+                          </span>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-900">
+                          <div v-if="getParentRate(appt)" class="flex items-center">
+                            <div class="flex">
+                              <Icon 
+                                v-for="i in 5" 
+                                :key="i" 
+                                :name="i <= Number(getParentRate(appt)) ? 'material-symbols:star' : 'material-symbols:star-outline'" 
+                                class="text-yellow-500" 
+                                size="16" 
+                              />
+                            </div>
+                            <span class="ml-1 text-xs">{{ Number(getParentRate(appt)) }}/5</span>
+                          </div>
+                          <span v-else class="text-gray-400">-</span>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-900">
+                          <div class="space-y-1">
+                            <div v-if="getParentComment(appt)" class="text-xs">
+                              <span class="font-medium text-blue-600">Parent:</span> 
+                              <span class="truncate max-w-xs block">{{ getParentComment(appt) }}</span>
+                            </div>
+                            <div v-if="getTherapistDoctorComment(appt)" class="text-xs">
+                              <span class="font-medium text-green-600">Practitioner:</span> 
+                              <span class="truncate max-w-xs block">{{ getTherapistDoctorComment(appt) }}</span>
+                            </div>
+                            <span v-if="!getParentComment(appt) && !getTherapistDoctorComment(appt)" class="text-gray-400">-</span>
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
+              </div>
 
-                <!-- Comments and Rating Section -->
-                <div class="border-t pt-4 space-y-3">
-                  <!-- Parent Comment -->
-                  <div v-if="getParentComment(appt)">
-                    <span class="font-medium text-gray-700">Parent Comment:</span>
-                    <p class="text-gray-900 mt-1 p-2 bg-gray-50 rounded">{{ getParentComment(appt) }}</p>
-                  </div>
-
-                  <!-- Parent Rating -->
-                  <div v-if="getParentRate(appt)">
-                    <span class="font-medium text-gray-700">Parent Rating:</span>
-                    <div class="mt-1 p-2 bg-gray-50 rounded flex items-center">
-                      <div class="flex">
-                        <Icon 
-                          v-for="i in 5" 
-                          :key="i" 
-                          :name="i <= Number(getParentRate(appt)) ? 'material-symbols:star' : 'material-symbols:star-outline'" 
-                          class="text-yellow-500" 
-                          size="20" 
-                        />
-                      </div>
-                      <span class="ml-2 text-sm">{{ Number(getParentRate(appt)) }} / 5</span>
-                    </div>
-                  </div>
-
-                  <!-- Therapist/Doctor Comment -->
-                  <div v-if="getTherapistDoctorComment(appt)">
-                    <span class="font-medium text-gray-700">Practitioner Comment:</span>
-                    <p class="text-gray-900 mt-1 p-2 bg-gray-50 rounded">{{ getTherapistDoctorComment(appt) }}</p>
-                  </div>
+              <!-- Pagination -->
+              <div class="flex justify-between items-center">
+                <div class="text-sm text-gray-600">
+                  Showing {{ (currentPage - 1) * itemsPerPage + 1 }} to {{ Math.min(currentPage * itemsPerPage, appointments.length) }} of {{ appointments.length }} appointments
                 </div>
-              </li>
-            </ul>
-            <div v-else class="text-gray-400">No appointments found.</div>
+                <div class="flex items-center space-x-2">
+                  <button
+                    @click="prevPage"
+                    :disabled="!hasPrevPage"
+                    class="px-3 py-1 text-sm border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  >
+                    Previous
+                  </button>
+                  
+                  <div class="flex space-x-1">
+                    <button
+                      v-for="page in Math.min(5, totalPages)"
+                      :key="page"
+                      @click="goToPage(page)"
+                      :class="{
+                        'bg-purple-600 text-white': currentPage === page,
+                        'bg-white text-gray-700 hover:bg-gray-50': currentPage !== page
+                      }"
+                      class="px-3 py-1 text-sm border rounded"
+                    >
+                      {{ page }}
+                    </button>
+                  </div>
+                  
+                  <button
+                    @click="nextPage"
+                    :disabled="!hasNextPage"
+                    class="px-3 py-1 text-sm border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <div v-else class="text-gray-400 text-center py-8">
+              <Icon name="material-symbols:event" size="48" class="mx-auto mb-4 text-gray-300" />
+              <p>No appointments found.</p>
+            </div>
           </div>
         </div>
 
@@ -422,6 +600,9 @@ function getScoreInterpretation(q) {
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Recommendation
                         </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Action
+                        </th>
                       </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
@@ -438,82 +619,22 @@ function getScoreInterpretation(q) {
                         <td class="px-6 py-4 text-sm text-gray-900">
                           {{ getScoreInterpretation(q)?.recommendation || '-' }}
                         </td>
+                        <td class="px-6 py-4 text-sm text-gray-900">
+                          <button
+                            @click="$router.push(`/questionnaire/results/${q.qr_id}?patientId=${patientId}`)"
+                            class="text-purple-600 hover:text-purple-800 font-medium flex items-center"
+                          >
+                            <Icon name="material-symbols:visibility" class="mr-1" />
+                            View Details
+                          </button>
+                        </td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
               </div>
 
-              <!-- Detailed Answers for each questionnaire -->
-              <div v-for="q in questionnaires" :key="'detail-'+q.qr_id" class="border rounded-lg overflow-hidden">
-                <div class="bg-white px-4 py-2 border-b">
-                  <h4 class="font-medium text-lg">{{ q.questionnaire_title || 'Assessment' }}</h4>
-                  <p class="text-sm text-gray-600">Completed on {{ new Date(q.created_at).toLocaleDateString() }}</p>
-                </div>
-                
-                <div class="p-4">
-                  <!-- Score and Level -->
-                  <div class="mb-4 p-3 bg-gray-50 rounded-lg">
-                    <div class="flex items-center justify-between">
-                      <div>
-                        <span class="font-medium">Total Score:</span>
-                        <span class="ml-2 text-lg font-bold" :class="getScoreClass(q.total_score)">
-                          {{ displayScore(q.total_score) }}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
 
-                  <!-- Questions and Answers -->
-                  <div v-if="q.answers && q.answers.length > 0" class="space-y-4">
-                    <h5 @click="toggleQnA(q.qr_id)" class="flex items-center cursor-pointer select-none">
-                      Questions & Answers
-                      <Icon :name="collapsedQnA[q.qr_id] ? 'material-symbols:expand-less' : 'material-symbols:expand-more'" class="ml-2" />
-                    </h5>
-                    <div v-show="collapsedQnA[q.qr_id]" class="space-y-4">
-                      <div v-for="(answer, answerIndex) in q.answers" :key="answerIndex" class="border rounded p-3 hover:bg-gray-50">
-                        <div class="mb-2">
-                          <span class="font-medium text-gray-700">Q{{ answerIndex + 1 }}:</span>
-                          <span class="ml-2">{{ answer.question_text || 'Question' }}</span>
-                          <span v-if="answer.question_text_bm" class="block text-sm text-gray-500 italic mt-1">
-                            {{ answer.question_text_bm }}
-                          </span>
-                        </div>
-                        
-                        <div class="ml-4">
-                          <div v-if="answer.text_answer" class="text-sm">
-                            <span class="font-medium text-gray-600">Answer:</span>
-                            <span class="ml-2">{{ answer.text_answer }}</span>
-                          </div>
-                          <div v-else-if="answer.option_title" class="text-sm">
-                            <span class="font-medium text-gray-600">Selected:</span>
-                            <span class="ml-2">{{ answer.option_title }}</span>
-                          </div>
-                          <div v-else class="text-sm text-gray-500 italic">
-                            No answer provided
-                          </div>
-                          
-                          <div v-if="answer.score !== undefined && answer.score !== null" class="text-sm mt-1">
-                            <span class="font-medium text-gray-600">Score:</span>
-                            <span class="ml-2">{{ displayScore(answer.score) }}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div v-else class="text-gray-500 italic text-center py-4">
-                    No detailed answers available
-                  </div>
-
-                  <!-- Recommendation -->
-                  <div class="mt-4 p-3 bg-blue-50 rounded-lg border-l-4 border-blue-500">
-                    <h6 class="font-medium text-blue-800 mb-1">Recommendation</h6>
-                    <p class="text-sm text-blue-700">
-                      {{ getScoreInterpretation(q)?.recommendation || '-' }}
-                    </p>
-                  </div>
-                </div>
-              </div>
             </div>
             
             <div v-else class="text-gray-400 text-center py-8">
@@ -569,6 +690,111 @@ function getScoreInterpretation(q) {
                 <Icon name="material-symbols:add" class="mr-1" />
                 Add First Referral
               </rs-button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Diary Report -->
+        <div v-else-if="activeTab === 'Diary Report'">
+          <div class="bg-white rounded-xl shadow p-6">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-xl font-semibold bg-purple-50 text-purple-800 border-b border-purple-200 p-2 rounded-lg">Diary Report</h2>
+              <rs-button 
+                variant="primary" 
+                size="sm"
+                @click="generateDiaryReport"
+                :disabled="isGeneratingReport"
+              >
+                <Icon name="material-symbols:download" class="mr-1" />
+                {{ isGeneratingReport ? 'Generating...' : 'Generate Report' }}
+              </rs-button>
+            </div>
+            
+            <div v-if="diaryReportData" class="space-y-6">
+              <!-- Patient Summary -->
+              <div class="bg-gray-50 p-4 rounded-lg">
+                <h3 class="text-lg font-semibold text-gray-800 mb-3">Patient Summary</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <span class="font-medium text-gray-600">Name:</span>
+                    <span class="ml-2">{{ diaryReportData.patient?.fullname || 'N/A' }}</span>
+                  </div>
+                  <div>
+                    <span class="font-medium text-gray-600">IC Number:</span>
+                    <span class="ml-2">{{ diaryReportData.patient?.patient_ic || 'N/A' }}</span>
+                  </div>
+                  <div>
+                    <span class="font-medium text-gray-600">Age:</span>
+                    <span class="ml-2">{{ calculateAge(diaryReportData.patient?.dob) }}</span>
+                  </div>
+                  <div>
+                    <span class="font-medium text-gray-600">Autism Diagnosis:</span>
+                    <span class="ml-2">{{ diaryReportData.patient?.autism_diagnose || 'N/A' }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Parent Information -->
+              <div class="bg-gray-50 p-4 rounded-lg">
+                <h3 class="text-lg font-semibold text-gray-800 mb-3">Parent Information</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <span class="font-medium text-gray-600">Parent Name:</span>
+                    <span class="ml-2">{{ diaryReportData.parent?.fullName || 'N/A' }}</span>
+                  </div>
+                  <div>
+                    <span class="font-medium text-gray-600">Email:</span>
+                    <span class="ml-2">{{ diaryReportData.parent?.email || 'N/A' }}</span>
+                  </div>
+                  <div>
+                    <span class="font-medium text-gray-600">Phone:</span>
+                    <span class="ml-2">{{ diaryReportData.parent?.phone || 'N/A' }}</span>
+                  </div>
+                  <div>
+                    <span class="font-medium text-gray-600">Relationship:</span>
+                    <span class="ml-2">{{ diaryReportData.parent?.relationship || 'N/A' }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Questionnaire Responses Summary -->
+              <div class="bg-gray-50 p-4 rounded-lg">
+                <h3 class="text-lg font-semibold text-gray-800 mb-3">Questionnaire Responses Summary</h3>
+                <div v-if="diaryReportData.responses && diaryReportData.responses.length > 0" class="space-y-3">
+                  <div v-for="response in diaryReportData.responses" :key="response.id" class="border-l-4 border-blue-500 pl-4">
+                    <div class="flex justify-between items-start">
+                      <div>
+                        <h4 class="font-medium text-gray-800">{{ response.questionnaires?.title || 'Unknown Questionnaire' }}</h4>
+                        <p class="text-sm text-gray-600">Completed on: {{ formatDateOnly(response.created_at) }}</p>
+                        <p class="text-sm text-gray-600">Total Score: {{ response.total_score || 'N/A' }}</p>
+                      </div>
+                      <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                        {{ response.questionnaires?.type || 'Assessment' }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="text-gray-500 text-center py-4">
+                  <Icon name="material-symbols:quiz" size="32" class="mx-auto mb-2 text-gray-300" />
+                  <p>No questionnaire responses available for this patient.</p>
+                </div>
+              </div>
+
+              <!-- Report Generation Info -->
+              <div class="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
+                <h3 class="text-lg font-semibold text-blue-800 mb-2">Report Information</h3>
+                <div class="text-sm text-blue-700">
+                  <p><span class="font-medium">Generated:</span> {{ formatDateOnly(diaryReportData.generatedAt) }}</p>
+                  <p><span class="font-medium">Patient ID:</span> {{ patientId }}</p>
+                  <p class="mt-2 text-xs">This report contains a comprehensive summary of the patient's assessment history and progress tracking.</p>
+                </div>
+              </div>
+            </div>
+            
+            <div v-else class="text-gray-400 text-center py-8">
+              <Icon name="material-symbols:description" size="48" class="mx-auto mb-4 text-gray-300" />
+              <p>No diary report data available.</p>
+              <p class="text-sm mt-2">Click "Generate Report" to create a comprehensive patient diary report.</p>
             </div>
           </div>
         </div>
