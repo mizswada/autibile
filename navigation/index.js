@@ -46,17 +46,9 @@ const adminNavigation = [
       {
         title: "Posting",
         icon: "ic:outline-headset-mic",
-        child: [
-          {
-            title: "Posts Management",
-            path: "/communitySupport/postManagement",
-          },
-          {
-            title: "Reported Posts",
-            path: "/communitySupport/reportedContent",
-          },
-        ],
+        path: "/communitySupport/postManagement",
       },
+     
       {
         title: "FAQ",
         icon: "ic:outline-question-answer",

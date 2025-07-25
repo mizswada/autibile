@@ -382,7 +382,7 @@ function closeSearchICForm() {
         <FormKit type="date" v-model="form.dateOfBirth" label="Date of Birth" validation="required" />
         <FormKit type="text" v-model="form.autismDiagnose" label="Autism Diagnose" validation="required"/>
         <FormKit type="date" v-model="form.diagnosedDate" label="Diagnosed Date" validation="required"  />
-        <FormKit type="number" v-model="form.availableSession" label="Available Sessions" validation="required|number|min:0" placeholder="0" />
+        <FormKit type="number" v-model="form.availableSession" label="Available Sessions" validation="required|number|min:0" placeholder="0" disabled/>
         <p class="text-sm text-gray-600 mt-1">Available sessions start at 0 for new children. Sessions can be added later through package purchases.</p>
         <FormKit type="select" v-model="form.status" label="Status" :options="['-- Please select --', 'Active', 'Inactive']" validation="required" />
 

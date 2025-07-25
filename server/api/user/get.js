@@ -25,6 +25,29 @@ export default defineEventHandler(async (event) => {
         userStatus: true,
       },
     });
+    
+    // Get practitioner data if user is a doctor
+    let practitionerData = null;
+    if (userData) {
+      practitionerData = await prisma.user_practitioners.findFirst({
+        where: {
+          user_id: userData.userID,
+          type: 'doctor',
+          deleted_at: null,
+        },
+        select: {
+          practitioner_id: true,
+          type: true,
+          registration_no: true,
+          specialty: true,
+          department: true,
+          qualifications: true,
+          experience_years: true,
+          signature: true,
+          status: true,
+        },
+      });
+    }
 
     if (!userData) {
       return {
@@ -59,6 +82,8 @@ export default defineEventHandler(async (event) => {
       data: {
         ...userData,
         roles: roleNames,
+        // Include practitioner data if available
+        practitioner: practitionerData,
       },
     };
   } catch (error) {
