@@ -1638,6 +1638,12 @@
           ],
           "format": "date-time"
         },
+        "diagnosis": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "refferrals_reason": {
           "type": [
             "string",

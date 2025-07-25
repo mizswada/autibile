@@ -1,6 +1,8 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { ref, onMounted, computed, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useToast } from 'vue-toastification';
+import { jsPDF } from 'jspdf';
 
 const route = useRoute();
 const patientId = computed(() => route.query.patientId || route.params.id);
@@ -13,6 +15,10 @@ const retryCount = ref(0);
 const maxRetries = 3;
 const retryDelay = 3000; // 3 seconds
 const isRetrying = ref(false);
+const showReferralModal = ref(false);
+const selectedReferral = ref(null);
+const deleteLoading = ref(false);
+const deleteError = ref(null);
 
 // Data
 const patientDetails = ref(null);
@@ -41,32 +47,46 @@ const tabs = [
   'Diary Report'
 ];
 
-// Computed properties for appointments pagination
-const paginatedAppointments = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage.value;
-  const end = start + itemsPerPage.value;
-  return appointments.value.slice(start, end);
-});
+const router = useRouter();
+const toast = useToast();
 
-const totalPages = computed(() => {
-  return Math.ceil(appointments.value.length / itemsPerPage.value);
-});
+const tabMap = {
+  'Patient Details': 'patient-details',
+  'Parent Details': 'parent-details',
+  'Appointments': 'appointments',
+  'Questionnaires': 'questionnaires',
+  'Doctor Referrals': 'doctor-referrals'
+};
+const reverseTabMap = Object.fromEntries(Object.entries(tabMap).map(([k, v]) => [v, k]));
 
-const hasNextPage = computed(() => {
-  return currentPage.value < totalPages.value;
-});
-
-const hasPrevPage = computed(() => {
-  return currentPage.value > 1;
-});
-
+// Set activeTab from query param on mount
 onMounted(async () => {
+  if (route.query.tab && reverseTabMap[route.query.tab]) {
+    activeTab.value = reverseTabMap[route.query.tab];
+  }
   if (!patientId.value) {
     error.value = 'No patient ID provided';
     isLoading.value = false;
     return;
   }
   await loadAllData();
+});
+
+// Watch for changes in the route query
+watch(() => route.query.tab, (newTab) => {
+  if (newTab && reverseTabMap[newTab]) {
+    activeTab.value = reverseTabMap[newTab];
+  }
+});
+
+// When tab changes, update the route query
+watch(activeTab, (newTab) => {
+  const tabQuery = tabMap[newTab];
+  if (tabQuery && route.query.tab !== tabQuery) {
+    router.replace({
+      query: { ...route.query, tab: tabQuery }
+    });
+  }
 });
 
 async function loadAllData() {
@@ -297,6 +317,119 @@ function getScoreInterpretation(q) {
   const thresholds = scoreThresholds.value[q.questionnaire_id] || [];
   const score = parseInt(q.total_score);
   return thresholds.find(t => score >= t.scoring_min && score <= t.scoring_max) || null;
+}
+
+// Add these methods for actions (can be stubs or use existing logic)
+function openReferralModal(referral) {
+  selectedReferral.value = referral;
+  showReferralModal.value = true;
+}
+function closeReferralModal() {
+  showReferralModal.value = false;
+  selectedReferral.value = null;
+}
+function editReferral(referral) {
+  console.log('Edit referral:', referral);
+  router.push({ path: '/patientProfile/addReferral', query: { patientId: patientId.value, referralId: referral.id } });
+}
+async function deleteReferral(referralId) {
+  if (!window.confirm('Are you sure you want to delete this referral?')) return;
+  deleteLoading.value = true;
+  deleteError.value = null;
+  try {
+    const res = await fetch(`/api/patientProfile/referrals?id=${referralId}`, { method: 'DELETE' });
+    const result = await res.json();
+    if (result.statusCode === 200) {
+      // Remove from local list
+      doctorReferrals.value = doctorReferrals.value.filter(r => r.id !== referralId);
+      // If modal is open for this referral, close it
+      if (selectedReferral.value && selectedReferral.value.id === referralId) {
+        closeReferralModal();
+      }
+      toast.success('Referral deleted successfully');
+    } else {
+      deleteError.value = result.message || 'Failed to delete referral.';
+      toast.error(deleteError.value);
+    }
+  } catch (err) {
+    deleteError.value = err?.message || 'Failed to delete referral.';
+    toast.error(deleteError.value);
+  } finally {
+    deleteLoading.value = false;
+  }
+}
+function downloadReferralPdf(referral) {
+  // Implement PDF download logic or call existing function
+  alert('Download PDF for referral ' + referral.id);
+}
+
+async function downloadReferralLetter(referral) {
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  const pageWidth = pdf.internal.pageSize.getWidth();
+
+  // Header
+  pdf.setFontSize(16);
+  pdf.setFont(undefined, 'bold');
+  pdf.text('Doctor Referral Letter', pageWidth / 2, 20, { align: 'center' });
+
+  pdf.setFontSize(10);
+  pdf.setFont(undefined, 'normal');
+  pdf.text(`Date: ${referral.date || new Date().toLocaleDateString()}`, pageWidth - 20, 30, { align: 'right' });
+
+  // Recipient and Hospital
+  pdf.setFontSize(12);
+  pdf.text(`To: ${referral.recipient}`, 20, 40);
+  pdf.text(`Hospital/Clinic: ${referral.hospital}`, 20, 48);
+
+  // Patient Info (customize as needed)
+  pdf.setFontSize(11);
+  let y = 60;
+  pdf.text('Subject: Referral for Patient', 20, y);
+  y += 10;
+
+  // Body
+  pdf.setFontSize(11);
+  pdf.text('Dear Sir/Madam,', 20, y);
+  y += 10;
+  pdf.text('I am referring the following patient for your expert assessment and management.', 20, y);
+  y += 10;
+
+  // Diagnosis
+  if (referral.diagnosis && referral.diagnosis.length) {
+    pdf.text('Diagnosis:', 20, y);
+    y += 7;
+    referral.diagnosis.forEach((diag, idx) => {
+      pdf.text(`- ${diag}`, 25, y);
+      y += 6;
+    });
+  }
+
+  // Reason
+  if (referral.reason) {
+    pdf.text('Reason for Referral:', 20, y);
+    y += 7;
+    pdf.text(referral.reason, 25, y);
+    y += 10;
+  }
+
+  // Notes/History
+  if (referral.notes) {
+    pdf.text('Notes:', 20, y);
+    y += 7;
+    pdf.text(referral.notes, 25, y);
+    y += 10;
+  }
+
+  // Closing
+  pdf.text('Thank you for your attention.', 20, y);
+  y += 10;
+  pdf.text('Sincerely,', 20, y);
+  y += 7;
+  pdf.text('_________________________', 20, y + 10);
+
+  // Save the PDF
+  const filename = `Referral_Letter_${referral.recipient.replace(/\s+/g, '_')}_${referral.date || ''}.pdf`;
+  pdf.save(filename);
 }
 </script>
 
@@ -652,150 +785,150 @@ function getScoreInterpretation(q) {
               <rs-button 
                 variant="primary" 
                 size="sm"
-                @click="$router.push(`/patientProfile/referrals?patientId=${patientId}`)"
+                @click="$router.push(`/patientProfile/addReferral?patientId=${patientId}`)"
               >
                 <Icon name="material-symbols:add" class="mr-1" />
                 Add Referral
               </rs-button>
             </div>
-            
-            <ul v-if="doctorReferrals && doctorReferrals.length" class="space-y-2">
-              <li
-                v-for="ref in doctorReferrals"
-                :key="ref.id"
-                class="border rounded p-3 hover:bg-gray-50"
-              >
-                <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
-                  <div>
-                    <span class="font-medium">Doctor Name:</span> {{ ref.doctorName }}<br />
-                    <span class="font-medium">Specialty:</span> {{ ref.specialty }}<br />
-                    <span class="font-medium">Hospital:</span> {{ ref.hospital }}<br />
-                    <span class="font-medium">Date:</span> {{ ref.date }}<br />
-                    <span class="font-medium">Follow-up Date:</span> {{ ref.followUpDate }}<br />
-                    <span class="font-medium">Status:</span> {{ ref.status }}<br />
-                    <span class="font-medium">Reason:</span> {{ ref.reason }}<br />
-                    <span class="font-medium">Notes:</span> {{ ref.notes }}
-                  </div>
-                </div>
-              </li>
-            </ul>
-            <div v-else class="text-gray-400 text-center py-8">
-              <Icon name="material-symbols:medical-services" size="48" class="mx-auto mb-4 text-gray-300" />
-              <p>No doctor referrals found.</p>
-              <rs-button 
-                variant="primary" 
-                class="mt-4"
-                @click="$router.push(`/patientProfile/referrals?patientId=${patientId}`)"
-              >
-                <Icon name="material-symbols:add" class="mr-1" />
-                Add First Referral
-              </rs-button>
-            </div>
-          </div>
-        </div>
 
-        <!-- Diary Report -->
-        <div v-else-if="activeTab === 'Diary Report'">
-          <div class="bg-white rounded-xl shadow p-6">
-            <div class="flex justify-between items-center mb-4">
-              <h2 class="text-xl font-semibold bg-purple-50 text-purple-800 border-b border-purple-200 p-2 rounded-lg">Diary Report</h2>
-              <rs-button 
-                variant="primary" 
-                size="sm"
-                @click="generateDiaryReport"
-                :disabled="isGeneratingReport"
-              >
-                <Icon name="material-symbols:download" class="mr-1" />
-                {{ isGeneratingReport ? 'Generating...' : 'Generate Report' }}
-              </rs-button>
+            <!-- Loading State -->
+            <div v-if="isLoading" class="flex justify-center items-center py-12">
+              <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+              <span class="ml-3 text-gray-600">Loading referrals...</span>
             </div>
-            
-            <div v-if="diaryReportData" class="space-y-6">
-              <!-- Patient Summary -->
-              <div class="bg-gray-50 p-4 rounded-lg">
-                <h3 class="text-lg font-semibold text-gray-800 mb-3">Patient Summary</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <span class="font-medium text-gray-600">Name:</span>
-                    <span class="ml-2">{{ diaryReportData.patient?.fullname || 'N/A' }}</span>
-                  </div>
-                  <div>
-                    <span class="font-medium text-gray-600">IC Number:</span>
-                    <span class="ml-2">{{ diaryReportData.patient?.patient_ic || 'N/A' }}</span>
-                  </div>
-                  <div>
-                    <span class="font-medium text-gray-600">Age:</span>
-                    <span class="ml-2">{{ calculateAge(diaryReportData.patient?.dob) }}</span>
-                  </div>
-                  <div>
-                    <span class="font-medium text-gray-600">Autism Diagnosis:</span>
-                    <span class="ml-2">{{ diaryReportData.patient?.autism_diagnose || 'N/A' }}</span>
-                  </div>
+
+            <!-- Error State -->
+            <div v-else-if="error" class="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+              <Icon name="material-symbols:error-outline" size="48" class="text-red-400 mx-auto mb-4" />
+              <h3 class="text-lg font-medium text-red-800 mb-2">Error Loading Referrals</h3>
+              <p class="text-red-600">{{ error }}</p>
+            </div>
+
+            <!-- Referrals Table -->
+            <div v-else>
+              <div v-if="doctorReferrals.length === 0" class="text-center py-12">
+                <Icon name="material-symbols:medical-services" size="64" class="mx-auto mb-4 text-gray-300" />
+                <h3 class="text-lg font-medium text-gray-600 mb-2">No Referrals Found</h3>
+                <p class="text-gray-500">Start by adding a new doctor referral for this patient.</p>
+              </div>
+              <div v-else>
+                <div class="overflow-x-auto">
+                  <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                      <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hospital</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recipient</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                      <tr v-for="referral in doctorReferrals" :key="referral.id" class="hover:bg-purple-50">
+                        <td class="px-6 py-4 text-sm text-gray-900">{{ referral.hospital }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">{{ referral.recipient || referral.doctorName }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">{{ formatDateOnly(referral.date) }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">
+                          <div class="flex space-x-2">
+                            <rs-button variant="outline" size="sm" @click="openReferralModal(referral)">
+                              <Icon name="material-symbols:visibility" size="16" />
+                            </rs-button>
+                            <rs-button variant="outline" size="sm" @click="editReferral(referral)">
+                              <Icon name="material-symbols:edit" size="16" />
+                            </rs-button>
+                            <rs-button variant="outline" size="sm" @click="deleteReferral(referral.id)">
+                              <Icon name="material-symbols:delete" size="16" class="text-red-500" />
+                            </rs-button>
+                            <rs-button variant="outline" size="sm" @click="downloadReferralLetter(referral)">
+                              <Icon name="material-symbols:download" size="16" />
+                            </rs-button>
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
+            </div>
 
-              <!-- Parent Information -->
-              <div class="bg-gray-50 p-4 rounded-lg">
-                <h3 class="text-lg font-semibold text-gray-800 mb-3">Parent Information</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <span class="font-medium text-gray-600">Parent Name:</span>
-                    <span class="ml-2">{{ diaryReportData.parent?.fullName || 'N/A' }}</span>
-                  </div>
-                  <div>
-                    <span class="font-medium text-gray-600">Email:</span>
-                    <span class="ml-2">{{ diaryReportData.parent?.email || 'N/A' }}</span>
-                  </div>
-                  <div>
-                    <span class="font-medium text-gray-600">Phone:</span>
-                    <span class="ml-2">{{ diaryReportData.parent?.phone || 'N/A' }}</span>
-                  </div>
-                  <div>
-                    <span class="font-medium text-gray-600">Relationship:</span>
-                    <span class="ml-2">{{ diaryReportData.parent?.relationship || 'N/A' }}</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Questionnaire Responses Summary -->
-              <div class="bg-gray-50 p-4 rounded-lg">
-                <h3 class="text-lg font-semibold text-gray-800 mb-3">Questionnaire Responses Summary</h3>
-                <div v-if="diaryReportData.responses && diaryReportData.responses.length > 0" class="space-y-3">
-                  <div v-for="response in diaryReportData.responses" :key="response.id" class="border-l-4 border-blue-500 pl-4">
-                    <div class="flex justify-between items-start">
+            <!-- Referral Details Modal -->
+            <rs-modal v-model="showReferralModal" title="Referral Details" size="lg">
+              <div v-if="selectedReferral">
+                <div class="mb-4">
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <span class="text-sm font-medium text-gray-500">Hospital:</span>
+                      <p class="text-gray-900">{{ selectedReferral.hospital }}</p>
+                    </div>
+                    <div>
+                      <span class="text-sm font-medium text-gray-500">Referral Date:</span>
+                      <p class="text-gray-900">{{ formatDateOnly(selectedReferral.date) }}</p>
+                    </div>
+                    <div>
+                      <span class="text-sm font-medium text-gray-500">Recipient:</span>
+                      <p class="text-gray-900">{{ selectedReferral.recipient || selectedReferral.doctorName }}</p>
+                    </div>
+                    <div>
+                      <span class="text-sm font-medium text-gray-500">Diagnosis:</span>
                       <div>
-                        <h4 class="font-medium text-gray-800">{{ response.questionnaires?.title || 'Unknown Questionnaire' }}</h4>
-                        <p class="text-sm text-gray-600">Completed on: {{ formatDateOnly(response.created_at) }}</p>
-                        <p class="text-sm text-gray-600">Total Score: {{ response.total_score || 'N/A' }}</p>
+                        <span
+                          v-for="(diag, idx) in (Array.isArray(selectedReferral.diagnosis) ? selectedReferral.diagnosis : [])"
+                          :key="idx"
+                          class="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded mr-1 mb-1 text-xs"
+                        >{{ diag }}</span>
                       </div>
-                      <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                        {{ response.questionnaires?.type || 'Assessment' }}
-                      </span>
+                    </div>
+                    <div>
+                      <span class="text-sm font-medium text-gray-500">Reason for Referral:</span>
+                      <p class="text-gray-900">{{ selectedReferral.reason }}</p>
+                    </div>
+                    <div>
+                      <span class="text-sm font-medium text-gray-500">History:</span>
+                      <ul class="text-gray-900 text-sm list-disc ml-4">
+                        <li><strong>Presenting Concerns:</strong> {{ (selectedReferral.history || {}).presentingConcerns || 'NA' }}</li>
+                        <li><strong>Developmental Milestone:</strong> {{ (selectedReferral.history || {}).developmentalMilestone || 'NA' }}</li>
+                        <li><strong>Behavioral Concerns:</strong> {{ (selectedReferral.history || {}).behavioralConcerns || 'NA' }}</li>
+                        <li><strong>Medical History:</strong> {{ (selectedReferral.history || {}).medicalHistory || 'NA' }}</li>
+                        <li><strong>Medication/Allergies:</strong> {{ (selectedReferral.history || {}).medicationAllergies || 'NA' }}</li>
+                        <li><strong>Family/Social Background:</strong> {{ (selectedReferral.history || {}).familySocialBackground || 'NA' }}</li>
+                        <li><strong>Other Relevant History:</strong> {{ (selectedReferral.history || {}).otherHistory || 'NA' }}</li>
+                      </ul>
+                    </div>
+                    <div>
+                      <span class="text-sm font-medium text-gray-500">Physical Examination:</span>
+                      <p class="text-gray-900">{{ selectedReferral.physicalExamination || 'NA' }}</p>
+                    </div>
+                    <div>
+                      <span class="text-sm font-medium text-gray-500">General Appearance:</span>
+                      <p class="text-gray-900">{{ selectedReferral.generalAppearance || 'NA' }}</p>
+                    </div>
+                    <div>
+                      <span class="text-sm font-medium text-gray-500">Systemic Examination:</span>
+                      <div>
+                        <span
+                          v-for="(sys, idx) in (Array.isArray(selectedReferral.systemicExamination) ? selectedReferral.systemicExamination : [])"
+                          :key="idx"
+                          class="inline-block bg-purple-100 text-purple-800 px-2 py-1 rounded mr-1 mb-1 text-xs"
+                        >{{ sys }}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <span class="text-sm font-medium text-gray-500">Current Medications:</span>
+                      <span class="text-gray-900">{{ selectedReferral.currentMedications }}</span>
+                      <div v-if="selectedReferral.currentMedications === 'Yes'">
+                        <span class="text-sm font-medium text-gray-500">Details:</span>
+                        <p class="text-gray-900">{{ selectedReferral.medicationDetails }}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div v-else class="text-gray-500 text-center py-4">
-                  <Icon name="material-symbols:quiz" size="32" class="mx-auto mb-2 text-gray-300" />
-                  <p>No questionnaire responses available for this patient.</p>
-                </div>
-              </div>
-
-              <!-- Report Generation Info -->
-              <div class="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
-                <h3 class="text-lg font-semibold text-blue-800 mb-2">Report Information</h3>
-                <div class="text-sm text-blue-700">
-                  <p><span class="font-medium">Generated:</span> {{ formatDateOnly(diaryReportData.generatedAt) }}</p>
-                  <p><span class="font-medium">Patient ID:</span> {{ patientId }}</p>
-                  <p class="mt-2 text-xs">This report contains a comprehensive summary of the patient's assessment history and progress tracking.</p>
+                  <div v-if="selectedReferral.notes">
+                    <span class="text-sm font-medium text-gray-500">Notes:</span>
+                    <p class="text-gray-700 mt-1 bg-gray-50 p-3 rounded">{{ selectedReferral.notes }}</p>
+                  </div>
+                  <div v-if="deleteError" class="bg-red-100 text-red-700 p-2 rounded mb-2">{{ deleteError }}</div>
                 </div>
               </div>
-            </div>
-            
-            <div v-else class="text-gray-400 text-center py-8">
-              <Icon name="material-symbols:description" size="48" class="mx-auto mb-4 text-gray-300" />
-              <p>No diary report data available.</p>
-              <p class="text-sm mt-2">Click "Generate Report" to create a comprehensive patient diary report.</p>
-            </div>
+            </rs-modal>
           </div>
         </div>
       </div>

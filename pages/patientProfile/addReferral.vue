@@ -1,10 +1,15 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useToast } from 'vue-toastification';
 
+const toast = useToast();
 const router = useRouter();
 const route = useRoute();
 const patientId = computed(() => route.query.patientId || route.params.id);
+const referralId = computed(() => route.query.referralId);
+const isEdit = computed(() => !!referralId.value);
+const fetchLoading = ref(false);
 
 const isLoading = ref(false);
 const error = ref(null);
@@ -71,6 +76,55 @@ const referralForm = ref({
 });
 const diagnosisInput = ref('');
 
+onMounted(async () => {
+  if (isEdit.value) {
+    fetchLoading.value = true;
+    try {
+      const res = await fetch(`/api/patientProfile/referrals?id=${referralId.value}`);
+      const result = await res.json();
+      if (result.statusCode === 200 && result.data) {
+        // Pre-fill the form
+        const r = result.data;
+        referralForm.value = {
+          recipient: recipientOptions.includes(r.recipient) ? r.recipient : 'Other',
+          customRecipient: recipientOptions.includes(r.recipient) ? '' : r.recipient,
+          hospital: r.hospital,
+          date: r.date,
+          diagnosis: Array.isArray(r.diagnosis) ? r.diagnosis : [],
+          reason: reasonOptions.includes(r.reason) ? r.reason : 'Others',
+          customReason: reasonOptions.includes(r.reason) ? '' : r.reason,
+          notes: r.notes,
+          history: r.history || {
+            presentingConcerns: '',
+            developmentalMilestone: '',
+            behavioralConcerns: '',
+            medicalHistory: '',
+            medicationAllergies: '',
+            familySocialBackground: '',
+            otherHistory: ''
+          },
+          physicalExamination: r.physicalExamination || '',
+          generalAppearance: r.generalAppearance || '',
+          systemicExamination: Array.isArray(r.systemicExamination)
+            ? r.systemicExamination.map(opt => systemicOptions.includes(opt) ? opt : 'Other')
+            : [],
+          customSystemic: Array.isArray(r.systemicExamination)
+            ? r.systemicExamination.find(opt => !systemicOptions.includes(opt)) || ''
+            : '',
+          currentMedications: r.currentMedications || 'No',
+          medicationDetails: r.medicationDetails || ''
+        };
+      } else {
+        error.value = result.message || 'Failed to load referral.';
+      }
+    } catch (err) {
+      error.value = err?.message || 'Failed to load referral.';
+    } finally {
+      fetchLoading.value = false;
+    }
+  }
+});
+
 function addDiagnosis() {
   const val = diagnosisInput.value.trim();
   if (val && !referralForm.value.diagnosis.includes(val)) {
@@ -96,30 +150,66 @@ async function saveReferral() {
       opt === 'Other' ? referralForm.value.customSystemic : opt
     );
 
-    const response = await fetch('/api/patientProfile/referrals', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        patientId: parseInt(patientId.value),
-        recipient: recipientValue,
-        hospital: referralForm.value.hospital,
-        date: referralForm.value.date,
-        diagnosis: referralForm.value.diagnosis,
-        reason: reasonValue,
-        notes: referralForm.value.notes,
-        history: referralForm.value.history,
-        physicalExamination: referralForm.value.physicalExamination,
-        generalAppearance: referralForm.value.generalAppearance,
-        systemicExamination: systemicValue,
-        currentMedications: referralForm.value.currentMedications,
-        medicationDetails: referralForm.value.currentMedications === 'Yes' ? referralForm.value.medicationDetails : ''
-      })
-    });
-    const result = await response.json();
-    if (result.statusCode === 201) {
-      router.push({ path: '/patientProfile/referrals', query: { patientId: patientId.value } });
+    let response, result;
+    if (isEdit.value) {
+      response = await fetch(`/api/patientProfile/referrals?id=${referralId.value}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: referralId.value,
+          patientId: parseInt(patientId.value),
+          recipient: recipientValue,
+          hospital: referralForm.value.hospital,
+          date: referralForm.value.date,
+          diagnosis: referralForm.value.diagnosis,
+          reason: reasonValue,
+          notes: referralForm.value.notes,
+          history: referralForm.value.history,
+          physicalExamination: referralForm.value.physicalExamination,
+          generalAppearance: referralForm.value.generalAppearance,
+          systemicExamination: systemicValue,
+          currentMedications: referralForm.value.currentMedications,
+          medicationDetails: referralForm.value.currentMedications === 'Yes' ? referralForm.value.medicationDetails : ''
+        })
+      });
+      result = await response.json();
+      if (result.statusCode === 200) {
+        toast.success('Patient profile updated successfully');
+        setTimeout(() => {
+          router.push({ path: '/patientProfile', query: { tab: 'doctor-referrals', patientId: patientId.value } });
+        }, 1500);
+      } else {
+        error.value = result.message || 'Failed to update referral';
+      }
     } else {
-      error.value = result.message || 'Failed to save referral';
+      response = await fetch('/api/patientProfile/referrals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patientId: parseInt(patientId.value),
+          recipient: recipientValue,
+          hospital: referralForm.value.hospital,
+          date: referralForm.value.date,
+          diagnosis: referralForm.value.diagnosis,
+          reason: reasonValue,
+          notes: referralForm.value.notes,
+          history: referralForm.value.history,
+          physicalExamination: referralForm.value.physicalExamination,
+          generalAppearance: referralForm.value.generalAppearance,
+          systemicExamination: systemicValue,
+          currentMedications: referralForm.value.currentMedications,
+          medicationDetails: referralForm.value.currentMedications === 'Yes' ? referralForm.value.medicationDetails : ''
+        })
+      });
+      result = await response.json();
+      if (result.statusCode === 201) {
+        toast.success('Referral added successfully');
+        setTimeout(() => {
+          router.push({ path: '/patientProfile', query: { tab: 'doctor-referrals', patientId: patientId.value } });
+        }, 1500);
+      } else {
+        error.value = result.message || 'Failed to save referral';
+      }
     }
   } catch (err) {
     error.value = err?.message || 'Failed to save referral';
@@ -131,9 +221,13 @@ async function saveReferral() {
 
 <template>
   <div class="p-6 max-w-3xl mx-auto">
-    <h1 class="text-2xl font-bold mb-4">Add Referral</h1>
+    <h1 class="text-2xl font-bold mb-4">{{ isEdit ? 'Edit Referral' : 'Add Referral' }}</h1>
     <div v-if="error" class="bg-red-100 text-red-700 p-3 rounded mb-4">{{ error }}</div>
-    <div class="bg-white rounded-lg shadow p-6">
+    <div v-if="fetchLoading" class="flex justify-center items-center py-12">
+      <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      <span class="ml-3 text-gray-600">Loading referral...</span>
+    </div>
+    <div v-else class="bg-white rounded-lg shadow p-6">
       <form @submit.prevent="saveReferral" class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Recipient *</label>
@@ -177,15 +271,22 @@ async function saveReferral() {
           </div>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">History</label>
+          <label class="block text-sm font-medium text-gray-700 mb-3">History</label>
           <div class="space-y-2">
-            <input v-model="referralForm.history.presentingConcerns" type="textarea" class="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="Presenting Concerns (or NA)" />
-            <input v-model="referralForm.history.developmentalMilestone" type="textarea" class="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="Developmental Milestone (or NA)" />
-            <input v-model="referralForm.history.behavioralConcerns" type="textarea" class="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="Behavioral Concerns (or NA)" />
-            <input v-model="referralForm.history.medicalHistory" type="textarea" class="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="Medical History (or NA)" />
-            <input v-model="referralForm.history.medicationAllergies" type="textarea" class="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="Medication/Allergies (or NA)" />
-            <input v-model="referralForm.history.familySocialBackground" type="textarea" class="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="Family/Social Background (or NA)" />
-            <input v-model="referralForm.history.otherHistory" type="textarea" class="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="Other Relevant History (or NA)" />
+            <label class="block text-sm font-medium text-gray-400 mb-1">Presenting Concerns (or NA)</label>
+            <input v-model="referralForm.history.presentingConcerns" type="textarea" class="w-full px-3 py-2 border border-gray-300 rounded-md" />
+            <label class="block text-sm font-medium text-gray-400 mb-1">Developmental Milestone (or NA)</label>
+            <input v-model="referralForm.history.developmentalMilestone" type="textarea" class="w-full px-3 py-2 border border-gray-300 rounded-md" />
+            <label class="block text-sm font-medium text-gray-400 mb-1">Behavioral Concerns (or NA)</label>
+            <input v-model="referralForm.history.behavioralConcerns" type="textarea" class="w-full px-3 py-2 border border-gray-300 rounded-md" />
+            <label class="block text-sm font-medium text-gray-400 mb-1">Medical History (or NA)</label>
+            <input v-model="referralForm.history.medicalHistory" type="textarea" class="w-full px-3 py-2 border border-gray-300 rounded-md" />
+            <label class="block text-sm font-medium text-gray-400 mb-1">Medication/Allergies (or NA)</label>
+            <input v-model="referralForm.history.medicationAllergies" type="textarea" class="w-full px-3 py-2 border border-gray-300 rounded-md" />
+            <label class="block text-sm font-medium text-gray-400 mb-1">Family/Social Background (or NA) </label>
+            <input v-model="referralForm.history.familySocialBackground" type="textarea" class="w-full px-3 py-2 border border-gray-300 rounded-md" />
+            <label class="block text-sm font-medium text-gray-400 mb-1">Other Relevant History (or NA)</label>
+            <input v-model="referralForm.history.otherHistory" type="textarea" class="w-full px-3 py-2 border border-gray-300 rounded-md" />
           </div>
         </div>
         <div>
@@ -225,7 +326,7 @@ async function saveReferral() {
         <div class="flex justify-end gap-2">
           <button type="button" class="px-4 py-2 bg-gray-200 rounded" @click="router.back()">Cancel</button>
           <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded" :disabled="isLoading">
-            {{ isLoading ? 'Saving...' : 'Save Referral' }}
+            {{ isLoading ? 'Saving...' : (isEdit ? 'Save Changes' : 'Save Referral') }}
           </button>
         </div>
       </form>
