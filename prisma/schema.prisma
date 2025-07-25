@@ -445,6 +445,7 @@ model referrals {
   referrals_recepient            String?        @db.Text
   hospital                       String?        @db.Text
   referrals_date                 DateTime?      @db.Date
+  diagnosis                      String?        @db.VarChar(500)
   refferrals_reason              String?        @db.Text
   history_presentingConcerns     String?        @db.Text
   history_developmentalMilestone String?        @db.Text

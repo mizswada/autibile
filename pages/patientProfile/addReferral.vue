@@ -1,7 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useToast } from 'vue-toastification';
 
+const toast = useToast();
 const router = useRouter();
 const route = useRoute();
 const patientId = computed(() => route.query.patientId || route.params.id);
@@ -154,6 +156,7 @@ async function saveReferral() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          id: referralId.value,
           patientId: parseInt(patientId.value),
           recipient: recipientValue,
           hospital: referralForm.value.hospital,
@@ -171,7 +174,10 @@ async function saveReferral() {
       });
       result = await response.json();
       if (result.statusCode === 200) {
-        router.push({ path: '/patientProfile', query: { patientId: patientId.value } });
+        toast.success('Patient profile updated successfully');
+        setTimeout(() => {
+          router.push({ path: '/patientProfile', query: { tab: 'doctor-referrals', patientId: patientId.value } });
+        }, 1500);
       } else {
         error.value = result.message || 'Failed to update referral';
       }
@@ -197,7 +203,10 @@ async function saveReferral() {
       });
       result = await response.json();
       if (result.statusCode === 201) {
-        router.push({ path: '/patientProfile', query: { patientId: patientId.value } });
+        toast.success('Referral added successfully');
+        setTimeout(() => {
+          router.push({ path: '/patientProfile', query: { tab: 'doctor-referrals', patientId: patientId.value } });
+        }, 1500);
       } else {
         error.value = result.message || 'Failed to save referral';
       }

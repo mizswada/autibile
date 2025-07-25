@@ -1,6 +1,8 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useToast } from 'vue-toastification';
+import { jsPDF } from 'jspdf';
 
 const route = useRoute();
 const patientId = computed(() => route.query.patientId || route.params.id);
@@ -38,14 +40,45 @@ const tabs = [
 ];
 
 const router = useRouter();
+const toast = useToast();
 
+const tabMap = {
+  'Patient Details': 'patient-details',
+  'Parent Details': 'parent-details',
+  'Appointments': 'appointments',
+  'Questionnaires': 'questionnaires',
+  'Doctor Referrals': 'doctor-referrals'
+};
+const reverseTabMap = Object.fromEntries(Object.entries(tabMap).map(([k, v]) => [v, k]));
+
+// Set activeTab from query param on mount
 onMounted(async () => {
+  if (route.query.tab && reverseTabMap[route.query.tab]) {
+    activeTab.value = reverseTabMap[route.query.tab];
+  }
   if (!patientId.value) {
     error.value = 'No patient ID provided';
     isLoading.value = false;
     return;
   }
   await loadAllData();
+});
+
+// Watch for changes in the route query
+watch(() => route.query.tab, (newTab) => {
+  if (newTab && reverseTabMap[newTab]) {
+    activeTab.value = reverseTabMap[newTab];
+  }
+});
+
+// When tab changes, update the route query
+watch(activeTab, (newTab) => {
+  const tabQuery = tabMap[newTab];
+  if (tabQuery && route.query.tab !== tabQuery) {
+    router.replace({
+      query: { ...route.query, tab: tabQuery }
+    });
+  }
 });
 
 async function loadAllData() {
@@ -244,11 +277,14 @@ async function deleteReferral(referralId) {
       if (selectedReferral.value && selectedReferral.value.id === referralId) {
         closeReferralModal();
       }
+      toast.success('Referral deleted successfully');
     } else {
       deleteError.value = result.message || 'Failed to delete referral.';
+      toast.error(deleteError.value);
     }
   } catch (err) {
     deleteError.value = err?.message || 'Failed to delete referral.';
+    toast.error(deleteError.value);
   } finally {
     deleteLoading.value = false;
   }
@@ -256,6 +292,75 @@ async function deleteReferral(referralId) {
 function downloadReferralPdf(referral) {
   // Implement PDF download logic or call existing function
   alert('Download PDF for referral ' + referral.id);
+}
+
+async function downloadReferralLetter(referral) {
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  const pageWidth = pdf.internal.pageSize.getWidth();
+
+  // Header
+  pdf.setFontSize(16);
+  pdf.setFont(undefined, 'bold');
+  pdf.text('Doctor Referral Letter', pageWidth / 2, 20, { align: 'center' });
+
+  pdf.setFontSize(10);
+  pdf.setFont(undefined, 'normal');
+  pdf.text(`Date: ${referral.date || new Date().toLocaleDateString()}`, pageWidth - 20, 30, { align: 'right' });
+
+  // Recipient and Hospital
+  pdf.setFontSize(12);
+  pdf.text(`To: ${referral.recipient}`, 20, 40);
+  pdf.text(`Hospital/Clinic: ${referral.hospital}`, 20, 48);
+
+  // Patient Info (customize as needed)
+  pdf.setFontSize(11);
+  let y = 60;
+  pdf.text('Subject: Referral for Patient', 20, y);
+  y += 10;
+
+  // Body
+  pdf.setFontSize(11);
+  pdf.text('Dear Sir/Madam,', 20, y);
+  y += 10;
+  pdf.text('I am referring the following patient for your expert assessment and management.', 20, y);
+  y += 10;
+
+  // Diagnosis
+  if (referral.diagnosis && referral.diagnosis.length) {
+    pdf.text('Diagnosis:', 20, y);
+    y += 7;
+    referral.diagnosis.forEach((diag, idx) => {
+      pdf.text(`- ${diag}`, 25, y);
+      y += 6;
+    });
+  }
+
+  // Reason
+  if (referral.reason) {
+    pdf.text('Reason for Referral:', 20, y);
+    y += 7;
+    pdf.text(referral.reason, 25, y);
+    y += 10;
+  }
+
+  // Notes/History
+  if (referral.notes) {
+    pdf.text('Notes:', 20, y);
+    y += 7;
+    pdf.text(referral.notes, 25, y);
+    y += 10;
+  }
+
+  // Closing
+  pdf.text('Thank you for your attention.', 20, y);
+  y += 10;
+  pdf.text('Sincerely,', 20, y);
+  y += 7;
+  pdf.text('_________________________', 20, y + 10);
+
+  // Save the PDF
+  const filename = `Referral_Letter_${referral.recipient.replace(/\s+/g, '_')}_${referral.date || ''}.pdf`;
+  pdf.save(filename);
 }
 </script>
 
@@ -604,14 +709,6 @@ function downloadReferralPdf(referral) {
                 <Icon name="material-symbols:medical-services" size="64" class="mx-auto mb-4 text-gray-300" />
                 <h3 class="text-lg font-medium text-gray-600 mb-2">No Referrals Found</h3>
                 <p class="text-gray-500">Start by adding a new doctor referral for this patient.</p>
-                <rs-button 
-                  variant="primary" 
-                  class="mt-4"
-                  @click="$router.push(`/patientProfile/addReferral?patientId=${patientId}`)"
-                >
-                  <Icon name="material-symbols:add" class="mr-1" />
-                  Add First Referral
-                </rs-button>
               </div>
               <div v-else>
                 <div class="overflow-x-auto">
@@ -639,6 +736,9 @@ function downloadReferralPdf(referral) {
                             </rs-button>
                             <rs-button variant="outline" size="sm" @click="deleteReferral(referral.id)">
                               <Icon name="material-symbols:delete" size="16" class="text-red-500" />
+                            </rs-button>
+                            <rs-button variant="outline" size="sm" @click="downloadReferralLetter(referral)">
+                              <Icon name="material-symbols:download" size="16" />
                             </rs-button>
                           </div>
                         </td>
@@ -724,19 +824,6 @@ function downloadReferralPdf(referral) {
                     <p class="text-gray-700 mt-1 bg-gray-50 p-3 rounded">{{ selectedReferral.notes }}</p>
                   </div>
                   <div v-if="deleteError" class="bg-red-100 text-red-700 p-2 rounded mb-2">{{ deleteError }}</div>
-                </div>
-                <div class="flex justify-end space-x-2 mt-4">
-                  <rs-button variant="primary" @click="editReferral(selectedReferral)">
-                    <Icon name="material-symbols:edit" class="mr-1" /> Edit
-                  </rs-button>
-                  <rs-button variant="danger" :disabled="deleteLoading" @click="deleteReferral(selectedReferral.id)">
-                    <Icon name="material-symbols:delete" class="mr-1" />
-                    <span v-if="deleteLoading">Deleting...</span>
-                    <span v-else>Delete</span>
-                  </rs-button>
-                  <rs-button variant="outline" @click="closeReferralModal">
-                    Close
-                  </rs-button>
                 </div>
               </div>
             </rs-modal>

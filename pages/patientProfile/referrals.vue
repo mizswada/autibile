@@ -158,34 +158,56 @@ async function saveReferral() {
       opt === 'Other' ? referralForm.value.customSystemic : opt
     );
 
-    const response = await fetch('/api/patientProfile/referrals', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        patientId: parseInt(patientId.value),
-        recipient: recipientValue,
-        hospital: referralForm.value.hospital,
-        date: referralForm.value.date,
-        diagnosis: referralForm.value.diagnosis,
-        reason: reasonValue,
-        notes: referralForm.value.notes,
-        history: referralForm.value.history,
-        physicalExamination: referralForm.value.physicalExamination,
-        generalAppearance: referralForm.value.generalAppearance,
-        systemicExamination: systemicValue,
-        currentMedications: referralForm.value.currentMedications,
-        medicationDetails: referralForm.value.currentMedications === 'Yes' ? referralForm.value.medicationDetails : ''
-      })
-    });
+    // Prepare payload
+    const payload = {
+      id: selectedReferral.value.id,
+      patientId: parseInt(patientId.value),
+      recipient: recipientValue,
+      hospital: referralForm.value.hospital,
+      date: referralForm.value.date,
+      diagnosis: referralForm.value.diagnosis,
+      reason: reasonValue,
+      notes: referralForm.value.notes,
+      history: referralForm.value.history,
+      physicalExamination: referralForm.value.physicalExamination,
+      generalAppearance: referralForm.value.generalAppearance,
+      systemicExamination: systemicValue,
+      currentMedications: referralForm.value.currentMedications,
+      medicationDetails: referralForm.value.currentMedications === 'Yes' ? referralForm.value.medicationDetails : ''
+    };
 
-    const result = await response.json();
-    if (result.statusCode === 201) {
-      referrals.value.unshift(result.data);
-      closeAddModal();
+    let response, result;
+    if (selectedReferral.value && selectedReferral.value.id) {
+      // Edit mode: PUT
+      payload.id = selectedReferral.value.id;
+      response = await fetch('/api/patientProfile/referrals', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      result = await response.json();
+      if (result.statusCode === 200) {
+        // Update the referral in the list
+        const idx = referrals.value.findIndex(r => r.id === payload.id);
+        if (idx !== -1) referrals.value[idx] = result.data;
+        closeAddModal();
+      } else {
+        console.error('Error updating referral:', result.message);
+      }
     } else {
-      console.error('Error saving referral:', result.message);
+      // Create mode: POST
+      response = await fetch('/api/patientProfile/referrals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      result = await response.json();
+      if (result.statusCode === 201) {
+        referrals.value.unshift(result.data);
+        closeAddModal();
+      } else {
+        console.error('Error saving referral:', result.message);
+      }
     }
   } catch (err) {
     console.error('Error saving referral:', err);
