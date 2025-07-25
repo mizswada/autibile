@@ -6,6 +6,18 @@ export default defineEventHandler(async (event) => {
     const query = getQuery(event);
     const patientId = query.patientId;
 
+    // If id is present, fetch a single referral
+    if (query.id) {
+      const referral = await prisma.referrals.findUnique({
+        where: { id: parseInt(query.id) }
+      });
+      if (referral) {
+        return { statusCode: 200, data: referral };
+      } else {
+        return { statusCode: 404, message: 'Referral not found' };
+      }
+    }
+
     if (!patientId) {
       throw createError({
         statusCode: 400,
