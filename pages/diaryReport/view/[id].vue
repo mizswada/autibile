@@ -13,6 +13,8 @@ const messageType = ref('success');
 const patientDetails = ref(null);
 const selectedPatient = ref(null);
 const reportRef = ref(null);
+const diaryEntries = ref([]);
+const expandedDates = ref(new Set());
 
 // Show message helper
 function showMessage(msg, type = 'success') {
@@ -118,6 +120,9 @@ async function loadPatientDetails() {
     } else {
       console.log('No questionnaire scores found for patient ID:', patientId);
     }
+    
+    // Fetch diary entries
+    await fetchDiaryEntries();
   } catch (error) {
     console.error('Error fetching patient details:', error);
     showMessage('Error loading patient details', 'error');
@@ -214,41 +219,57 @@ async function generateReport() {
     }
     
     // Helper function to add a field with label and value
-    function addField(label, value, y) {
-      pdf.text(`${label}: ${value || 'N/A'}`, 14, y);
+    function addField(label, value, y, x = 14) {
+      pdf.text(`${label}: ${value || 'N/A'}`, x, y);
       return y + lineHeight;
     }
     
-    // Patient Information Section
-    yPosition = addSectionTitle('Patient Information', yPosition);
+    // Patient and Parent Information Section (Side by Side)
+    yPosition = addSectionTitle('Patient & Parent Information', yPosition);
     yPosition += 2;
-    yPosition = addField('Full Name', selectedPatient.value.fullname || 'N/A', yPosition);
-    yPosition = addField('Nickname', selectedPatient.value.nickname || 'N/A', yPosition);
-    yPosition = addField('IC Number', selectedPatient.value.patient_ic || 'N/A', yPosition);
-    yPosition = addField('Gender', selectedPatient.value.gender || 'N/A', yPosition);
-    yPosition = addField('Date of Birth', formatDate(selectedPatient.value.dob), yPosition);
-    yPosition = addField('Age', calculateAge(selectedPatient.value.dob), yPosition);
-    yPosition = addField('Autism Diagnosis', selectedPatient.value.autism_diagnose || 'Not diagnosed', yPosition);
-    yPosition = addField('Diagnosed Date', formatDate(selectedPatient.value.diagnosed_on), yPosition);
-    yPosition = addField('Status', selectedPatient.value.status || 'N/A', yPosition);
     
-    // Add spacing between sections
-    yPosition += sectionSpacing;
+    // Create two columns
+    const leftColumnX = 14;
+    const rightColumnX = pageWidth / 2 + 7;
+    const columnWidth = (pageWidth - 28) / 2;
     
-    // Parent Information Section
-    yPosition = addSectionTitle('Parent Information', yPosition);
-    yPosition += 2;
-    yPosition = addField('Full Name', patientDetails.value.parent?.fullName || 'N/A', yPosition);
+    // Patient Information (Left Column)
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Patient Information:', leftColumnX, yPosition);
+    pdf.setFont(undefined, 'normal');
+    yPosition += lineHeight;
+    
+    yPosition = addField('Full Name', selectedPatient.value.fullname || 'N/A', yPosition, leftColumnX);
+    yPosition = addField('Nickname', selectedPatient.value.nickname || 'N/A', yPosition, leftColumnX);
+    yPosition = addField('IC Number', selectedPatient.value.patient_ic || 'N/A', yPosition, leftColumnX);
+    yPosition = addField('Gender', selectedPatient.value.gender || 'N/A', yPosition, leftColumnX);
+    yPosition = addField('Date of Birth', formatDate(selectedPatient.value.dob), yPosition, leftColumnX);
+    yPosition = addField('Age', calculateAge(selectedPatient.value.dob), yPosition, leftColumnX);
+    yPosition = addField('Autism Diagnosis', selectedPatient.value.autism_diagnose || 'Not diagnosed', yPosition, leftColumnX);
+    yPosition = addField('Diagnosed Date', formatDate(selectedPatient.value.diagnosed_on), yPosition, leftColumnX);
+    yPosition = addField('Status', selectedPatient.value.status || 'N/A', yPosition, leftColumnX);
+    
+    // Parent Information (Right Column)
+    const parentY = yPosition - (9 * lineHeight); // Reset to same starting position as patient info
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Parent Information:', rightColumnX, parentY);
+    pdf.setFont(undefined, 'normal');
+    let parentCurrentY = parentY + lineHeight;
+    
+    parentCurrentY = addField('Full Name', patientDetails.value.parent?.fullName || 'N/A', parentCurrentY, rightColumnX);
     if (patientDetails.value.parent) {
-      yPosition = addField('Email', patientDetails.value.parent.email || 'N/A', yPosition);
-      yPosition = addField('Phone', patientDetails.value.parent.phone || 'N/A', yPosition);
-      yPosition = addField('Relationship', patientDetails.value.parent.relationshipName || 'N/A', yPosition);
-      yPosition = addField('Address', patientDetails.value.parent.addressLine1 || 'N/A', yPosition);
-      yPosition = addField('City', patientDetails.value.parent.city || 'N/A', yPosition);
-      yPosition = addField('Postal Code', patientDetails.value.parent.postcode || 'N/A', yPosition);
+      parentCurrentY = addField('Email', patientDetails.value.parent.email || 'N/A', parentCurrentY, rightColumnX);
+      parentCurrentY = addField('Phone', patientDetails.value.parent.phone || 'N/A', parentCurrentY, rightColumnX);
+      parentCurrentY = addField('Relationship', patientDetails.value.parent.relationshipName || 'N/A', parentCurrentY, rightColumnX);
+      parentCurrentY = addField('Address', patientDetails.value.parent.addressLine1 || 'N/A', parentCurrentY, rightColumnX);
+      parentCurrentY = addField('City', patientDetails.value.parent.city || 'N/A', parentCurrentY, rightColumnX);
+      parentCurrentY = addField('Postal Code', patientDetails.value.parent.postcode || 'N/A', parentCurrentY, rightColumnX);
     }
     
-    // Check if we need a new page for scores
+    // Use the higher Y position to continue
+    yPosition = Math.max(yPosition, parentCurrentY);
+    
+    // Check if we need a new page for diary entries
     if (yPosition > pageHeight - 60) {
       pdf.addPage();
       yPosition = 20;
@@ -256,22 +277,35 @@ async function generateReport() {
       yPosition += sectionSpacing;
     }
     
-    // Assessment Scores Section
-    yPosition = addSectionTitle('Assessment Scores', yPosition);
+    // Diary Entries Section
+    yPosition = addSectionTitle('Diary Entries', yPosition);
     yPosition += 2;
     
-    if (patientDetails.value.scores && patientDetails.value.scores.length > 0) {
+    if (diaryEntries.value && diaryEntries.value.length > 0) {
+      // Check if we need a new page
+      if (yPosition > pageHeight - 60) {
+        pdf.addPage();
+        yPosition = 20;
+      }
+      
       // Table headers
       pdf.setFont(undefined, 'bold');
-      pdf.text('Questionnaire', 14, yPosition);
-      pdf.text('Score', 100, yPosition);
-      pdf.text('Date', 130, yPosition);
-      pdf.text('Status', 170, yPosition);
+      pdf.text('Date', 14, yPosition);
+      pdf.text('Time', 60, yPosition);
+      pdf.text('Description', 100, yPosition);
       pdf.setFont(undefined, 'normal');
       yPosition += lineHeight;
       
-      // Table rows
-      for (const score of patientDetails.value.scores) {
+      // Draw header line below the headers
+      pdf.line(14, yPosition, pageWidth - 14, yPosition);
+      yPosition += 3;
+      
+      // Sort all entries by date (newest first)
+      const allEntries = [...diaryEntries.value].sort((a, b) => 
+        new Date(b.created_at) - new Date(a.created_at)
+      );
+      
+      for (const entry of allEntries) {
         // Check if we need a new page
         if (yPosition > pageHeight - 20) {
           pdf.addPage();
@@ -279,94 +313,35 @@ async function generateReport() {
           
           // Repeat headers on new page
           pdf.setFont(undefined, 'bold');
-          pdf.text('Questionnaire', 14, yPosition);
-          pdf.text('Score', 100, yPosition);
-          pdf.text('Date', 130, yPosition);
-          pdf.text('Status', 170, yPosition);
+          pdf.text('Date', 14, yPosition);
+          pdf.text('Time', 60, yPosition);
+          pdf.text('Description', 100, yPosition);
           pdf.setFont(undefined, 'normal');
           yPosition += lineHeight;
+          pdf.line(14, yPosition, pageWidth - 14, yPosition);
+          yPosition += 3;
         }
         
-        // Truncate long titles
-        const title = (score.questionnaire_title || 'Assessment').substring(0, 30);
-        pdf.text(title, 14, yPosition);
-        pdf.text(score.total_score?.toString() || 'N/A', 100, yPosition);
-        pdf.text(formatDate(score.created_at), 130, yPosition);
-        pdf.text('Completed', 170, yPosition);
-        yPosition += lineHeight;
+        // Format date and time
+        const entryDate = new Date(entry.created_at);
+        const dateStr = entryDate.toLocaleDateString();
+        const timeStr = entryDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
+        // Add table row
+        pdf.text(dateStr, 14, yPosition);
+        pdf.text(timeStr, 60, yPosition);
+        
+        // Handle description with text wrapping
+        const descriptionWidth = pageWidth - 114; // 100 + 14 margin
+        const splitDescription = pdf.splitTextToSize(entry.description, descriptionWidth);
+        pdf.text(splitDescription, 100, yPosition);
+        
+        // Calculate row height based on description length
+        const rowHeight = Math.max(lineHeight, splitDescription.length * lineHeight);
+        yPosition += rowHeight + 2;
       }
     } else {
-      pdf.text('No assessment scores available', 14, yPosition);
-      yPosition += lineHeight;
-    }
-    
-    // Check if we need a new page for indicators
-    if (yPosition > pageHeight - 60) {
-      pdf.addPage();
-      yPosition = 20;
-    } else {
-      yPosition += sectionSpacing;
-    }
-    
-    // Indicators Section
-    yPosition = addSectionTitle('Indicators', yPosition);
-    yPosition += 2;
-    
-    if (patientDetails.value.indicators && patientDetails.value.indicators.length > 0) {
-      for (const indicator of patientDetails.value.indicators) {
-        // Check if we need a new page
-        if (yPosition > pageHeight - 30) {
-          pdf.addPage();
-          yPosition = 20;
-        }
-        
-        pdf.setFont(undefined, 'bold');
-        pdf.text(`${indicator.category} - ${indicator.level}`, 14, yPosition);
-        pdf.setFont(undefined, 'normal');
-        yPosition += lineHeight;
-        
-        // Handle long descriptions with text wrapping
-        const splitText = pdf.splitTextToSize(indicator.description, pageWidth - 28);
-        pdf.text(splitText, 14, yPosition);
-        yPosition += (splitText.length * lineHeight) + subSectionSpacing;
-      }
-    } else {
-      pdf.text('No indicators available', 14, yPosition);
-      yPosition += lineHeight;
-    }
-    
-    // Check if we need a new page for recommendations
-    if (yPosition > pageHeight - 60) {
-      pdf.addPage();
-      yPosition = 20;
-    } else {
-      yPosition += sectionSpacing;
-    }
-    
-    // Recommendations Section
-    yPosition = addSectionTitle('Recommendations', yPosition);
-    yPosition += 2;
-    
-    if (patientDetails.value.recommendations && patientDetails.value.recommendations.length > 0) {
-      for (const recommendation of patientDetails.value.recommendations) {
-        // Check if we need a new page
-        if (yPosition > pageHeight - 30) {
-          pdf.addPage();
-          yPosition = 20;
-        }
-        
-        pdf.setFont(undefined, 'bold');
-        pdf.text(recommendation.category, 14, yPosition);
-        pdf.setFont(undefined, 'normal');
-        yPosition += lineHeight;
-        
-        // Handle long text with text wrapping
-        const splitText = pdf.splitTextToSize(recommendation.text, pageWidth - 28);
-        pdf.text(splitText, 14, yPosition);
-        yPosition += (splitText.length * lineHeight) + subSectionSpacing;
-      }
-    } else {
-      pdf.text('No recommendations available', 14, yPosition);
+      pdf.text('No diary entries available', 14, yPosition);
       yPosition += lineHeight;
     }
     
@@ -389,6 +364,71 @@ async function generateReport() {
   } finally {
     isGeneratingPdf.value = false;
   }
+}
+
+// Fetch diary entries
+async function fetchDiaryEntries() {
+  try {
+    const response = await fetch(`/api/apps/diaryReport/listDiary?patientID=${patientId}`);
+    const result = await response.json();
+    
+    if (result.statusCode === 200) {
+      diaryEntries.value = result.data || [];
+    } else {
+      console.warn('Failed to load diary entries:', result.message);
+    }
+  } catch (error) {
+    console.error('Error fetching diary entries:', error);
+  }
+}
+
+
+
+// Format timestamp for display
+function formatTimestamp(timestamp) {
+  if (!timestamp) return 'N/A';
+  return new Date(timestamp).toLocaleString();
+}
+
+// Group entries by date
+function groupEntriesByDate(entries) {
+  const grouped = {};
+  
+  entries.forEach(entry => {
+    const date = new Date(entry.created_at).toDateString();
+    if (!grouped[date]) {
+      grouped[date] = [];
+    }
+    grouped[date].push(entry);
+  });
+  
+  return grouped;
+}
+
+// Format date for display
+function formatDateForGroup(dateString) {
+  if (!dateString) return 'N/A';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+}
+
+// Toggle date expansion
+function toggleDate(date) {
+  if (expandedDates.value.has(date)) {
+    expandedDates.value.delete(date);
+  } else {
+    expandedDates.value.add(date);
+  }
+}
+
+// Check if date is expanded
+function isDateExpanded(date) {
+  return expandedDates.value.has(date);
 }
 
 // Load data on component mount
@@ -526,13 +566,61 @@ onMounted(loadPatientDetails);
           </div>
         </div>
 
-        <!-- Parent Info Section -->
+        <!-- Diary Entries Section -->
         <div class="border rounded-lg overflow-hidden">
           <div class="bg-purple-50 px-4 py-2 border-b">
-            <h3 class="text-lg font-medium text-purple-800">Diary Report</h3>
+            <h3 class="text-lg font-medium text-purple-800">Diary Entries</h3>
           </div>
-          <div class="bg-white p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-             <p class="text-sm font-medium text-gray-500">No diary report available</p>
+          <div class="bg-white p-4">
+            <!-- Diary Entries List -->
+            <div>
+              <h4 class="text-md font-medium text-gray-700 mb-3">Diary Entries</h4>
+              <div v-if="diaryEntries.length === 0" class="text-center py-8 text-gray-500">
+                <Icon name="material-symbols:description" size="48" class="mx-auto mb-2 text-gray-300" />
+                <p>No diary entries available for this patient.</p>
+              </div>
+              <div v-else class="space-y-6">
+                                <div
+                  v-for="(entries, date) in groupEntriesByDate(diaryEntries)"
+                  :key="date"
+                  class="border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <!-- Date Header -->
+                  <div class="flex justify-between items-center p-4 cursor-pointer" @click="toggleDate(date)">
+                    <div class="flex items-center space-x-3">
+                      <Icon 
+                        :name="isDateExpanded(date) ? 'material-symbols:expand-less' : 'material-symbols:expand-more'" 
+                        class="text-gray-500 transition-transform"
+                      />
+                      <h5 class="text-lg font-semibold text-gray-800">{{ formatDateForGroup(date) }}</h5>
+                      <span class="text-sm text-gray-500">({{ entries.length }} entries)</span>
+                    </div>
+                    <span class="text-xs text-gray-400">
+                      {{ isDateExpanded(date) ? 'Minimize' : 'View' }}
+                    </span>
+                  </div>
+                  
+                  <!-- Entries for this date -->
+                  <div 
+                    v-show="isDateExpanded(date)"
+                    class="px-4 pb-4 border-t border-gray-100"
+                  >
+                    <div class="space-y-3 mt-3">
+                      <div
+                        v-for="entry in entries"
+                        :key="entry.diary_id"
+                        class="border border-gray-200 rounded-lg p-4 bg-white"
+                      >
+                        <div class="flex justify-between items-start mb-2">
+                          <span class="text-sm text-gray-500">{{ formatTimestamp(entry.created_at) }}</span>
+                        </div>
+                        <p class="text-gray-800 whitespace-pre-wrap">{{ entry.description }}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
