@@ -121,8 +121,9 @@ export default defineEventHandler(async (event) => {
       statusCode: 200,
       message: "Login success",
       data: {
-        username: user.userUsername,
+        username: user.userFullName,
         roles: roleNames,
+        userID: user.userID,
         parentId: parentId,
         patientIds: patientIds,
         accessToken: accessToken,
