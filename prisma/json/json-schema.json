@@ -1108,6 +1108,12 @@
             "$ref": "#/definitions/appointments"
           }
         },
+        "diary_report": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/diary_report"
+          }
+        },
         "invoice": {
           "type": "array",
           "items": {
@@ -1748,6 +1754,52 @@
           ]
         }
       }
+    },
+    "diary_report": {
+      "type": "object",
+      "properties": {
+        "diary_id": {
+          "type": "integer"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "user_patients": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/user_patients"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
     }
   },
   "type": "object",
@@ -1832,6 +1884,9 @@
     },
     "referrals": {
       "$ref": "#/definitions/referrals"
+    },
+    "diary_report": {
+      "$ref": "#/definitions/diary_report"
     }
   }
 }

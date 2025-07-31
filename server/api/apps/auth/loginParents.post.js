@@ -96,15 +96,36 @@ export default defineEventHandler(async (event) => {
       },
     });
     
+    // Get all patient IDs from the parent's children through user_parent_patient junction table
+    const patientData = await prisma.user_parent_patient.findMany({
+      where: {
+        parent_id: parentId,
+      },
+      include: {
+        user_patients: {
+          select: {
+            patient_id: true,
+            fullname: true,
+          },
+        },
+      },
+    });
+
+    const patientIds = patientData.map(data => ({
+      patient_id: data.user_patients.patient_id,
+      fullname: data.user_patients.fullname,
+    }));
 
     // Return tokens in response body
     return {
       statusCode: 200,
       message: "Login success",
       data: {
-        username: user.userUsername,
+        username: user.userFullName,
         roles: roleNames,
+        userID: user.userID,
         parentId: parentId,
+        patientIds: patientIds,
         accessToken: accessToken,
         refreshToken: refreshToken,
         hasParentInfo: !!userParents,

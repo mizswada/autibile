@@ -294,6 +294,7 @@ model user_patients {
   update_at               DateTime?                 @default(now()) @db.Timestamp(0)
   deleted_at              DateTime?                 @db.Timestamp(0)
   appointments            appointments[]
+  diary_report            diary_report[]
   invoice                 invoice[]
   payment                 payment[]
   progress_track          progress_track[]
@@ -463,6 +464,19 @@ model referrals {
   updated_at                     DateTime       @db.Timestamp(0)
   deleted_at                     DateTime?      @db.Timestamp(0)
   user_patients                  user_patients? @relation(fields: [patient_id], references: [patient_id], onDelete: NoAction, onUpdate: NoAction, map: "referrals_ibfk_1")
+
+  @@index([patient_id], map: "patient_id")
+}
+
+model diary_report {
+  diary_id      Int            @id @default(autoincrement())
+  patient_id    Int?
+  description   String?        @db.Text
+  date          DateTime?      @db.Date
+  created_at    DateTime       @db.Timestamp(0)
+  updated_at    DateTime       @db.Timestamp(0)
+  deleted_at    DateTime?      @db.Timestamp(0)
+  user_patients user_patients? @relation(fields: [patient_id], references: [patient_id], onDelete: NoAction, onUpdate: NoAction, map: "diary_report_ibfk_1")
 
   @@index([patient_id], map: "patient_id")
 }
