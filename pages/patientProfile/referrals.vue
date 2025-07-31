@@ -339,7 +339,7 @@ function downloadReferralPdf(referral) {
         <p class="text-gray-600 mt-1">Manage patient doctor referrals and medical consultations</p>
       </div>
       <router-link
-        v-if="userRole === 'doctor'"
+        v-if="!userStore.isAdmin"
         :to="{ path: '/patientProfile/addReferral', query: { patientId: patientId } }"
         class="rs-button rs-button--primary flex items-center"
       >
