@@ -290,7 +290,7 @@ function downloadReferralPdf(referral) {
   
    //2) Header contact info
   doc.setFont('helvetica', 'bold').setFontSize(12);
-  doc.text('Artificial Intelligence Sdn Bhd', margin + 110, y + 12);
+  doc.text('NeuroSpa Therapy', margin + 110, y + 12);
   doc.setFont('helvetica', 'normal').setFontSize(10);
   doc.text('Tel: 010-913 5763    SAMB: 603-1234 5678', margin + 110, y + 30);
 
@@ -339,6 +339,7 @@ function downloadReferralPdf(referral) {
         <p class="text-gray-600 mt-1">Manage patient doctor referrals and medical consultations</p>
       </div>
       <router-link
+        v-if="userRole === 'doctor'"
         :to="{ path: '/patientProfile/addReferral', query: { patientId: patientId } }"
         class="rs-button rs-button--primary flex items-center"
       >
@@ -367,6 +368,7 @@ function downloadReferralPdf(referral) {
         <h3 class="text-lg font-medium text-gray-600 mb-2">No Referrals Found</h3>
         <p class="text-gray-500">Start by adding a new doctor referral for this patient.</p>
         <router-link
+          v-if="!userStore.isAdmin"
           :to="{ path: '/patientProfile/addReferral', query: { patientId: patientId } }"
           class="rs-button rs-button--primary mt-4 flex items-center justify-center"
         >
