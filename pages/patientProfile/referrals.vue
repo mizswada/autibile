@@ -286,23 +286,23 @@ function downloadReferralPdf(referral) {
   y += 10;
 
   // 1) Logo (replace 'logoImg' with your DataURL or imported image)
-  // doc.addImage(neuroSpa, 'JPG', margin, y, 100, 40);
+   doc.addImage(neuroSpa, 'JPG', margin, y, 100, 40);
   
    //2) Header contact info
-  //doc.setFont('helvetica', 'bold').setFontSize(12);
-  //doc.text('Artificial Intelligence Sdn Bhd', margin + 110, y + 12);
-  //doc.setFont('helvetica', 'normal').setFontSize(10);
-  //doc.text('Tel: 03-1234 5678    SAMB: 603-1234 5678', margin + 110, y + 30);
+  doc.setFont('helvetica', 'bold').setFontSize(12);
+  doc.text('Artificial Intelligence Sdn Bhd', margin + 110, y + 12);
+  doc.setFont('helvetica', 'normal').setFontSize(10);
+  doc.text('Tel: 010-913 5763    SAMB: 603-1234 5678', margin + 110, y + 30);
 
   //3) Divider line
-  //y += 60;
-  //doc.setLineWidth(0.5).line(margin, y, pageWidth - margin, y);
+  y += 60;
+  doc.setLineWidth(0.5).line(margin, y, pageWidth - margin, y);
 
   // 4) Date, right-aligned
-  //const dateStr = `Date: ${formatDate(referral.date)}`;
-  //doc.setFontSize(10);
-  //const dateWidth = doc.getTextWidth(dateStr);
-  //doc.text(dateStr, pageWidth - margin - dateWidth, y - 5);
+  const dateStr = `Date: ${formatDate(referral.date)}`;
+  doc.setFontSize(10);
+  const dateWidth = doc.getTextWidth(dateStr);
+  doc.text(dateStr, pageWidth - margin - dateWidth, y - 5);
 
   doc.setFontSize(12);
   doc.text(`Recipient: ${referral.recipient}`, 10, y); y += 8;
