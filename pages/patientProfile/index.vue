@@ -400,7 +400,7 @@ async function downloadReferralLetter(referral) {
   // — Reason for Referral
   y += 15;
   pdf.setFont(undefined, 'bold').setFontSize(11);
-  pdf.text('REASON FOR REFERRAL :', margin, y);
+  pdf.text('REASON FOR REFERRAL: ', margin, y);
   pdf.setFont(undefined, 'normal');
   pdf.text(referral.reason || '________________', margin + 50, y); 
 
