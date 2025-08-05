@@ -365,72 +365,137 @@ function downloadReferralPdf(referral) {
 
 async function downloadReferralLetter(referral) {
   const pdf = new jsPDF('p', 'mm', 'a4');
-  const pageWidth = pdf.internal.pageSize.getWidth();
+  const W = pdf.internal.pageSize.getWidth();
+  const margin = 20;
+  let y = margin;
 
-  // Header
-  pdf.setFontSize(16);
-  pdf.setFont(undefined, 'bold');
-  pdf.text('Doctor Referral Letter', pageWidth / 2, 20, { align: 'center' });
+  // — Header with logo placeholder, Tel/SAMB
+  pdf.addImage(neuroSpa, 'jpg', margin, y, 40, 20);
+  pdf.setFontSize(10).setFont(undefined, 'normal');
+  pdf.text('Tel   : ', margin + 45, y + 4);
+  pdf.text('SAMB : ', margin + 100, y + 4);
 
-  pdf.setFontSize(10);
+  // — Divider
+  y += 10;
+  pdf.setLineWidth(0.5).line(margin, y, W - margin, y);
+
+  // — Date
+  y += 8;
+  pdf.setFontSize(11).setFont(undefined, 'normal');
+  const dateStr = referral.date ? formatDateOnly(referral.date) : formatDateOnly(new Date().toISOString());
+  pdf.text(`Date : ${dateStr}`, W - margin, y, { align: 'right' });
+
+  // — Referral to & salutation
+  y += 15;
   pdf.setFont(undefined, 'normal');
-  pdf.text(`Date: ${referral.date || new Date().toLocaleDateString()}`, pageWidth - 20, 30, { align: 'right' });
+  pdf.text('Referral to:', margin, y);
+  pdf.text(referral.recipient || '__________', margin + 30, y);
 
-  // Recipient and Hospital
-  pdf.setFontSize(12);
-  pdf.text(`To: ${referral.recipient}`, 20, 40);
-  pdf.text(`Hospital/Clinic: ${referral.hospital}`, 20, 48);
-
-  // Patient Info (customize as needed)
-  pdf.setFontSize(11);
-  let y = 60;
-  pdf.text('Subject: Referral for Patient', 20, y);
   y += 10;
+  pdf.text('Dear ' + (referral.recipient || '__________') + ',', margin, y);
 
-  // Body
-  pdf.setFontSize(11);
-  pdf.text('Dear Sir/Madam,', 20, y);
-  y += 10;
-  pdf.text('I am referring the following patient for your expert assessment and management.', 20, y);
-  y += 10;
+  // — Reason for Referral
+  y += 15;
+  pdf.setFont(undefined, 'bold').setFontSize(11);
+  pdf.text('REASON FOR REFERRAL :', margin, y);
+  pdf.setFont(undefined, 'normal');
+  pdf.text(referral.reason || '________________', margin +  fiftyReferenceWidth, y); 
 
-  // Diagnosis
-  if (referral.diagnosis && referral.diagnosis.length) {
-    pdf.text('Diagnosis:', 20, y);
+  // — Patient’s details
+  y += 15;
+  pdf.setFont(undefined, 'bold').setFontSize(11);
+  pdf.text('Patient’s details:', margin, y);
+
+  // draw fields
+  const details = [
+    ['Name',        patientDetails.value?.fullname || 'NA'],
+    ['DOB',         formatDateOnly(patientDetails.value?.dob) || 'NA'],
+    ['Age',         calculateAge(patientDetails.value?.dob) || 'NA'],
+  ];
+  y += 8;
+  pdf.setFont(undefined, 'normal').setFontSize(10);
+  details.forEach(([label, val]) => {
+    pdf.text(label + ' :', margin + 5, y);
+    pdf.text(val, margin + 50, y);
     y += 7;
-    referral.diagnosis.forEach((diag, idx) => {
-      pdf.text(`- ${diag}`, 25, y);
+  });
+
+  // — Diagnosis
+  if (referral.diagnosis?.length) {
+    y += 4;
+    pdf.setFont(undefined, 'bold').setFontSize(11);
+    pdf.text('Diagnosis:', margin, y);
+    y += 7;
+    pdf.setFont(undefined, 'normal').setFontSize(10);
+    referral.diagnosis.forEach((d, i) => {
+      pdf.text(`${i + 1}. ${d}`, margin + 5, y);
       y += 6;
     });
   }
 
-  // Reason
-  if (referral.reason) {
-    pdf.text('Reason for Referral:', 20, y);
-    y += 7;
-    pdf.text(referral.reason, 25, y);
-    y += 10;
-  }
+  // — Thank-you
+  y += 8;
+  pdf.setFont(undefined, 'normal').setFontSize(10);
+  pdf.text('Thank you for seeing the above-named child.', margin, y);
 
-  // Notes/History
-  if (referral.notes) {
-    pdf.text('Notes:', 20, y);
+  // — History fields
+  const hist = referral.history || {};
+  const historyLabels = [
+    'Presenting concerns',
+    'Developmental milestones',
+    'Behavioural concerns',
+    'Medical history',
+    'Medication / Allergies',
+    'Family / social background',
+    'Other relevant history'
+  ];
+  y += 12;
+  pdf.setFont(undefined, 'normal').setFontSize(10);
+  historyLabels.forEach(label => {
+    const val = hist[label.replace(/ \/ | /g, match => match === ' / ' ? ' / ' : '')?.toLowerCase().replace(/ /g, '')] || 'NA';
+    pdf.text(`${label}:`, margin, y);
+    pdf.text(val, margin + 60, y);
     y += 7;
-    pdf.text(referral.notes, 25, y);
-    y += 10;
-  }
+  });
 
-  // Closing
-  pdf.text('Thank you for your attention.', 20, y);
-  y += 10;
-  pdf.text('Sincerely,', 20, y);
+  // — Exams
+  y += 4;
+  pdf.text('Physical examination:', margin, y);
+  pdf.text(referral.physicalExamination || 'NA', margin + 60, y);
   y += 7;
-  pdf.text('_________________________', 20, y + 10);
+  pdf.text('General appearance:', margin, y);
+  pdf.text(referral.generalAppearance || 'NA', margin + 60, y);
+  y += 7;
+  pdf.text('Systemic examination:', margin, y);
+  pdf.text(
+    (referral.systemicExamination || []).join(', ') || 'NA',
+    margin + 60,
+    y
+  );
 
-  // Save the PDF
-  const filename = `Referral_Letter_${referral.recipient.replace(/\s+/g, '_')}_${referral.date || ''}.pdf`;
-  pdf.save(filename);
+  // — Medications
+  y += 10;
+  pdf.text('Current medications:', margin, y);
+  pdf.text(referral.currentMedications, margin + 60, y);
+  if (referral.currentMedications === 'Yes') {
+    y += 7;
+    pdf.text('Details:', margin, y);
+    pdf.text(referral.medicationDetails || 'NA', margin + 60, y);
+  }
+
+  // — Closing & signature
+  y = pdf.internal.pageSize.getHeight() - 50;
+  pdf.text('Please kindly see him/her to provide your expert assessment and management.', margin, y - 20);
+  pdf.text('Thank you.', margin, y - 10);
+  pdf.text('Yours sincerely,', margin, y);
+  pdf.text('__________________________', margin, y + 10);
+  pdf.text('Referring personnel', margin, y + 18);
+
+  // — Download
+  pdf.save(`referral_${dateStr.replace(/[/ ]/g, '_')}.pdf`);
 }
+
+
 </script>
 
 <template>
