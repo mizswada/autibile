@@ -3,19 +3,10 @@ import { DateTime } from "luxon";
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event);
-    console.log('body', body);
+
     const { user } = event.context.user;
  
     const { community_author, community_title, community_content, community_url } = body;
- 
-    if (!community_author || !community_title || !community_content ) {
-      return {
-        statusCode: 400,
-        message: "Missing required fields",
-      };
-    }
- 
- 
  
     // Create post record
     const communityPost = await prisma.community.create({
@@ -23,7 +14,7 @@ export default defineEventHandler(async (event) => {
        community_author: community_author,
        community_title: community_title,
        community_content: community_content,
-       community_url: community_url || null,
+       community_url: community_url,
        created_at: DateTime.now().toISO(),
        updated_at: DateTime.now().toISO(),
       },

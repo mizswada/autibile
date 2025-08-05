@@ -7,7 +7,7 @@ export default defineEventHandler(async (event) => {
     const body = await readBody(event);
 
     const { id } = query;
-    const { community_author, community_title, community_content} = body;
+    const { community_author, community_title, community_content, community_url } = body;
 
     if (!id) {
       return {
@@ -32,6 +32,7 @@ export default defineEventHandler(async (event) => {
        community_author: community_author,
        community_title: community_title,
        community_content: community_content,
+       community_url: community_url || null,
        updated_at: DateTime.now().toISO(),
       },
     });

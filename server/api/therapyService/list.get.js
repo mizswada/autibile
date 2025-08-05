@@ -5,7 +5,8 @@ export default defineEventHandler(async (event) => {
       select: {
         service_id: true,
         name: true,
-        description: true,    
+        description: true,
+        therapy_centerID: true,
       },
       where: {
         deleted_at: null
@@ -18,12 +19,31 @@ export default defineEventHandler(async (event) => {
     if (!service || service.length === 0) {
       return [];
     }
+
+    // Fetch therapy centers separately
+    const therapyCenters = await prisma.therapyst_center.findMany({
+      select: {
+        center_ID: true,
+        center_name: true,
+      },
+      where: {
+        deleted_at: null
+      }
+    });
+
+    // Create a map for quick lookup
+    const centerMap = therapyCenters.reduce((map, center) => {
+      map[center.center_ID] = center.center_name;
+      return map;
+    }, {});
  
     // Transform the data to match the expected format
     const transformedService = service.map((service, index) => ({
       no: index + 1,
+      id: service.service_id,
       name: service.name,
       description: service.description,
+      center_name: service.therapy_centerID ? (centerMap[service.therapy_centerID] || 'Center not found') : 'Not assigned'
     }));
  
     return transformedService;

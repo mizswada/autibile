@@ -385,6 +385,7 @@ model community {
   community_author  String    @db.VarChar(255)
   community_title   String    @db.VarChar(255)
   community_content String    @db.Text
+  community_url     String?   @db.VarChar(1000)
   created_at        DateTime  @db.Timestamp(0)
   updated_at        DateTime  @db.Timestamp(0)
   deleted_at        DateTime? @db.Timestamp(0)

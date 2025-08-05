@@ -1419,6 +1419,12 @@
         "community_content": {
           "type": "string"
         },
+        "community_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "created_at": {
           "type": "string",
           "format": "date-time"
