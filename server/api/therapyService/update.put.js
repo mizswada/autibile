@@ -7,7 +7,7 @@ export default defineEventHandler(async (event) => {
     const body = await readBody(event);
 
     const { id } = query;
-    const { name, description} = body;
+    const { name, description, therapy_centerID } = body;
 
     if (!id) {
       return {
@@ -31,6 +31,7 @@ export default defineEventHandler(async (event) => {
       data: {
         name: name,
         description: description,
+        therapy_centerID: therapy_centerID ? parseInt(therapy_centerID) : null,
         updated_at: DateTime.now().toISO(),
       },
     });

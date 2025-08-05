@@ -6,7 +6,7 @@ export default defineEventHandler(async (event) => {
     console.log('body', body);
     const { user } = event.context.user;
  
-    const { name, description} = body;
+    const { name, description, therapy_centerID } = body;
  
     if (!name || !description) {
       return {
@@ -22,6 +22,7 @@ export default defineEventHandler(async (event) => {
       data: {
         name: name,
         description: description,
+        therapy_centerID: therapy_centerID ? parseInt(therapy_centerID) : null,
         created_at: DateTime.now().toISO(),
         updated_at: DateTime.now().toISO(),
       },
