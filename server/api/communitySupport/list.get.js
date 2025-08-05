@@ -6,7 +6,8 @@ export default defineEventHandler(async (event) => {
        community_id: true,
        community_author: true,
        community_title: true,
-       community_content: true,   
+       community_content: true,
+       community_url: true,
       },
       where: {
         deleted_at: null
@@ -27,6 +28,7 @@ export default defineEventHandler(async (event) => {
       author: post.community_author,
       title: post.community_title,
       content: post.community_content,
+      url: post.community_url || '',
     }));
  
     return transformedPost;

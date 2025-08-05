@@ -2,9 +2,12 @@ import { DateTime } from "luxon";
 
 export default defineEventHandler(async (event) => {
   try {
+ 
     const query = getQuery(event);
+    const body = await readBody(event);
 
     const { id } = query;
+    const { community_author, community_title, community_content, community_url} = body;
 
     if (!id) {
       return {
@@ -13,27 +16,30 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    // Soft delete post record
-    const deletedPost = await prisma.community.update({
+    const updatedPost = await prisma.community.update({
       where: {
         community_id: parseInt(id)
       },
       data: {
-        deleted_at: DateTime.now().toISO(),
+       community_author: community_author,
+       community_title: community_title,
+       community_content: community_content,
+       community_url: community_url,
+       updated_at: DateTime.now().toISO(),
       },
     });
 
-    if (!deletedPost) {
+    if (!updatedPost) {
       return {
         statusCode: 400,
-        message: "Failed to delete post",
+        message: "Failed to update post",
       };
     }
 
     return {
       statusCode: 200,
-      message: "post deleted successfully",
-      data: deletedPost,
+      message: "Post updated successfully",
+      data: updatedPost,
     };
   } catch (error) {
     console.log(error);
