@@ -18,6 +18,7 @@ const deleteMessage = ref('')
 
 const columns = [
   { name: 'no', label: 'No.' },
+  { name: 'id',     label: 'ID',     hidden: true },
   { name: 'author', label: 'Author' },
   { name: 'title', label: 'Title' },
   { name: 'content', label: 'Content' },
@@ -29,7 +30,6 @@ async function fetchPosts() {
   if (data.value) {
     posts.value = data.value.map(post => ({
       no: post.no,
-      id: post.id,
       author: post.author,
       title: post.title,
       content: post.content,

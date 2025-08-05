@@ -285,20 +285,20 @@ function downloadReferralPdf(referral) {
   doc.text('Patient Referral', 10, y);
   y += 10;
 
-  // 1) Logo (replace 'logoImg' with your DataURL or imported image)
+  // 1. Logo (replace 'logoImg' with your DataURL or imported image)
    doc.addImage(neuroSpa, 'JPG', margin, y, 100, 40);
   
-   //2) Header contact info
+   //2. Header contact info
   doc.setFont('helvetica', 'bold').setFontSize(12);
   doc.text('NeuroSpa Therapy', margin + 110, y + 12);
   doc.setFont('helvetica', 'normal').setFontSize(10);
   doc.text('Tel: 010-913 5763    SAMB: 603-1234 5678', margin + 110, y + 30);
 
-  //3) Divider line
+  //3. Divider line
   y += 60;
   doc.setLineWidth(0.5).line(margin, y, pageWidth - margin, y);
 
-  // 4) Date, right-aligned
+  // 4. Date, right-aligned
   const dateStr = `Date: ${formatDate(referral.date)}`;
   doc.setFontSize(10);
   const dateWidth = doc.getTextWidth(dateStr);
