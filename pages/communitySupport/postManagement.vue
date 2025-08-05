@@ -21,6 +21,7 @@ const deleteMessage = ref('')
 
 const columns = [
   { name: 'no', label: 'No.' },
+  { name: 'id',     label: 'ID',     hidden: true },
   { name: 'author', label: 'Author' },
   { name: 'title', label: 'Title' },
   { name: 'content', label: 'Content' },
