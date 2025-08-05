@@ -369,11 +369,14 @@ async function downloadReferralLetter(referral) {
   const margin = 20;
   let y = margin;
 
-  // — Header with logo placeholder, Tel/SAMB
-  pdf.addImage(neuroSpa, 'jpg', margin, y, 40, 20);
+  // — Header with clinic name and logo
+  pdf.setFontSize(16).setFont(undefined, 'bold');
+  pdf.text('NEUROSPA AUTISM CENTRE', margin, y);
+  y += 8;
   pdf.setFontSize(10).setFont(undefined, 'normal');
-  pdf.text('Tel   : ', margin + 45, y + 4);
-  pdf.text('SAMB : ', margin + 100, y + 4);
+  pdf.text('Tel   : +60 3-1234 5678', margin, y);
+  y += 4;
+  pdf.text('SAMB : +60 3-1234 5679', margin, y);
 
   // — Divider
   y += 10;
@@ -399,12 +402,12 @@ async function downloadReferralLetter(referral) {
   pdf.setFont(undefined, 'bold').setFontSize(11);
   pdf.text('REASON FOR REFERRAL :', margin, y);
   pdf.setFont(undefined, 'normal');
-  pdf.text(referral.reason || '________________', margin +  fiftyReferenceWidth, y); 
+  pdf.text(referral.reason || '________________', margin + 50, y); 
 
-  // — Patient’s details
+  // — Patient's details
   y += 15;
   pdf.setFont(undefined, 'bold').setFontSize(11);
-  pdf.text('Patient’s details:', margin, y);
+  pdf.text('Patient\'s details:', margin, y);
 
   // draw fields
   const details = [
@@ -452,7 +455,8 @@ async function downloadReferralLetter(referral) {
   y += 12;
   pdf.setFont(undefined, 'normal').setFontSize(10);
   historyLabels.forEach(label => {
-    const val = hist[label.replace(/ \/ | /g, match => match === ' / ' ? ' / ' : '')?.toLowerCase().replace(/ /g, '')] || 'NA';
+    const key = label.toLowerCase().replace(/[ /]/g, '');
+    const val = hist[key] || 'NA';
     pdf.text(`${label}:`, margin, y);
     pdf.text(val, margin + 60, y);
     y += 7;
@@ -891,8 +895,8 @@ async function downloadReferralLetter(referral) {
                     <tbody class="bg-white divide-y divide-gray-200">
                       <tr v-for="referral in doctorReferrals" :key="referral.id" class="hover:bg-purple-50">
                         <td class="px-6 py-4 text-sm text-gray-900">{{ referral.hospital }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">{{ referral.recipient || referral.doctorName }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">{{ formatDateOnly(referral.date) }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">{{ referral.recipient || referral.referrals_recepient }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">{{ formatDateOnly(referral.date || referral.referrals_date) }}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">
                           <div class="flex space-x-2">
                             <rs-button variant="outline" size="sm" @click="openReferralModal(referral)">
@@ -927,11 +931,11 @@ async function downloadReferralLetter(referral) {
                     </div>
                     <div>
                       <span class="text-sm font-medium text-gray-500">Referral Date:</span>
-                      <p class="text-gray-900">{{ formatDateOnly(selectedReferral.date) }}</p>
+                      <p class="text-gray-900">{{ formatDateOnly(selectedReferral.date || selectedReferral.referrals_date) }}</p>
                     </div>
                     <div>
                       <span class="text-sm font-medium text-gray-500">Recipient:</span>
-                      <p class="text-gray-900">{{ selectedReferral.recipient || selectedReferral.doctorName }}</p>
+                      <p class="text-gray-900">{{ selectedReferral.recipient || selectedReferral.referrals_recepient }}</p>
                     </div>
                     <div>
                       <span class="text-sm font-medium text-gray-500">Diagnosis:</span>
