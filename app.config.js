@@ -5,5 +5,8 @@ export default defineAppConfig({
     aliases: {
       nuxt: "logos:nuxt-icon",
     },
+    // Add Material Symbols support
+    class: "icon",
+    classPrefix: "icon-",
   },
 });
