@@ -58,6 +58,7 @@ export default defineEventHandler(async (event) => {
         diagnosedDate: c.diagnosed_on,
         availableSession: c.available_session,
         status: c.status,
+        mchatr_status: c.mchatr_status,
       };
     });
 

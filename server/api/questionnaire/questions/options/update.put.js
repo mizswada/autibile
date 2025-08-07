@@ -1,70 +1,64 @@
-// Added by: Firzana Huda 24 June 2025
+// Added by: Assistant - Update Option API for Conditional Logic
 export default defineEventHandler(async (event) => {
   try {
-    // Extract userID from the session context
     const { userID } = event.context.user || {};
     if (!userID) {
-      return {
+      return createError({
         statusCode: 401,
-        message: "Unauthorized: Missing user session",
-      };
+        statusMessage: 'Unauthorized'
+      });
     }
 
     const body = await readBody(event);
+    const { optionID, option_id, option_value, option_title, order_number } = body;
+    
+    // Support both optionID and option_id for compatibility
+    const optionId = optionID || option_id;
 
-    const {
-      option_id,
-      option_title,
-      option_value,
-      order_number
-    } = body;
-
-    // Basic validation
-    if (!option_id || !option_title) {
-      return {
+    if (!optionId) {
+      return createError({
         statusCode: 400,
-        message: "Missing required fields",
-      };
+        statusMessage: 'Option ID is required'
+      });
     }
 
-    // Check if option exists
-    const existingOption = await prisma.questionnaires_questions_action.findUnique({
-      where: {
-        option_id: parseInt(option_id)
-      }
-    });
+    // Prepare update data
+    const updateData = {
+      updated_at: new Date()
+    };
 
-    if (!existingOption) {
-      return {
-        statusCode: 404,
-        message: "Option not found",
-      };
+    // Add option_value if provided
+    if (option_value !== undefined) {
+      updateData.option_value = parseInt(option_value);
+    }
+
+    // Add option_title if provided
+    if (option_title !== undefined) {
+      updateData.option_title = option_title;
+    }
+
+    // Add order_number if provided
+    if (order_number !== undefined) {
+      updateData.order_number = parseInt(order_number);
     }
 
     // Update the option
-    const updated = await prisma.questionnaires_questions_action.update({
-      where: {
-        option_id: parseInt(option_id)
-      },
-      data: {
-        option_title: option_title,
-        option_value: option_value ? parseInt(option_value) : existingOption.option_value,
-        order_number: order_number ? parseInt(order_number) : existingOption.order_number,
-        updated_at: new Date()
-      }
+    const updatedOption = await prisma.questionnaires_questions_action.update({
+      where: { option_id: parseInt(optionId) },
+      data: updateData
     });
 
-    return {
-      statusCode: 200,
-      message: "Option updated successfully",
-      data: updated,
-    };
 
-  } catch (error) {
-    console.error("Error updating question option:", error);
-    return {
-      statusCode: 500,
-      message: "Internal server error",
+    return { 
+      statusCode: 200, 
+      message: "Option updated successfully", 
+      data: updatedOption 
     };
+  } catch (error) {
+    console.error('Error updating option:', error);
+    return createError({
+      statusCode: 500,
+      statusMessage: 'Internal server error'
+    });
   }
 }); 

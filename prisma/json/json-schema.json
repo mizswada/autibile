@@ -83,7 +83,16 @@
           ]
         },
         "userIC": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "signInBy": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "userCreatedDate": {
           "type": [
@@ -642,6 +651,12 @@
             "null"
           ]
         },
+        "conditional_sub_questions_ids": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "created_at": {
           "type": [
             "string",
@@ -1079,7 +1094,16 @@
           ]
         },
         "available_session": {
-          "type": "integer"
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "mchatr_status": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "created_at": {
           "type": [

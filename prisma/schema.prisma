@@ -29,7 +29,8 @@ model user {
   userPassword       String?              @db.VarChar(255)
   userStatus         String?              @db.VarChar(255)
   userPhone          String?              @db.VarChar(255)
-  userIC             String               @db.VarChar(50)
+  userIC             String?              @db.VarChar(50)
+  signInBy           String?              @db.VarChar(255)
   userCreatedDate    DateTime?            @db.DateTime(0)
   userModifiedDate   DateTime?            @db.DateTime(0)
   appointments       appointments[]
@@ -167,6 +168,7 @@ model questionnaires_questions_action {
   option_title                     String?                            @db.VarChar(255)
   option_value                     Int?
   order_number                     Int?
+  conditional_sub_questions_ids    String?                            @db.VarChar(255)
   created_at                       DateTime?                          @db.Timestamp(0)
   updated_at                       DateTime?                          @default(now()) @db.Timestamp(0)
   deleted_at                       DateTime?                          @db.Timestamp(0)
@@ -289,7 +291,8 @@ model user_patients {
   autism_diagnose         String?                   @db.VarChar(50)
   diagnosed_on            DateTime?                 @db.Date
   status                  String?                   @db.VarChar(50)
-  available_session       Int
+  available_session       Int?
+  mchatr_status           String?                   @db.VarChar(255)
   created_at              DateTime?                 @db.Timestamp(0)
   update_at               DateTime?                 @default(now()) @db.Timestamp(0)
   deleted_at              DateTime?                 @db.Timestamp(0)
