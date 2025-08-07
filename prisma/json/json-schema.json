@@ -83,7 +83,16 @@
           ]
         },
         "userIC": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "signInBy": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "userCreatedDate": {
           "type": [
@@ -639,6 +648,12 @@
         "order_number": {
           "type": [
             "integer",
+            "null"
+          ]
+        },
+        "conditional_sub_questions_ids": {
+          "type": [
+            "string",
             "null"
           ]
         },
