@@ -1094,7 +1094,16 @@
           ]
         },
         "available_session": {
-          "type": "integer"
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "mchatr_status": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "created_at": {
           "type": [

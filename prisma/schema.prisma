@@ -291,7 +291,8 @@ model user_patients {
   autism_diagnose         String?                   @db.VarChar(50)
   diagnosed_on            DateTime?                 @db.Date
   status                  String?                   @db.VarChar(50)
-  available_session       Int
+  available_session       Int?
+  mchatr_status           String?                   @db.VarChar(255)
   created_at              DateTime?                 @db.Timestamp(0)
   update_at               DateTime?                 @default(now()) @db.Timestamp(0)
   deleted_at              DateTime?                 @db.Timestamp(0)
