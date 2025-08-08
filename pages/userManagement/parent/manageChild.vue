@@ -16,6 +16,9 @@ const messageType = ref('success');
 const showConfirmRemoveModal = ref(false);
 const pendingRemoveChild = ref(null);
 const isRemovingChild = ref(false);
+const showConfirmMchatrToggleModal = ref(false);
+const pendingMchatrToggleChild = ref(null);
+const isTogglingMchatrStatus = ref(false);
 
 const columns = [
   { name: 'parentUsername', label: 'Parent Username' },
@@ -26,6 +29,7 @@ const columns = [
   { name: 'diagnosedDate', label: 'Diagnosed Date' },
   { name: 'availableSession', label: 'Available Sessions' },
   { name: 'status', label: 'Status' },
+  { name: 'mchatrStatus', label: 'MCHAT-R Status' },
   { name: 'action', label: 'Actions' }
 ];
 
@@ -71,6 +75,48 @@ async function performToggleStatus() {
     showConfirmToggleModal.value = false;
     pendingToggleChild.value = null;
     isTogglingStatus.value = false;
+  }
+}
+
+function confirmMchatrToggleStatus(child) {
+  pendingMchatrToggleChild.value = child;
+  showConfirmMchatrToggleModal.value = true;
+}
+
+function cancelMchatrToggleStatus() {
+  pendingMchatrToggleChild.value = null;
+  showConfirmMchatrToggleModal.value = false;
+}
+
+async function performMchatrToggleStatus() {
+  const child = pendingMchatrToggleChild.value;
+  const newMchatrStatus = child.mchatrStatus === 'Enable' ? 'Disable' : 'Enable';
+  isTogglingMchatrStatus.value = true;
+
+  try {
+    const res = await fetch('/api/questionnaire/updateMchatrStatus', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        patientId: child.childID, 
+        mchatrStatus: newMchatrStatus 
+      }),
+    });
+
+    const result = await res.json();
+    if (result.statusCode === 200) {
+      child.mchatrStatus = newMchatrStatus;
+      showMessage(`MCHAT-R status updated to ${newMchatrStatus}`, 'success');
+    } else {
+      showMessage(`Error updating MCHAT-R status: ${result.message}`, 'error');
+    }
+  } catch (err) {
+    console.error('MCHAT-R status update error:', err);
+    showMessage('An error occurred while updating MCHAT-R status.', 'error');
+  } finally {
+    showConfirmMchatrToggleModal.value = false;
+    pendingMchatrToggleChild.value = null;
+    isTogglingMchatrStatus.value = false;
   }
 }
 
@@ -130,6 +176,7 @@ onMounted(async () => {
         diagnosedDate: new Date(p.diagnosedDate).toISOString().split('T')[0],
         availableSession: p.availableSession || 0, // Use actual session count directly
         status: p.status,
+        mchatrStatus: p.mchatr_status || 'Enable', // Default to Enable if not set
       }));
     } else {
       console.error('Failed to load children:', result.message);
@@ -151,6 +198,7 @@ const tableData = computed(() =>
     diagnosedDate: p.diagnosedDate,
     availableSession: p.availableSession,
     status: p.status,
+    mchatrStatus: p.mchatrStatus,
     action: 'edit',
   }))
 );
@@ -193,6 +241,16 @@ function getOriginalData(childIC, parentUsername) {
             class="toggle-checkbox"
             :checked="row.value.status === 'Active'"
             @change="confirmToggleStatus(getOriginalData(row.value.childIC, row.value.parentUsername))"
+          />
+        </template>
+
+        <!-- SLOT for MCHAT-R status column -->
+        <template v-slot:mchatrStatus="row">
+          <input
+            type="checkbox"
+            class="toggle-checkbox"
+            :checked="row.value.mchatrStatus === 'Enable'"
+            @change="confirmMchatrToggleStatus(getOriginalData(row.value.childIC, row.value.parentUsername))"
           />
         </template>
 
@@ -266,6 +324,57 @@ function getOriginalData(childIC, parentUsername) {
       <div v-if="isTogglingStatus" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
         <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
         <span>Updating status...</span>
+      </div>
+    </rs-modal>
+
+    <!-- MCHAT-R Toggle Status Modal -->
+    <rs-modal
+      title="MCHAT-R Status Confirmation"
+      ok-title="Yes"
+      cancel-title="No"
+      :ok-callback="performMchatrToggleStatus"
+      :cancel-callback="cancelMchatrToggleStatus"
+      v-model="showConfirmMchatrToggleModal"
+      :overlay-close="false"
+    >
+      <p>
+        Are you sure you want to
+        <span v-if="pendingMchatrToggleChild?.mchatrStatus === 'Enable'" class="font-semibold text-red-600">disable</span>
+        <span v-else class="font-semibold text-green-600">enable</span>
+        MCHAT-R for child <span class="font-semibold">"{{ pendingMchatrToggleChild?.fullname }}"</span>?
+      </p>
+      
+      <div class="bg-blue-50 border-l-4 border-blue-400 p-4 my-4">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <Icon name="material-symbols:info" class="text-blue-400" />
+          </div>
+          <div class="ml-3">
+            <p class="text-sm text-blue-700">
+              <span class="font-bold">Child ID:</span> {{ pendingMchatrToggleChild?.childID }}<br>
+              <span class="font-bold">Parent:</span> {{ pendingMchatrToggleChild?.parentUsername }}<br>
+              <span class="font-bold">Current MCHAT-R Status:</span> {{ pendingMchatrToggleChild?.mchatrStatus }}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 my-4">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <Icon name="material-symbols:warning" class="text-yellow-400" />
+          </div>
+          <div class="ml-3">
+            <p class="text-sm text-yellow-700">
+              <strong>Note:</strong> This will allow or prevent the child from taking the MCHAT-R questionnaire (Questionnaire ID 1).
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="isTogglingMchatrStatus" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
+        <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
+        <span>Updating MCHAT-R status...</span>
       </div>
     </rs-modal>
 

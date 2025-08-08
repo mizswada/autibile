@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import TextMask from '~/components/formkit/TextMask.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -21,6 +22,18 @@ const editOptionId = ref(null);
 const message = ref('');
 const messageType = ref('success');
 const modalErrorMessage = ref('');
+
+// Add these new refs for conditional logic management
+const showConditionalLogicModal = ref(false);
+const selectedOption = ref(null);
+const conditionalLogicConfig = ref({
+  showSubQuestions: false,
+  subQuestionsToShow: [],
+  triggerValue: '',
+  optionValue: 0
+});
+const availableSubQuestions = ref([]);
+const isConfiguringConditionalLogic = ref(false);
 
 // Define available option types
 const optionTypes = [
@@ -137,13 +150,16 @@ async function fetchOptions() {
     const result = await res.json();
 
     if (res.ok && result.data) {
+      
       options.value = result.data.map(option => ({
         id: option.option_id,
         title: option.option_title, // Store the full title with prefix
         value: option.option_value,
         order: option.order_number,
-        type: extractOptionType(option.option_title)
+        type: extractOptionType(option.option_title),
+        conditional_sub_questions_ids: option.conditional_sub_questions_ids // Include the conditional logic field
       }));
+      
     } else {
       console.error('Failed to load options:', result.message);
     }
@@ -161,6 +177,7 @@ function openAddOptionModal() {
     return;
   }
   isEditingOption.value = false;
+  editOptionId.value = null; // Reset edit option ID
   newOption.value = {
     option_type: 'radio',
     option_title: '',
@@ -171,15 +188,17 @@ function openAddOptionModal() {
 }
 
 function openEditOptionModal(option) {
+  
   if (question.value.answer_type !== 35) {
     alert('Options can only be edited for Option Type questions.');
     return;
   }
   isEditingOption.value = true;
+  editOptionId.value = option.id; // Set the edit option ID
   newOption.value = {
     id: option.id,
-    option_type: getOptionType(option.title),
-    option_title: getCleanTitle(option.title),
+    option_type: extractOptionType(option.title),
+    option_title: cleanOptionTitle(option.title),
     option_value: option.value,
     order_number: option.order
   };
@@ -202,12 +221,13 @@ function openEditOptionModal(option) {
 
 // Save option (create or update)
 async function saveOption() {
+  
   try {
     if (!newOption.value.option_title) {
       alert('Option title is required');
       return;
     }
-
+    
     // Add the type prefix to the title
     const formattedTitle = addTypePrefix(newOption.value.option_title, newOption.value.option_type);
     
@@ -219,14 +239,14 @@ async function saveOption() {
     };
 
     let response;
-    if (isEditingOption.value && newOption.value.id) {
+    if (isEditingOption.value && editOptionId.value) {
       response = await fetch('/api/questionnaire/questions/options/update', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          option_id: newOption.value.id,
+          option_id: editOptionId.value,
           ...payload
         })
       });
@@ -246,24 +266,25 @@ async function saveOption() {
       throw new Error(result.message || 'API request failed');
     }
 
-    // First close the modal
-    showOptionModal.value = false;
-    
-    // Then restore scrolling and show message
-    setTimeout(() => {
-      // Force restore scrolling
-      document.body.style.overflow = 'auto';
-      document.body.style.position = '';
-      document.documentElement.style.overflow = 'auto';
-      
-      // Show success message
-      showMessage(isEditingOption.value ? 'Option updated successfully' : 'Option added successfully', 'success');
-      
-      // Fetch options after a short delay to ensure UI is responsive
-      setTimeout(() => {
-        fetchOptions();
-      }, 100);
-    }, 200);
+         // First close the modal
+     showOptionModal.value = false;
+     editOptionId.value = null; // Reset edit option ID
+     
+     // Then restore scrolling and show message
+     setTimeout(() => {
+       // Force restore scrolling
+       document.body.style.overflow = 'auto';
+       document.body.style.position = '';
+       document.documentElement.style.overflow = 'auto';
+       
+       // Show success message
+       showMessage(isEditingOption.value ? 'Option updated successfully' : 'Option added successfully', 'success');
+       
+       // Fetch options after a short delay to ensure UI is responsive
+       setTimeout(() => {
+         fetchOptions();
+       }, 100);
+     }, 200);
   } catch (error) {
     console.error('Error saving option:', error);
     alert(`Failed to save option: ${error.message}`);
@@ -352,33 +373,151 @@ async function generateRangeOptions() {
 }
 
 
-// Function to get option type from title
-function getOptionType(title) {
-  if (!title) return 'radio'; // Default type
-  
-  if (title.startsWith('[radio]')) return 'radio';
-  if (title.startsWith('[checkbox]')) return 'checkbox';
-  if (title.startsWith('[scale]')) return 'scale';
-  if (title.startsWith('[text]')) return 'text';
-  if (title.startsWith('[textarea]')) return 'textarea';
-  
-  return 'radio'; // Default type
-}
 
-// Function to get clean title without type prefix
-function getCleanTitle(title) {
-  if (!title) return '';
-  
-  return title
-    .replace(/^\[(radio|checkbox|scale|text|textarea)\]\s*/, '')
-    .trim();
-}
 
 function confirmDeleteOption(optionId) {
   const confirmDelete = confirm('Are you sure you want to delete this option?');
   if (confirmDelete) {
     deleteOption(optionId);
   }
+}
+
+// Add functions for conditional logic management
+async function openConditionalLogicModal(option) {
+  selectedOption.value = option;
+  
+  // Get available sub-questions for this parent question
+  await fetchAvailableSubQuestions();
+  
+  // Load existing conditional logic configuration for this option
+  await loadConditionalLogicConfig(option);
+  
+  showConditionalLogicModal.value = true;
+}
+
+async function fetchAvailableSubQuestions() {
+  try {
+    const res = await fetch(`/api/questionnaire/questions/listQuestions?questionnaireID=${question.value.questionnaire_id}&parentID=${questionId}`);
+    const result = await res.json();
+
+    if (res.ok && result.data) {
+      availableSubQuestions.value = result.data.map(q => ({
+        id: q.question_id,
+        title: q.question_text_bi,
+        description: q.question_text_bm,
+        is_required: q.is_required,
+        status: q.status
+      }));
+    } else {
+      console.error('Failed to load sub-questions:', result.message);
+      availableSubQuestions.value = [];
+    }
+  } catch (err) {
+    console.error('Error loading sub-questions:', err);
+    availableSubQuestions.value = [];
+  }
+}
+
+async function loadConditionalLogicConfig(option) {
+  
+  // Load the existing conditional logic configuration from the database
+  conditionalLogicConfig.value = {
+    showSubQuestions: option.value > 0,
+    subQuestionsToShow: [],
+    triggerValue: option.value.toString(),
+    optionValue: option.value
+  };
+
+  // If the option has conditional sub-questions configured, load them
+  if (option.conditional_sub_questions_ids) {
+    try {
+      const subQuestionsToShow = JSON.parse(option.conditional_sub_questions_ids);
+      conditionalLogicConfig.value.subQuestionsToShow = subQuestionsToShow;
+      conditionalLogicConfig.value.showSubQuestions = subQuestionsToShow.length > 0;
+    } catch (error) {
+      console.error('Error parsing conditional_sub_questions_ids:', error);
+      conditionalLogicConfig.value.subQuestionsToShow = [];
+    }
+  } else {
+  }
+  
+}
+
+async function saveConditionalLogic() {
+  if (!selectedOption.value) {
+    showMessage('No option selected for conditional logic configuration', 'error');
+    return;
+  }
+
+  isConfiguringConditionalLogic.value = true;
+
+  try {
+    // Update the option value and conditional logic mapping
+    const newValue = conditionalLogicConfig.value.showSubQuestions ? conditionalLogicConfig.value.optionValue : 0;
+    
+    const payload = {
+      option_id: selectedOption.value.id,
+      option_value: newValue,
+      subQuestionsToShow: conditionalLogicConfig.value.subQuestionsToShow
+    };
+
+    const res = await fetch('/api/questionnaire/questions/options/updateConditionalLogic', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await res.json();
+
+    if (res.ok) {
+      showMessage('Conditional logic updated successfully', 'success');
+      showConditionalLogicModal.value = false;
+      
+      // Restore scroll functionality
+      setTimeout(() => {
+        document.body.style.overflow = 'auto';
+        document.body.style.position = 'static';
+        document.documentElement.style.overflow = 'auto';
+      }, 100);
+      
+      // Refresh the options list
+      await fetchOptions();
+      
+      // Reset form
+      conditionalLogicConfig.value = {
+        showSubQuestions: false,
+        subQuestionsToShow: [],
+        triggerValue: '',
+        optionValue: 0
+      };
+      selectedOption.value = null;
+    } else {
+      showMessage(`Failed to update conditional logic: ${result.message}`, 'error');
+    }
+  } catch (err) {
+    console.error('Error updating conditional logic:', err);
+    showMessage('Error updating conditional logic', 'error');
+  } finally {
+    isConfiguringConditionalLogic.value = false;
+  }
+}
+
+function cancelConditionalLogic() {
+  showConditionalLogicModal.value = false;
+  conditionalLogicConfig.value = {
+    showSubQuestions: false,
+    subQuestionsToShow: [],
+    triggerValue: '',
+    optionValue: 0
+  };
+  selectedOption.value = null;
+  
+  // Restore scroll functionality
+  setTimeout(() => {
+    document.body.style.overflow = 'auto';
+    document.body.style.position = 'static';
+    document.documentElement.style.overflow = 'auto';
+  }, 100);
 }
 
 // Watch for modal closing to ensure scroll is restored
@@ -391,6 +530,35 @@ watch(showOptionModal, (newVal) => {
       document.documentElement.style.overflow = 'auto';
     }, 100);
   }
+});
+
+// Watch for conditional logic modal closing to ensure scroll is restored
+watch(showConditionalLogicModal, (newVal) => {
+  if (!newVal) {
+    // Modal is closing, ensure scroll is enabled
+    setTimeout(() => {
+      document.body.style.overflow = 'auto';
+      document.body.style.position = 'static';
+      document.documentElement.style.overflow = 'auto';
+    }, 100);
+  }
+});
+
+// Watch for option modal opening to debug form values
+watch(showOptionModal, (newVal) => {
+  if (newVal) {
+    console.log('Modal opened, newOption.value:', newOption.value);
+  }
+});
+
+// Watch for changes to newOption to debug form updates
+watch(newOption, (newVal) => {
+  console.log('newOption changed:', newVal);
+}, { deep: true });
+
+// Watch specifically for option_type changes
+watch(() => newOption.value.option_type, (newType, oldType) => {
+  console.log('Option type changed from', oldType, 'to', newType);
 });
 </script>
 
@@ -406,7 +574,7 @@ watch(showOptionModal, (newVal) => {
     <!-- Header -->
     <div class="flex items-center mb-4">
       <button @click="goBack" class="mr-2 p-2 rounded hover:bg-gray-100">
-        <Icon name="material-symbols:arrow-back" />
+        <Icon name="ic:outline-arrow-back" />
       </button>
       <h1 class="text-2xl font-bold">Question Answer Management</h1>
     </div>
@@ -427,7 +595,7 @@ watch(showOptionModal, (newVal) => {
       <div class="card mb-6 p-6 bg-white shadow-sm rounded-lg">
         <div class="flex items-center mb-4">
           <div class="bg-blue-100 p-2 rounded-full mr-3">
-            <Icon name="material-symbols:help-outline" class="text-blue-600" size="24" />
+            <Icon name="ic:outline-help" class="text-blue-600" size="24" />
           </div>
           <h2 class="text-xl font-semibold">Question Details</h2>
         </div>
@@ -447,7 +615,7 @@ watch(showOptionModal, (newVal) => {
           <div class="flex items-center">
             <span class="inline-flex items-center justify-center w-6 h-6 rounded-full mr-2"
               :class="question.is_required ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'">
-              <Icon :name="question.is_required ? 'material-symbols:check' : 'material-symbols:close'" size="16" />
+              <Icon :name="question.is_required ? 'ic:outline-check' : 'ic:outline-close'" size="16" />
             </span>
             <span class="text-sm">
               <span class="font-medium">Required:</span> {{ question.is_required ? 'Yes' : 'No' }}
@@ -457,7 +625,7 @@ watch(showOptionModal, (newVal) => {
           <div class="flex items-center">
             <span class="inline-flex items-center justify-center w-6 h-6 rounded-full mr-2"
               :class="question.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'">
-              <Icon :name="question.status === 'Active' ? 'material-symbols:check' : 'material-symbols:close'" size="16" />
+              <Icon :name="question.status === 'Active' ? 'ic:outline-check' : 'ic:outline-close'" size="16" />
             </span>
             <span class="text-sm">
               <span class="font-medium">Status:</span> {{ question.status }}
@@ -466,7 +634,7 @@ watch(showOptionModal, (newVal) => {
 
           <div v-if="question.answer_type" class="flex items-center">
             <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-800 mr-2">
-              <Icon name="material-symbols:category" size="16" />
+              <Icon name="ic:outline-category" size="16" />
             </span>
             <span class="text-sm">
               <span class="font-medium">Answer Type:</span> {{ getAnswerTypeLabel(question.answer_type) }}
@@ -479,7 +647,7 @@ watch(showOptionModal, (newVal) => {
       <div v-if="question.answer_type" class="card mb-6 p-6 bg-white shadow-sm rounded-lg">
         <div class="flex items-center mb-4">
           <div class="bg-purple-100 p-2 rounded-full mr-3">
-            <Icon name="material-symbols:settings" class="text-purple-600" size="24" />
+            <Icon name="ic:outline-settings" class="text-purple-600" size="24" />
           </div>
           <h2 class="text-xl font-semibold">Answer Configuration</h2>
         </div>
@@ -489,10 +657,10 @@ watch(showOptionModal, (newVal) => {
           <h3 class="font-medium mb-2">Text Input Configuration</h3>
           <p class="text-gray-600 mb-4">This question will be answered with a text input field. No additional options are needed.</p>
           <div class="bg-blue-50 p-3 rounded-lg border border-blue-200">
-            <div class="flex items-center">
-              <Icon name="material-symbols:info-outline" class="text-blue-600 mr-2" size="20" />
-              <p class="text-blue-800 text-sm">Text inputs don't require options. The system will automatically create a text field for this question.</p>
-            </div>
+                          <div class="flex items-center">
+                <Icon name="ic:outline-info" class="text-blue-600 mr-2" size="20" />
+                <p class="text-blue-800 text-sm">Text inputs don't require options. The system will automatically create a text field for this question.</p>
+              </div>
           </div>
         </div>
 
@@ -507,10 +675,10 @@ watch(showOptionModal, (newVal) => {
             </rs-button>
           </div> -->
           <div class="bg-blue-50 p-3 rounded-lg border border-blue-200">
-            <div class="flex items-center">
-              <Icon name="material-symbols:info-outline" class="text-blue-600 mr-2" size="20" />
-              <p class="text-blue-800 text-sm">Automatically generate a 1-5 scale for this question.</p>
-            </div>
+                          <div class="flex items-center">
+                <Icon name="ic:outline-info" class="text-blue-600 mr-2" size="20" />
+                <p class="text-blue-800 text-sm">Automatically generate a 1-5 scale for this question.</p>
+              </div>
           </div>
         </div>
 
@@ -524,12 +692,12 @@ watch(showOptionModal, (newVal) => {
             <h3 class="text-lg font-semibold">Options ({{ options.length }})</h3>
             <div class="flex gap-2">
               <rs-button @click="fetchOptions" variant="outline" title="Refresh Options" :disabled="isLoading">
-                <Icon v-if="isLoading" name="material-symbols:refresh" class="mr-1 animate-spin" />
-                <Icon v-else name="material-symbols:refresh" class="mr-1" />
+                <Icon v-if="isLoading" name="ic:outline-refresh" class="mr-1 animate-spin" />
+                <Icon v-else name="ic:outline-refresh" class="mr-1" />
                 Refresh
               </rs-button>
               <rs-button @click="openAddOptionModal">
-                <Icon name="material-symbols:add" class="mr-1" /> Add Option
+                <Icon name="ic:outline-add" class="mr-1" /> Add Option
               </rs-button>
             </div>
           </div>
@@ -538,11 +706,11 @@ watch(showOptionModal, (newVal) => {
           <div class="card p-4">
             <div v-if="options.length === 0" class="text-center py-8">
               <div class="flex flex-col items-center">
-                <Icon name="material-symbols:format-list-bulleted-add" size="64" class="text-gray-400 mb-4" />
+                <Icon name="ic:outline-list" size="64" class="text-gray-400 mb-4" />
                 <h3 class="text-xl font-medium text-gray-600 mb-2">No Options Added Yet</h3>
                 <p class="text-gray-500 mb-6">This question doesn't have any answer options yet. You need to add at least one option for the question to be answerable.</p>
                 <rs-button size="lg" @click="openAddOptionModal">
-                  <Icon name="material-symbols:add" class="mr-1" /> Add First Option
+                  <Icon name="ic:outline-add" class="mr-1" /> Add First Option
                 </rs-button>
               </div>
             </div>
@@ -554,6 +722,7 @@ watch(showOptionModal, (newVal) => {
                   <th class="px-4 py-2 text-left">Option Title</th>
                   <th class="px-4 py-2 text-left">Type</th>
                   <th class="px-4 py-2 text-left">Value/Score</th>
+                  <th class="px-4 py-2 text-left">Conditional Logic</th>
                   <th class="px-4 py-2 text-right">Actions</th>
                 </tr>
               </thead>
@@ -564,33 +733,46 @@ watch(showOptionModal, (newVal) => {
                       {{ option.order || '-' }}
                     </span>
                   </td>
-                  <td class="px-4 py-2">{{ getCleanTitle(option.title) }}</td>
-                  <td class="px-4 py-2">
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                      :class="{
-                        'bg-blue-100 text-blue-800': getOptionType(option.title) === 'radio',
-                        'bg-purple-100 text-purple-800': getOptionType(option.title) === 'checkbox',
-                        'bg-green-100 text-green-800': getOptionType(option.title) === 'scale',
-                        'bg-yellow-100 text-yellow-800': ['text', 'textarea'].includes(getOptionType(option.title))
-                      }">
-                      {{ getOptionTypeLabel(getOptionType(option.title)) }}
-                    </span>
-                  </td>
+                                     <td class="px-4 py-2">{{ cleanOptionTitle(option.title) }}</td>
+                   <td class="px-4 py-2">
+                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                       :class="{
+                         'bg-blue-100 text-blue-800': extractOptionType(option.title) === 'radio',
+                         'bg-purple-100 text-purple-800': extractOptionType(option.title) === 'checkbox',
+                         'bg-green-100 text-green-800': extractOptionType(option.title) === 'scale',
+                         'bg-yellow-100 text-yellow-800': ['text', 'textarea'].includes(extractOptionType(option.title))
+                       }">
+                       {{ getOptionTypeLabel(extractOptionType(option.title)) }}
+                     </span>
+                   </td>
                   <td class="px-4 py-2">
                     <span :class="option.value > 0 ? 'text-green-600 font-medium' : 'text-gray-500'">
                       {{ option.value }}
                     </span>
                   </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm">
+                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                       :class="option.conditional_sub_questions_ids && JSON.parse(option.conditional_sub_questions_ids).length > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'">
+                       {{ option.conditional_sub_questions_ids && JSON.parse(option.conditional_sub_questions_ids).length > 0 ? `Triggers Sub-Questions (Value: ${option.value})` : 'No Sub-Questions' }}
+                     </span>
+                     <button @click="openConditionalLogicModal(option)"
+                             class="ml-2 p-1 rounded-full text-purple-600 hover:bg-purple-100 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                       <Icon name="ic:outline-filter-list" class="w-5 h-5" />
+                     </button>
+                     <div v-if="option.conditional_sub_questions_ids" class="mt-1 text-xs text-gray-500">
+                       {{ JSON.parse(option.conditional_sub_questions_ids).length }} sub-question(s) configured
+                     </div>
+                   </td>
                   <td class="px-4 py-2 text-right">
                     <button @click="openEditOptionModal(option)"
                       class="inline-flex items-center justify-center p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-full mr-1"
                       title="Edit Option">
-                      <Icon name="material-symbols:edit-outline-rounded" size="18" />
+                      <Icon name="ic:outline-edit" size="18" />
                     </button>
                     <button @click="confirmDeleteOption(option.id)"
                       class="inline-flex items-center justify-center p-1.5 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-full"
                       title="Delete Option">
-                      <Icon name="material-symbols:delete-outline" size="18" />
+                      <Icon name="ic:outline-delete" size="18" />
                     </button>
                   </td>
                 </tr>
@@ -607,34 +789,37 @@ watch(showOptionModal, (newVal) => {
             <div class="space-y-4">
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Option Type</label>
-                <select v-model="newOption.option_type" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                  <option value="radio">Radio Button</option>
-                  <option value="checkbox">Checkbox</option>
-                </select>
+                <select v-model="newOption.option_type" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2">
+                  <option value="radio">Radio Button (Single Select)</option>
+                  <option value="checkbox">Checkbox (Multiple Select)</option>
+                  <option value="scale">Scale (1-5)</option>
+                  <option value="text">Text Input</option>
+                  <option value="textarea">Text Area</option>
+                </select> 
               </div>
 
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Option Title</label>
-                <input v-model="newOption.option_title" type="text" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Enter option title" />
+                <FormKit type="text" v-model="newOption.option_title" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Enter option title" />
               </div>
 
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Value/Score</label>
-                <input v-model="newOption.option_value" type="text" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Enter value or score" />
+                <FormKit v-model="newOption.option_value" type="text" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Enter value or score" />
               </div>
 
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Display Order</label>
-                <input v-model="newOption.order_number" type="number" min="1" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Enter display order" />
+                <FormKit v-model="newOption.order_number" type="number" min="1" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Enter display order" />
               </div>
             </div>
 
-            <template #footer>
-              <div class="flex justify-end space-x-2">
-                <rs-button @click="showOptionModal = false; document.body.style.overflow = 'auto';" variant="outline">Cancel</rs-button>
-                <rs-button @click="saveOption" variant="primary">Save</rs-button>
-              </div>
-            </template>
+                         <template #footer>
+               <div class="flex justify-end space-x-2">
+                 <rs-button @click="showOptionModal = false; editOptionId.value = null; document.body.style.overflow = 'auto';" variant="outline">Cancel</rs-button>
+                 <rs-button @click="saveOption" variant="primary">Save</rs-button>
+               </div>
+             </template>
           </rs-modal>
         </div>
       </div>
@@ -651,6 +836,101 @@ watch(showOptionModal, (newVal) => {
           <pre class="text-xs overflow-auto max-h-40">{{ JSON.stringify(options, null, 2) }}</pre>
         </div>
       </div> -->
+
+      <!-- Conditional Logic Modal -->
+      <rs-modal
+        title="Configure Conditional Logic"
+        v-model="showConditionalLogicModal"
+        :overlay-close="false"
+        :hide-footer="true"
+      >
+                 <div v-if="selectedOption" class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
+           <div class="text-sm font-medium text-blue-800">Configuring for option: {{ cleanOptionTitle(selectedOption.title) }}</div>
+           <div class="text-xs text-blue-600 mt-1">Option Value: {{ selectedOption.value }}</div>
+         </div>
+
+                 <FormKit type="form" @submit="saveConditionalLogic" :actions="false">
+           <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
+             <h4 class="font-medium text-blue-800 mb-2">Configure Conditional Logic</h4>
+             <p class="text-sm text-blue-600">
+               Set which sub-questions should appear when this option is selected.
+             </p>
+           </div>
+
+           <FormKit
+             type="number"
+             v-model="conditionalLogicConfig.optionValue"
+             label="Trigger Value"
+             help="When this option is selected, it will trigger sub-questions with this value"
+             validation="required"
+             validation-visibility="dirty"
+             :validation-messages="{ required: 'Trigger value is required' }"
+           />
+
+           <FormKit
+             type="checkbox"
+             v-model="conditionalLogicConfig.showSubQuestions"
+             label="Enable Sub-Questions"
+             help="Check this to show sub-questions when this option is selected"
+           />
+
+           <div v-if="conditionalLogicConfig.showSubQuestions" class="mt-4">
+             <h4 class="font-medium mb-3 text-gray-800">Select Sub-Questions for Value {{ conditionalLogicConfig.optionValue }}</h4>
+             <div v-if="availableSubQuestions.length === 0" class="text-sm text-gray-500 mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+               <Icon name="ic:outline-warning" class="inline mr-2" />
+               No sub-questions found for this parent question. Add sub-questions first.
+             </div>
+             <div v-else class="space-y-3">
+               <div v-for="subQuestion in availableSubQuestions" :key="subQuestion.id" 
+                    class="flex items-start p-4 border rounded-lg transition-colors"
+                    :class="subQuestion.status === 'Active' ? 'bg-green-50 border-green-200 hover:bg-green-100' : 'bg-gray-50 border-gray-200'">
+                 <input
+                   type="checkbox"
+                   :id="`sub-${subQuestion.id}`"
+                   :value="subQuestion.id"
+                   v-model="conditionalLogicConfig.subQuestionsToShow"
+                   class="mt-1 mr-3"
+                   :disabled="subQuestion.status !== 'Active'"
+                 />
+                 <div class="flex-1">
+                   <label :for="`sub-${subQuestion.id}`" class="font-medium cursor-pointer text-gray-900">
+                     {{ subQuestion.title }}
+                   </label>
+                   <p class="text-sm text-gray-600 mt-1">{{ subQuestion.description }}</p>
+                   <div class="flex items-center mt-2 space-x-2">
+                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                           :class="subQuestion.is_required ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'">
+                       {{ subQuestion.is_required ? 'Required' : 'Optional' }}
+                     </span>
+                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                           :class="subQuestion.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'">
+                       {{ subQuestion.status }}
+                     </span>
+                   </div>
+                 </div>
+               </div>
+             </div>
+           </div>
+
+          <div class="flex justify-end gap-2 mt-6">
+            <button
+              type="button"
+              class="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400 text-black"
+              @click="cancelConditionalLogic"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              class="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white"
+              :disabled="isConfiguringConditionalLogic"
+            >
+              <span v-if="isConfiguringConditionalLogic">Saving...</span>
+              <span v-else>Save Configuration</span>
+            </button>
+          </div>
+        </FormKit>
+      </rs-modal>
     </div>
   </div>
 </template>

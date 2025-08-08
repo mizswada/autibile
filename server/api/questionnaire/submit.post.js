@@ -20,6 +20,64 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    // Special validation for questionnaire ID 1 (MCHAT-R)
+    if (parseInt(questionnaireId) === 1 && patientId) {
+      // Check if patient has already taken questionnaire ID 1
+      const existingResponse = await prisma.questionnaires_responds.findFirst({
+        where: {
+          questionnaire_id: 1,
+          patient_id: parseInt(patientId)
+        }
+      });
+
+      if (existingResponse) {
+        return {
+          statusCode: 400,
+          message: "This patient has already completed the MCHAT-R questionnaire. It can only be taken once.",
+        };
+      }
+
+      // Check patient's current mchatr_status
+      const patient = await prisma.user_patients.findUnique({
+        where: {
+          patient_id: parseInt(patientId)
+        }
+      });
+
+      if (patient && patient.mchatr_status === 'Disable') {
+        return {
+          statusCode: 400,
+          message: "This patient is not eligible to take the MCHAT-R questionnaire.",
+        };
+      }
+    }
+
+    // Special validation for questionnaire ID 2 (only for patients who scored 3-7 on MCHAT-R)
+    if (parseInt(questionnaireId) === 2 && patientId) {
+      // Check if patient has completed MCHAT-R with score 3-7
+      const mchatrResponse = await prisma.questionnaires_responds.findFirst({
+        where: {
+          questionnaire_id: 1,
+          patient_id: parseInt(patientId)
+        }
+      });
+
+      if (!mchatrResponse) {
+        return {
+          statusCode: 400,
+          message: "This patient must complete the MCHAT-R questionnaire first.",
+        };
+      }
+
+      // Check if MCHAT-R score is between 3-7
+      if (mchatrResponse.total_score < 3 || mchatrResponse.total_score > 7) {
+        return {
+          statusCode: 400,
+          message: "This questionnaire is only available for patients who scored 3-7 on the MCHAT-R questionnaire.",
+        };
+      }
+    }
+
     // Create a new questionnaire response record
     const qrRecord = await prisma.questionnaires_responds.create({
       data: {
@@ -87,6 +145,19 @@ export default defineEventHandler(async (event) => {
       }
     });
 
+    // If this is questionnaire ID 1 (MCHAT-R), update patient's mchatr_status to 'Disable'
+    if (parseInt(questionnaireId) === 1 && patientId) {
+      await prisma.user_patients.update({
+        where: {
+          patient_id: parseInt(patientId)
+        },
+        data: {
+          mchatr_status: 'Disable',
+          update_at: new Date()
+        }
+      });
+    }
+
     // Fetch the appropriate threshold based on the total score
     const threshold = await prisma.questionnaire_scoring.findFirst({
       where: {
@@ -101,6 +172,15 @@ export default defineEventHandler(async (event) => {
       }
     });
 
+    // Special handling for MCHAT-R (questionnaire ID 1)
+    let redirectToQuestionnaire2 = false;
+    if (parseInt(questionnaireId) === 1 && patientId) {
+      // Check if score is between 3-7 for MCHAT-R
+      if (totalScore >= 3 && totalScore <= 7) {
+        redirectToQuestionnaire2 = true;
+      }
+    }
+
     return {
       statusCode: 200,
       message: "Questionnaire submitted successfully",
@@ -110,7 +190,8 @@ export default defineEventHandler(async (event) => {
         threshold: threshold ? {
           interpretation: threshold.scoring_interpretation,
           recommendation: threshold.scoring_recommendation
-        } : null
+        } : null,
+        redirect_to_questionnaire_2: redirectToQuestionnaire2
       }
     };
 

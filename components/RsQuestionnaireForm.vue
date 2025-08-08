@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch, nextTick } from 'vue';
 
 const props = defineProps({
   questionnaireId: {
@@ -21,6 +21,10 @@ const props = defineProps({
   questionnaireData: {
     type: Object,
     default: null
+  },
+  showQuestions: {
+    type: Boolean,
+    default: true
   }
 });
 
@@ -35,43 +39,74 @@ const errorMessage = ref('');
 const successMessage = ref('');
 const isSubmitting = ref(false);
 
+// New refs for conditional logic
+const conditionalSubQuestions = ref({});
+const loadingConditionalQuestions = ref({});
+
+// Cache for options to avoid refetching
+const optionsCache = ref({});
+
 const progress = computed(() => {
   if (!questions.value.length) return 0;
   
-  const totalQuestions = questions.value.length;
-  const answeredQuestions = questions.value.filter(q => {
-    const questionId = q.question_id;
-    const questionType = getQuestionOptionType(q);
-    
-    // For text or textarea questions, check textAnswers
-    if (questionType === 'text' || questionType === 'textarea' || q.answer_type === 33) {
-      return textAnswers.value[questionId] !== undefined && textAnswers.value[questionId] !== '';
-    } 
-    // For all other question types, check answers
-    else {
-      return answers.value[questionId] !== undefined && answers.value[questionId] !== null;
-    }
-  }).length;
+  // Get all questions including conditional sub-questions
+  const allQuestions = [
+    ...questions.value,
+    ...Object.values(conditionalSubQuestions.value).flat()
+  ];
+  
+  const totalQuestions = allQuestions.length;
+     const answeredQuestions = allQuestions.filter(q => {
+     const questionId = q.question_id;
+     const questionType = getQuestionOptionType(q);
+     
+     // For text or textarea questions, check textAnswers
+     if (questionType === 'text' || questionType === 'textarea' || q.answer_type === 33) {
+       return textAnswers.value[questionId] !== undefined && textAnswers.value[questionId] !== '';
+     } 
+     // For checkbox questions, check if array has at least one item
+     else if (questionType === 'checkbox') {
+       return answers.value[questionId] !== undefined && 
+              Array.isArray(answers.value[questionId]) && 
+              answers.value[questionId].length > 0;
+     }
+     // For all other question types, check answers
+     else {
+       return answers.value[questionId] !== undefined && answers.value[questionId] !== null;
+     }
+   }).length;
   
   return Math.round((answeredQuestions / totalQuestions) * 100);
 });
 
 const requiredQuestionsAnswered = computed(() => {
-  return questions.value
-    .filter(q => q.is_required)
-    .every(q => {
-      const questionId = q.question_id;
-      const questionType = getQuestionOptionType(q);
-      
-      // For text or textarea questions, check textAnswers
-      if (questionType === 'text' || questionType === 'textarea' || q.answer_type === 33) {
-        return textAnswers.value[questionId] !== undefined && textAnswers.value[questionId] !== '';
-      } 
-      // For all other question types, check answers
-      else {
-        return answers.value[questionId] !== undefined && answers.value[questionId] !== null;
-      }
-    });
+  // Get all questions including conditional sub-questions
+  const allQuestions = [
+    ...questions.value,
+    ...Object.values(conditionalSubQuestions.value).flat()
+  ];
+  
+     return allQuestions
+     .filter(q => q.is_required)
+     .every(q => {
+       const questionId = q.question_id;
+       const questionType = getQuestionOptionType(q);
+       
+       // For text or textarea questions, check textAnswers
+       if (questionType === 'text' || questionType === 'textarea' || q.answer_type === 33) {
+         return textAnswers.value[questionId] !== undefined && textAnswers.value[questionId] !== '';
+       } 
+       // For checkbox questions, check if array has at least one item
+       else if (questionType === 'checkbox') {
+         return answers.value[questionId] !== undefined && 
+                Array.isArray(answers.value[questionId]) && 
+                answers.value[questionId].length > 0;
+       }
+       // For all other question types, check answers
+       else {
+         return answers.value[questionId] !== undefined && answers.value[questionId] !== null;
+       }
+     });
 });
 
 onMounted(async () => {
@@ -89,6 +124,26 @@ onMounted(async () => {
     populateSavedAnswers();
   }
 });
+
+// Watch for changes in parent question answers to trigger conditional sub-questions
+watch(answers, async (newAnswers, oldAnswers) => {
+  // Handle both initial changes (when oldAnswers is undefined) and subsequent changes
+  if (oldAnswers) {
+    // Check which parent questions have changed
+    for (const [questionId, answer] of Object.entries(newAnswers)) {
+      if (oldAnswers[questionId] !== answer) {
+        await checkAndLoadConditionalSubQuestions(parseInt(questionId), answer);
+      }
+    }
+  } else {
+    // Handle initial changes (when oldAnswers is undefined)
+    for (const [questionId, answer] of Object.entries(newAnswers)) {
+      if (answer !== undefined && answer !== null) {
+        await checkAndLoadConditionalSubQuestions(parseInt(questionId), answer);
+      }
+    }
+  }
+}, { deep: true });
 
 function populateSavedAnswers() {
   props.savedAnswers.forEach(answer => {
@@ -120,6 +175,10 @@ async function fetchQuestionnaire() {
 }
 
 async function fetchQuestions() {
+  
+  // Clear options cache when loading new questions
+  clearOptionsCache();
+  
   isLoading.value = true;
   try {
     // First fetch all questions for this questionnaire
@@ -127,38 +186,42 @@ async function fetchQuestions() {
     const result = await res.json();
 
     if (res.ok && result.data) {
-      // Separate parent questions and sub-questions
-      const allQuestions = result.data;
-      const parentQuestions = allQuestions.filter(q => q.parentID === null);
-      const subQuestions = allQuestions.filter(q => q.parentID !== null);
+      // Only show parent questions initially (no sub-questions shown by default)
+      const parentQuestions = result.data.filter(q => q.parentID === null);
       
-      // Organize questions in hierarchical order
-      const organizedQuestions = [];
+      // Initialize questions without setting optionsLoading initially
+      questions.value = parentQuestions.map(q => {
+        return {
+          ...q,
+          options: [],
+          optionsLoading: false, // Don't set loading initially
+          optionsError: false
+        };
+      });
       
-      // Add parent questions and their sub-questions in sequence
-      for (const parentQuestion of parentQuestions) {
-        // Add the parent question
-        organizedQuestions.push(parentQuestion);
-        
-        // Find and add all sub-questions for this parent
-        const children = subQuestions.filter(sq => sq.parentID === parentQuestion.question_id);
-        organizedQuestions.push(...children);
+      // Fetch options only for questions that need them
+      const questionsNeedingOptions = questions.value.filter(q => q.answer_type === 35);
+      
+      if (questionsNeedingOptions.length > 0) {
+        const batchSize = 5;
+        for (let i = 0; i < questionsNeedingOptions.length; i += batchSize) {
+          const batch = questionsNeedingOptions.slice(i, i + batchSize);
+          await Promise.all(batch.map(question => fetchQuestionOptions(question)));
+        }
       }
       
-      // Initialize questions with empty options arrays
-      questions.value = organizedQuestions.map(q => ({
-        ...q,
-        options: [],
-        optionsLoading: true,
-        optionsError: false
-      }));
+      // Set loading to false for questions that don't have conditional_sub_questions_ids
+      questions.value.forEach(question => {
+        if (question.answer_type === 35) {
+          // If no conditional sub-questions, set loading to false immediately
+          if (!hasConditionalSubQuestions(question)) {
+            question.optionsLoading = false;
+          }
+        }
+      });
       
-      // Fetch options for all questions in batches to avoid overwhelming the server
-      const batchSize = 5;
-      for (let i = 0; i < questions.value.length; i += batchSize) {
-        const batch = questions.value.slice(i, i + batchSize);
-        await Promise.all(batch.map(question => fetchQuestionOptions(question)));
-      }
+      // Don't load sub-questions by default - only show them when options are selected
+      // The sub-questions will be loaded dynamically when users select options
     } else {
       errorMessage.value = result.message || 'Failed to load questions';
     }
@@ -167,6 +230,182 @@ async function fetchQuestions() {
     errorMessage.value = 'Error loading questions';
   } finally {
     isLoading.value = false;
+  }
+}
+
+// New function to load sub-questions for a parent question
+async function loadSubQuestionsForParent(parentQuestionId) {
+  try {
+    // Get all sub-questions for this parent - use a special parameter to indicate we want all sub-questions
+    const url = `/api/questionnaire/questions/getConditionalSubQuestions?questionnaireID=${props.questionnaireId}&parentQuestionID=${parentQuestionId}&showAllSubQuestions=true`;
+    
+    const res = await fetch(url);
+    const result = await res.json();
+
+    if (res.ok && result.data && result.data.length > 0) {
+      // Get the sub-question IDs to fetch their options efficiently
+      const subQuestionIds = result.data.map(q => q.question_id);
+      
+      // Use batch API to fetch options for all sub-questions at once
+      const batchRes = await fetch(`/api/questionnaire/questions/options/batch?questionIDs=${subQuestionIds.join(',')}`);
+      const batchResult = await batchRes.json();
+      
+      // Process the sub-questions with options from batch API
+      const subQuestions = result.data.map(q => {
+        const questionOptions = batchResult.data && batchResult.data[q.question_id] ? batchResult.data[q.question_id] : [];
+        return {
+          ...q,
+          options: questionOptions.map(option => ({
+            ...option,
+            option_type: extractOptionType(option.option_title),
+            original_title: option.option_title,
+            option_title: cleanOptionTitle(option.option_title),
+            conditional_sub_questions_ids: option.conditional_sub_questions_ids
+          })),
+          optionsLoading: false,
+          optionsError: false
+        };
+      });
+      
+      // Use Vue's reactive system properly
+      conditionalSubQuestions.value = {
+        ...conditionalSubQuestions.value,
+        [parentQuestionId]: subQuestions
+      };
+      
+      // Ensure DOM updates
+      await nextTick();
+    } else {
+      // Set empty array to ensure the key exists
+      conditionalSubQuestions.value = {
+        ...conditionalSubQuestions.value,
+        [parentQuestionId]: []
+      };
+    }
+  } catch (err) {
+    // Set empty array on error too
+    conditionalSubQuestions.value = {
+      ...conditionalSubQuestions.value,
+      [parentQuestionId]: []
+    };
+  }
+}
+
+// New function to check and load conditional sub-questions
+async function checkAndLoadConditionalSubQuestions(parentQuestionId, selectedAnswer) {
+  
+  // Get the selected option to find its value
+  const parentQuestion = questions.value.find(q => q.question_id === parentQuestionId);
+  
+  const selectedOption = parentQuestion.options.find(option => 
+    option.option_id === selectedAnswer
+  );
+
+  if (!selectedOption) {
+    return;
+  }
+
+  // Check if this option has conditional logic configured
+  const hasConditionalLogic = selectedOption.conditional_sub_questions_ids && 
+    JSON.parse(selectedOption.conditional_sub_questions_ids || '[]').length > 0;
+  
+  // Only set loading state if there are sub-questions to load
+  if (hasConditionalLogic) {
+    loadingConditionalQuestions.value[parentQuestionId] = true;
+  }
+
+  try {
+    if (hasConditionalLogic) {
+      // Use conditional logic - fetch specific sub-questions for this option
+      const res = await fetch(`/api/questionnaire/questions/getConditionalSubQuestions?questionnaireID=${props.questionnaireId}&parentQuestionID=${parentQuestionId}&selectedOptionValue=${selectedOption.option_value}`);
+      const result = await res.json();
+
+      if (res.ok && result.data && result.data.length > 0) {
+        // Get the sub-question IDs to fetch their options efficiently
+        const subQuestionIds = result.data.map(q => q.question_id);
+        
+        // Use batch API to fetch options for all sub-questions at once
+        const batchRes = await fetch(`/api/questionnaire/questions/options/batch?questionIDs=${subQuestionIds.join(',')}`);
+        const batchResult = await batchRes.json();
+        
+        // Process the conditional sub-questions with options from batch API
+        const conditionalQuestions = result.data.map(q => {
+          const questionOptions = batchResult.data && batchResult.data[q.question_id] ? batchResult.data[q.question_id] : [];
+          return {
+            ...q,
+            options: questionOptions.map(option => ({
+              ...option,
+              option_type: extractOptionType(option.option_title),
+              original_title: option.option_title,
+              option_title: cleanOptionTitle(option.option_title),
+              conditional_sub_questions_ids: option.conditional_sub_questions_ids
+            })),
+            optionsLoading: false,
+            optionsError: false
+          };
+        });
+        
+        // Use Vue's reactive system properly
+        conditionalSubQuestions.value = {
+          ...conditionalSubQuestions.value,
+          [parentQuestionId]: conditionalQuestions
+        };
+        
+        // Ensure DOM updates
+        await nextTick();
+      } else {
+        // If API returns empty data, clear the sub-questions
+        conditionalSubQuestions.value[parentQuestionId] = [];
+      }
+    } else {
+      // No conditional logic - show all sub-questions by default
+      const res = await fetch(`/api/questionnaire/questions/getConditionalSubQuestions?questionnaireID=${props.questionnaireId}&parentQuestionID=${parentQuestionId}&showAllSubQuestions=true`);
+      const result = await res.json();
+
+      if (res.ok && result.data && result.data.length > 0) {
+        // Get the sub-question IDs to fetch their options efficiently
+        const subQuestionIds = result.data.map(q => q.question_id);
+        
+        // Use batch API to fetch options for all sub-questions at once
+        const batchRes = await fetch(`/api/questionnaire/questions/options/batch?questionIDs=${subQuestionIds.join(',')}`);
+        const batchResult = await batchRes.json();
+        
+        // Process the sub-questions with options from batch API
+        const subQuestions = result.data.map(q => {
+          const questionOptions = batchResult.data && batchResult.data[q.question_id] ? batchResult.data[q.question_id] : [];
+          return {
+            ...q,
+            options: questionOptions.map(option => ({
+              ...option,
+              option_type: extractOptionType(option.option_title),
+              original_title: option.option_title,
+              option_title: cleanOptionTitle(option.option_title),
+              conditional_sub_questions_ids: option.conditional_sub_questions_ids
+            })),
+            optionsLoading: false,
+            optionsError: false
+          };
+        });
+        
+        // Use Vue's reactive system properly
+        conditionalSubQuestions.value = {
+          ...conditionalSubQuestions.value,
+          [parentQuestionId]: subQuestions
+        };
+        
+        // Ensure DOM updates
+        await nextTick();
+      } else {
+        // If API returns empty data, clear the sub-questions
+        conditionalSubQuestions.value[parentQuestionId] = [];
+      }
+    }
+  } catch (err) {
+    console.error('Error loading conditional sub-questions:', err);
+    conditionalSubQuestions.value[parentQuestionId] = [];
+  } finally {
+    // Clear loading state
+    loadingConditionalQuestions.value[parentQuestionId] = false;
   }
 }
 
@@ -191,22 +430,73 @@ function cleanOptionTitle(optionTitle) {
     .trim();
 }
 
+// Helper function to check if a question has conditional sub-questions
+function hasConditionalSubQuestions(question) {
+  if (!question.options || question.options.length === 0) {
+    return false;
+  }
+  
+  return question.options.some(option => {
+    return option.conditional_sub_questions_ids && 
+           JSON.parse(option.conditional_sub_questions_ids || '[]').length > 0;
+  });
+}
+
 async function fetchQuestionOptions(question) {
+  
+  // Check cache first
+  if (optionsCache.value[question.question_id] !== undefined) {
+    question.options = optionsCache.value[question.question_id];
+    question.optionsLoading = false;
+    question.optionsError = false;
+    return;
+  }
+  
+  
+  // Set loading only when we're actually fetching
   question.optionsLoading = true;
   question.optionsError = false;
   
   try {
-    const res = await fetch(`/api/questionnaire/questions/options/list?questionID=${question.question_id}`);
+    const url = `/api/questionnaire/questions/options/list?questionID=${question.question_id}`;
+    
+    const res = await fetch(url, {
+      // Add cache control to prevent browser caching
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    });
     const result = await res.json();
 
     if (res.ok && result.data) {
-      // Process options to extract type from title
-      question.options = result.data.map(option => ({
+      
+      // Check if there are any options
+      if (result.data.length === 0) {
+        question.options = [];
+        // Cache the empty array to avoid refetching
+        optionsCache.value[question.question_id] = [];
+        question.optionsLoading = false;
+        question.optionsError = false;
+        return;
+      }
+      
+      // Process options to extract type from title and include conditional logic data
+      const processedOptions = result.data.map(option => ({
         ...option,
         option_type: extractOptionType(option.option_title),
         original_title: option.option_title,
-        option_title: cleanOptionTitle(option.option_title)
+        option_title: cleanOptionTitle(option.option_title),
+        conditional_sub_questions_ids: option.conditional_sub_questions_ids // Include conditional logic field
       }));
+      
+      // Cache the processed options (including empty arrays)
+      optionsCache.value[question.question_id] = processedOptions;
+      
+      question.options = processedOptions;
+      
+      // Set loading to false (for questions without conditional sub-questions, this happens immediately)
       question.optionsLoading = false;
     } else {
       console.error(`Failed to load options for question ${question.question_id}:`, result.message);
@@ -227,9 +517,78 @@ async function retryLoadOptions(question) {
   await fetchQuestionOptions(question);
 }
 
+// Function to clear options cache
+function clearOptionsCache() {
+  optionsCache.value = {};
+}
+
 function handleOptionSelect(questionId, optionId) {
+  
   if (props.readOnly) return;
-  answers.value[questionId] = optionId;
+  
+  // Check if this is a conditional sub-question
+  const isConditionalQuestion = Object.values(conditionalSubQuestions.value).flat().some(q => q.question_id === questionId);
+  
+  // Get the question (either from main questions or conditional sub-questions)
+  let targetQuestion;
+  if (isConditionalQuestion) {
+    targetQuestion = Object.values(conditionalSubQuestions.value).flat().find(q => q.question_id === questionId);
+  } else {
+    targetQuestion = questions.value.find(q => q.question_id === questionId);
+  }
+  
+  const selectedOption = targetQuestion.options.find(option => 
+    option.option_id === optionId
+  );
+  
+  // Get the question type to determine if it's radio or checkbox
+  const questionType = getQuestionOptionType(targetQuestion);
+  
+  if (questionType === 'checkbox') {
+    // For checkbox: toggle the option in an array
+    if (!answers.value[questionId]) {
+      answers.value[questionId] = [];
+    }
+    
+    const currentAnswers = Array.isArray(answers.value[questionId]) ? answers.value[questionId] : [];
+    
+    if (currentAnswers.includes(optionId)) {
+      // Remove option if already selected
+      answers.value[questionId] = currentAnswers.filter(id => id !== optionId);
+    } else {
+      // Add option if not selected
+      answers.value[questionId] = [...currentAnswers, optionId];
+    }
+    
+    // For conditional sub-questions, we don't need to trigger additional conditional logic
+    if (!isConditionalQuestion) {
+      // For checkbox, we need to determine which option to use for conditional logic
+      // Use the first selected option for conditional logic
+      const firstSelectedOptionId = Array.isArray(answers.value[questionId]) && answers.value[questionId].length > 0 
+        ? answers.value[questionId][0] 
+        : null;
+      
+      if (firstSelectedOptionId) {
+        checkAndLoadConditionalSubQuestions(questionId, firstSelectedOptionId);
+      } else {
+        // Clear sub-questions if no options selected
+        conditionalSubQuestions.value[questionId] = [];
+      }
+    }
+  } else {
+    // For radio and other types: single selection
+    // Clear existing sub-questions when changing answers (only for main questions)
+    if (!isConditionalQuestion && answers.value[questionId] !== optionId) {
+      conditionalSubQuestions.value[questionId] = [];
+    }
+    
+    answers.value[questionId] = optionId;
+    
+    // Always call conditional function to handle both conditional and default sub-questions (only for main questions)
+    if (!isConditionalQuestion) {
+      checkAndLoadConditionalSubQuestions(questionId, optionId);
+    }
+  }
 }
 
 function handleTextInput(questionId, value) {
@@ -238,13 +597,17 @@ function handleTextInput(questionId, value) {
 }
 
 function getQuestionOptionType(question) {
+  
+  
   // First check the answer_type of the question
   if (question.answer_type === 33) return 'text'; // Text Type
   if (question.answer_type === 34) return 'range'; // Range Type
   if (question.answer_type === 35) { // Option Type
     // For option type, check the first option's type
     if (!question.options || question.options.length === 0) return 'radio';
-    return question.options[0].option_type || 'radio';
+    const result = question.options[0].option_type || 'radio';
+    
+    return result;
   }
   
   // Fallback to checking options if answer_type is not set
@@ -310,17 +673,30 @@ async function submitQuestionnaire() {
           });
         }
       }
-      // Handle Option Type (answer_type = 35)
-      else if (answerType === 35) {
-        if (answers.value[questionId]) {
-          formattedAnswers.push({
-            question_id: parseInt(questionId),
-            option_id: parseInt(answers.value[questionId]),
-            patient_id: props.patientId ? parseInt(props.patientId) : null,
-            parentID: parentID ? parseInt(parentID) : null // Include parentID if it exists
-          });
-        }
-      }
+             // Handle Option Type (answer_type = 35)
+       else if (answerType === 35) {
+         const questionType = getQuestionOptionType(question);
+         
+         if (questionType === 'checkbox' && Array.isArray(answers.value[questionId])) {
+           // For checkbox: create multiple answers
+           answers.value[questionId].forEach(optionId => {
+             formattedAnswers.push({
+               question_id: parseInt(questionId),
+               option_id: parseInt(optionId),
+               patient_id: props.patientId ? parseInt(props.patientId) : null,
+               parentID: parentID ? parseInt(parentID) : null // Include parentID if it exists
+             });
+           });
+         } else if (answers.value[questionId]) {
+           // For radio and other single-selection types
+           formattedAnswers.push({
+             question_id: parseInt(questionId),
+             option_id: parseInt(answers.value[questionId]),
+             patient_id: props.patientId ? parseInt(props.patientId) : null,
+             parentID: parentID ? parseInt(parentID) : null // Include parentID if it exists
+           });
+         }
+       }
       // Fallback for questions with no answer_type but with answers
       else if (answers.value[questionId]) {
         formattedAnswers.push({
@@ -347,8 +723,60 @@ async function submitQuestionnaire() {
       }
     });
 
-    console.log('Submitting answers:', formattedAnswers);
-    
+    // Also include conditional sub-questions answers
+    Object.values(conditionalSubQuestions.value).flat().forEach(question => {
+      const questionId = question.question_id;
+      const answerType = question.answer_type;
+      const parentID = question.parentID;
+      const questionType = getQuestionOptionType(question);
+      
+      // Handle Text Type
+      if (answerType === 33 || questionType === 'text' || questionType === 'textarea') {
+        if (textAnswers.value[questionId]) {
+          formattedAnswers.push({
+            question_id: parseInt(questionId),
+            option_id: null,
+            text_answer: textAnswers.value[questionId],
+            patient_id: props.patientId ? parseInt(props.patientId) : null,
+            parentID: parentID ? parseInt(parentID) : null
+          });
+        }
+      }
+      // Handle Option Type (answer_type = 35) for conditional sub-questions
+      else if (answerType === 35) {
+        const questionType = getQuestionOptionType(question);
+        
+        if (questionType === 'checkbox' && Array.isArray(answers.value[questionId])) {
+          // For checkbox: create multiple answers
+          answers.value[questionId].forEach(optionId => {
+            formattedAnswers.push({
+              question_id: parseInt(questionId),
+              option_id: parseInt(optionId),
+              patient_id: props.patientId ? parseInt(props.patientId) : null,
+              parentID: parentID ? parseInt(parentID) : null
+            });
+          });
+        } else if (answers.value[questionId]) {
+          // For radio and other single-selection types
+          formattedAnswers.push({
+            question_id: parseInt(questionId),
+            option_id: parseInt(answers.value[questionId]),
+            patient_id: props.patientId ? parseInt(props.patientId) : null,
+            parentID: parentID ? parseInt(parentID) : null
+          });
+        }
+      }
+      // Handle other types (fallback)
+      else if (answers.value[questionId]) {
+        formattedAnswers.push({
+          question_id: parseInt(questionId),
+          option_id: parseInt(answers.value[questionId]),
+          patient_id: props.patientId ? parseInt(props.patientId) : null,
+          parentID: parentID ? parseInt(parentID) : null
+        });
+      }
+    });
+
     emit('submit', {
       questionnaireId: parseInt(props.questionnaireId),
       answers: formattedAnswers
@@ -414,8 +842,9 @@ function cancelQuestionnaire() {
         </div>
       </div>
       
-      <!-- Questions -->
-      <div class="space-y-8">
+             <!-- Questions -->
+       <div v-if="props.showQuestions" class="space-y-8">
+        
         <div 
           v-for="question in questions" 
           :key="question.question_id" 
@@ -425,7 +854,7 @@ function cancelQuestionnaire() {
           <div class="mb-3">
             <!-- Show parent question info if this is a sub-question -->
             <div v-if="question.parentID" class="text-xs text-blue-600 mb-2 flex items-center">
-              <Icon name="material-symbols:subdirectory-arrow-right" class="mr-1" />
+              <Icon name="ic:outline-subdirectory-arrow-right" class="mr-1" />
               Sub-question
             </div>
             
@@ -439,7 +868,7 @@ function cancelQuestionnaire() {
           </div>
           
           <!-- Radio Button Options -->
-          <div v-if="getQuestionOptionType(question) === 'radio' && question.options" class="mt-4">
+          <div v-if="getQuestionOptionType(question) === 'radio' && question.answer_type === 35" class="mt-4">
             <div v-if="question.optionsLoading" class="p-3 text-center">
               <div class="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500 mr-2"></div>
               <span class="text-sm text-gray-500">Loading options...</span>
@@ -455,7 +884,7 @@ function cancelQuestionnaire() {
               </button>
             </div>
             
-            <div v-else-if="question.options.length === 0" class="p-3 text-center text-gray-500 italic">
+            <div v-else-if="!question.options || question.options.length === 0" class="p-3 text-center text-gray-500 italic">
               No options available for this question
             </div>
             
@@ -491,7 +920,7 @@ function cancelQuestionnaire() {
           </div>
           
           <!-- Checkbox Options -->
-          <div v-else-if="getQuestionOptionType(question) === 'checkbox' && question.options" class="mt-4">
+          <div v-else-if="getQuestionOptionType(question) === 'checkbox' && question.answer_type === 35" class="mt-4">
             <div v-if="question.optionsLoading" class="p-3 text-center">
               <div class="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500 mr-2"></div>
               <span class="text-sm text-gray-500">Loading options...</span>
@@ -507,7 +936,7 @@ function cancelQuestionnaire() {
               </button>
             </div>
             
-            <div v-else-if="question.options.length === 0" class="p-3 text-center text-gray-500 italic">
+            <div v-else-if="!question.options || question.options.length === 0" class="p-3 text-center text-gray-500 italic">
               No options available for this question
             </div>
             
@@ -517,7 +946,9 @@ function cancelQuestionnaire() {
                 :key="option.option_id"
                 class="flex items-center p-3 border rounded cursor-pointer transition-colors"
                 :class="{
-                  'bg-blue-50 border-blue-300': answers[question.question_id] === option.option_id,
+                  'bg-blue-50 border-blue-300': Array.isArray(answers[question.question_id]) 
+                    ? answers[question.question_id].includes(option.option_id)
+                    : answers[question.question_id] === option.option_id,
                   'hover:bg-gray-50': !props.readOnly,
                   'opacity-60 cursor-not-allowed': props.readOnly
                 }"
@@ -527,15 +958,21 @@ function cancelQuestionnaire() {
                   <div 
                     class="w-4 h-4 rounded border-2"
                     :class="{
-                      'border-blue-500': answers[question.question_id] === option.option_id,
-                      'border-gray-300': answers[question.question_id] !== option.option_id
+                      'border-blue-500': Array.isArray(answers[question.question_id]) 
+                        ? answers[question.question_id].includes(option.option_id)
+                        : answers[question.question_id] === option.option_id,
+                      'border-gray-300': Array.isArray(answers[question.question_id]) 
+                        ? !answers[question.question_id].includes(option.option_id)
+                        : answers[question.question_id] !== option.option_id
                     }"
                   >
                     <div 
-                      v-if="answers[question.question_id] === option.option_id" 
+                      v-if="Array.isArray(answers[question.question_id]) 
+                        ? answers[question.question_id].includes(option.option_id)
+                        : answers[question.question_id] === option.option_id" 
                       class="flex items-center justify-center"
                     >
-                      <Icon name="material-symbols:check-small" class="text-blue-500" size="16" />
+                      <Icon name="ic:outline-check" class="text-blue-500" size="16" />
                     </div>
                   </div>
                 </div>
@@ -573,63 +1010,29 @@ function cancelQuestionnaire() {
           
           <!-- Text Type -->
           <div v-else-if="getQuestionOptionType(question) === 'text'" class="mt-4">
-            <div v-if="question.optionsLoading" class="p-3 text-center">
-              <div class="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500 mr-2"></div>
-              <span class="text-sm text-gray-500">Loading options...</span>
-            </div>
-            
-            <div v-else-if="question.optionsError" class="p-3 border rounded bg-red-50 text-center">
-              <p class="text-sm text-red-600 mb-2">Failed to load options</p>
-              <button 
-                @click="retryLoadOptions(question)"
-                class="text-sm px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
-              >
-                Retry
-              </button>
-            </div>
-            
-            <div v-else>
-              <input
-                type="text"
-                v-model="textAnswers[question.question_id]"
-                class="w-full p-3 border rounded"
-                :placeholder="question.options && question.options.length > 0 ? question.options[0].option_title : 'Enter your answer here'"
-                :disabled="props.readOnly"
-                @input="handleTextInput(question.question_id, $event.target.value)"
-              />
-            </div>
+            <input
+              type="text"
+              v-model="textAnswers[question.question_id]"
+              class="w-full p-3 border rounded"
+              :placeholder="question.options && question.options.length > 0 ? question.options[0].option_title : 'Enter your answer here'"
+              :disabled="props.readOnly"
+              @input="handleTextInput(question.question_id, $event.target.value)"
+            />
           </div>
           
           <!-- Textarea Type -->
           <div v-else-if="getQuestionOptionType(question) === 'textarea'" class="mt-4">
-            <div v-if="question.optionsLoading" class="p-3 text-center">
-              <div class="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500 mr-2"></div>
-              <span class="text-sm text-gray-500">Loading options...</span>
-            </div>
-            
-            <div v-else-if="question.optionsError" class="p-3 border rounded bg-red-50 text-center">
-              <p class="text-sm text-red-600 mb-2">Failed to load options</p>
-              <button 
-                @click="retryLoadOptions(question)"
-                class="text-sm px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
-              >
-                Retry
-              </button>
-            </div>
-            
-            <div v-else>
-              <textarea
-                v-model="textAnswers[question.question_id]"
-                class="w-full p-3 border rounded min-h-[100px]"
-                :placeholder="question.options && question.options.length > 0 ? question.options[0].option_title : 'Enter your answer here'"
-                :disabled="props.readOnly"
-                @input="handleTextInput(question.question_id, $event.target.value)"
-              ></textarea>
-            </div>
+            <textarea
+              v-model="textAnswers[question.question_id]"
+              class="w-full p-3 border rounded min-h-[100px]"
+              :placeholder="question.options && question.options.length > 0 ? question.options[0].option_title : 'Enter your answer here'"
+              :disabled="props.readOnly"
+              @input="handleTextInput(question.question_id, $event.target.value)"
+            ></textarea>
           </div>
           
           <!-- Scale Options (for backward compatibility) -->
-          <div v-else-if="getQuestionOptionType(question) === 'scale' && question.options" class="mt-4">
+          <div v-else-if="getQuestionOptionType(question) === 'scale' && question.answer_type === 35" class="mt-4">
             <div v-if="question.optionsLoading" class="p-3 text-center">
               <div class="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500 mr-2"></div>
               <span class="text-sm text-gray-500">Loading options...</span>
@@ -645,7 +1048,7 @@ function cancelQuestionnaire() {
               </button>
             </div>
             
-            <div v-else-if="question.options.length === 0" class="p-3 text-center text-gray-500 italic">
+            <div v-else-if="!question.options || question.options.length === 0" class="p-3 text-center text-gray-500 italic">
               No options available for this question
             </div>
             
@@ -673,11 +1076,184 @@ function cancelQuestionnaire() {
           </div>
           
           <div v-else class="text-gray-500 italic">No options available for this question</div>
+          
+          <!-- Loading indicator for conditional questions for this specific question -->
+          <div v-if="loadingConditionalQuestions[question.question_id]" class="card p-5 ml-8 border-l-4 border-l-green-300 bg-green-50 mt-4">
+            <div class="flex items-center justify-center">
+              <div class="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-green-500 mr-2"></div>
+              <span class="text-sm text-gray-500">Loading conditional questions...</span>
+            </div>
+          </div>
+
+          <!-- Conditional Sub-Questions for this specific question -->
+          <template v-if="conditionalSubQuestions[question.question_id] && conditionalSubQuestions[question.question_id].length > 0">
+            <div 
+              v-for="conditionalQuestion in conditionalSubQuestions[question.question_id]" 
+              :key="conditionalQuestion.question_id" 
+              class="card p-5 ml-8 border-l-4 border-l-green-300 bg-green-50 mt-4"
+            >
+              <div class="mb-3">
+                <div class="text-xs text-green-600 mb-2 flex items-center">
+                  <Icon name="ic:outline-subdirectory-arrow-right" class="mr-1" />
+                  Sub-question
+                </div>
+                
+                <h3 class="text-lg font-medium">
+                  {{ conditionalQuestion.question_text_bi || conditionalQuestion.question_text }}
+                  <span v-if="conditionalQuestion.is_required" class="text-red-500">*</span>
+                </h3>
+                <p v-if="conditionalQuestion.question_text_bm" class="text-sm text-gray-500 mt-1">
+                  {{ conditionalQuestion.question_text_bm }}
+                </p>
+              </div>
+              
+              <!-- Radio Button Options for Conditional Questions -->
+              <div v-if="getQuestionOptionType(conditionalQuestion) === 'radio' && conditionalQuestion.options" class="mt-4">
+                <div v-if="conditionalQuestion.optionsLoading" class="p-3 text-center">
+                  <div class="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500 mr-2"></div>
+                  <span class="text-sm text-gray-500">Loading options...</span>
+                </div>
+                
+                <div v-else-if="conditionalQuestion.optionsError" class="p-3 border rounded bg-red-50 text-center">
+                  <p class="text-sm text-red-600 mb-2">Failed to load options</p>
+                  <button 
+                    @click="retryLoadOptions(conditionalQuestion)"
+                    class="text-sm px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                  >
+                    Retry
+                  </button>
+                </div>
+                
+                <div v-else-if="conditionalQuestion.options.length === 0" class="p-3 text-center text-gray-500 italic">
+                  No options available for this question
+                </div>
+                
+                <div v-else class="space-y-2">
+                  <div 
+                    v-for="option in conditionalQuestion.options" 
+                    :key="option.option_id"
+                    class="flex items-center p-3 border rounded cursor-pointer transition-colors"
+                    :class="{
+                      'bg-blue-50 border-blue-300': answers[conditionalQuestion.question_id] === option.option_id,
+                      'hover:bg-gray-50': !props.readOnly,
+                      'opacity-60 cursor-not-allowed': props.readOnly
+                    }"
+                    @click="handleOptionSelect(conditionalQuestion.question_id, option.option_id)"
+                  >
+                    <div class="w-6 h-6 flex items-center justify-center mr-3">
+                      <div 
+                        class="w-4 h-4 rounded-full border-2"
+                        :class="{
+                          'border-blue-500': answers[conditionalQuestion.question_id] === option.option_id,
+                          'border-gray-300': answers[conditionalQuestion.question_id] !== option.option_id
+                        }"
+                      >
+                        <div 
+                          v-if="answers[conditionalQuestion.question_id] === option.option_id" 
+                          class="w-2 h-2 rounded-full bg-blue-500 m-auto"
+                        ></div>
+                      </div>
+                    </div>
+                    <div>{{ option.option_title }}</div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Checkbox Options for Conditional Questions -->
+              <div v-else-if="getQuestionOptionType(conditionalQuestion) === 'checkbox' && conditionalQuestion.options" class="mt-4">
+                <div v-if="conditionalQuestion.optionsLoading" class="p-3 text-center">
+                  <div class="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500 mr-2"></div>
+                  <span class="text-sm text-gray-500">Loading options...</span>
+                </div>
+                
+                <div v-else-if="conditionalQuestion.optionsError" class="p-3 border rounded bg-red-50 text-center">
+                  <p class="text-sm text-red-600 mb-2">Failed to load options</p>
+                  <button 
+                    @click="retryLoadOptions(conditionalQuestion)"
+                    class="text-sm px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                  >
+                    Retry
+                  </button>
+                </div>
+                
+                <div v-else-if="conditionalQuestion.options.length === 0" class="p-3 text-center text-gray-500 italic">
+                  No options available for this question
+                </div>
+                
+                <div v-else class="space-y-2">
+                  <div 
+                    v-for="option in conditionalQuestion.options" 
+                    :key="option.option_id"
+                    class="flex items-center p-3 border rounded cursor-pointer transition-colors"
+                    :class="{
+                      'bg-blue-50 border-blue-300': Array.isArray(answers[conditionalQuestion.question_id]) 
+                        ? answers[conditionalQuestion.question_id].includes(option.option_id)
+                        : answers[conditionalQuestion.question_id] === option.option_id,
+                      'hover:bg-gray-50': !props.readOnly,
+                      'opacity-60 cursor-not-allowed': props.readOnly
+                    }"
+                    @click="handleOptionSelect(conditionalQuestion.question_id, option.option_id)"
+                  >
+                    <div class="w-6 h-6 flex items-center justify-center mr-3">
+                      <div 
+                        class="w-4 h-4 rounded border-2"
+                        :class="{
+                          'border-blue-500': Array.isArray(answers[conditionalQuestion.question_id]) 
+                            ? answers[conditionalQuestion.question_id].includes(option.option_id)
+                            : answers[conditionalQuestion.question_id] === option.option_id,
+                          'border-gray-300': Array.isArray(answers[conditionalQuestion.question_id]) 
+                            ? !answers[conditionalQuestion.question_id].includes(option.option_id)
+                            : answers[conditionalQuestion.question_id] !== option.option_id
+                        }"
+                      >
+                        <div 
+                          v-if="Array.isArray(answers[conditionalQuestion.question_id]) 
+                            ? answers[conditionalQuestion.question_id].includes(option.option_id)
+                            : answers[conditionalQuestion.question_id] === option.option_id" 
+                          class="flex items-center justify-center"
+                        >
+                          <Icon name="ic:outline-check" class="text-blue-500" size="16" />
+                        </div>
+                      </div>
+                    </div>
+                    <div>{{ option.option_title }}</div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Text Type for Conditional Questions -->
+              <div v-else-if="getQuestionOptionType(conditionalQuestion) === 'text'" class="mt-4">
+                <input
+                  type="text"
+                  v-model="textAnswers[conditionalQuestion.question_id]"
+                  class="w-full p-3 border rounded"
+                  :placeholder="conditionalQuestion.options && conditionalQuestion.options.length > 0 ? conditionalQuestion.options[0].option_title : 'Enter your answer here'"
+                  :disabled="props.readOnly"
+                  @input="handleTextInput(conditionalQuestion.question_id, $event.target.value)"
+                />
+              </div>
+              
+              <!-- Textarea Type for Conditional Questions -->
+              <div v-else-if="getQuestionOptionType(conditionalQuestion) === 'textarea'" class="mt-4">
+                <textarea
+                  v-model="textAnswers[conditionalQuestion.question_id]"
+                  class="w-full p-3 border rounded min-h-[100px]"
+                  :placeholder="conditionalQuestion.options && conditionalQuestion.options.length > 0 ? conditionalQuestion.options[0].option_title : 'Enter your answer here'"
+                  :disabled="props.readOnly"
+                  @input="handleTextInput(conditionalQuestion.question_id, $event.target.value)"
+                ></textarea>
+              </div>
+              
+              <div v-else class="text-gray-500 italic">No options available for this question</div>
+            </div>
+          </template>
+          
+
         </div>
       </div>
       
       <!-- Submit Button -->
-      <div class="mt-8 flex justify-end gap-3">
+      <div v-if="props.showQuestions" class="mt-8 flex justify-end gap-3">
         <rs-button 
           variant="outline" 
           @click="cancelQuestionnaire"
@@ -698,7 +1274,7 @@ function cancelQuestionnaire() {
     
     <div v-else class="text-center py-12">
       <div class="flex flex-col items-center">
-        <Icon name="material-symbols:quiz-outline" size="64" class="text-gray-400 mb-4" />
+        <Icon name="ic:outline-quiz" size="64" class="text-gray-400 mb-4" />
         <h3 class="text-xl font-medium text-gray-600 mb-2">No Questions Available</h3>
         <p class="text-gray-500">This questionnaire doesn't have any active questions.</p>
       </div>
