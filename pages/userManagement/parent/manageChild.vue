@@ -194,7 +194,7 @@ const tableData = computed(() =>
     fullname: p.fullname,
     childIC: p.childIC,
     // nickname: p.nickname,
-    autismDiagnose: p.autismDiagnose,
+    //autismDiagnose: p.autismDiagnose,
     diagnosedDate: p.diagnosedDate,
     availableSession: p.availableSession,
     status: p.status,
