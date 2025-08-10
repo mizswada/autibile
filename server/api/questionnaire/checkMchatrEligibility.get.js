@@ -48,7 +48,8 @@ export default defineEventHandler(async (event) => {
     }
 
     const hasCompleted = !!existingResponse;
-    const isEligible = patient.mchatr_status !== 'Disable';
+    const isEligible = patient.mchatr_status === 'Enable' || patient.mchatr_status === null;
+    const canRetake = (patient.mchatr_status === 'Enable' || patient.mchatr_status === null) && hasCompleted;
     
     // Get MCHAT-R score if completed
     let mchatrScore = null;
@@ -67,8 +68,9 @@ export default defineEventHandler(async (event) => {
         patient_name: patient.fullname,
         mchatr_status: patient.mchatr_status,
         has_completed_mchatr: hasCompleted,
-        is_eligible: isEligible && !hasCompleted,
-        can_take_mchatr: isEligible && !hasCompleted,
+        is_eligible: isEligible,
+        can_take_mchatr: isEligible,
+        can_retake_mchatr: canRetake,
         mchatr_score: mchatrScore,
         is_eligible_for_questionnaire_2: isEligibleForQuestionnaire2
       }

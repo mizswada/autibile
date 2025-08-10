@@ -76,7 +76,20 @@ export default defineEventHandler(async (event) => {
           total_score: totalScore
         }
       });
-  
+
+      // If this is questionnaire ID 1 (MCHAT-R), update patient's mchatr_status to 'Disable'
+      if (parseInt(questionnaireId) === 1 && patientId) {
+        await prisma.user_patients.update({
+          where: {
+            patient_id: parseInt(patientId)
+          },
+          data: {
+            mchatr_status: 'Disable',
+            update_at: new Date()
+          }
+        });
+      }
+
       // Fetch the appropriate threshold based on the total score
       const threshold = await prisma.questionnaire_scoring.findFirst({
         where: {
@@ -90,7 +103,22 @@ export default defineEventHandler(async (event) => {
           deleted_at: null
         }
       });
-  
+
+      // Special handling for MCHAT-R (questionnaire ID 1)
+      let redirectToQuestionnaire2 = false;
+      let scoreInterpretation = null;
+      if (parseInt(questionnaireId) === 1 && patientId) {
+        // Check if score is between 3-7 for MCHAT-R
+        if (totalScore >= 3 && totalScore <= 7) {
+          redirectToQuestionnaire2 = true;
+          scoreInterpretation = "Medium Risk - Follow-up questionnaire recommended";
+        } else if (totalScore >= 0 && totalScore <= 2) {
+          scoreInterpretation = "Low Risk - No follow-up required";
+        } else if (totalScore >= 8) {
+          scoreInterpretation = "High Risk - Immediate professional evaluation recommended";
+        }
+      }
+
       return {
         statusCode: 200,
         message: "Questionnaire submitted successfully",
@@ -100,7 +128,10 @@ export default defineEventHandler(async (event) => {
           threshold: threshold ? {
             interpretation: threshold.scoring_interpretation,
             recommendation: threshold.scoring_recommendation
-          } : null
+          } : null,
+          redirect_to_questionnaire_2: redirectToQuestionnaire2,
+          score_interpretation: scoreInterpretation,
+          questionnaire_id: parseInt(questionnaireId)
         }
       };
   

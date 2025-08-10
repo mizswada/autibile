@@ -1,4 +1,4 @@
-// Added by: Assistant - Conditional Sub-Questions API
+// Added by: Assistant - Mobile Conditional Sub-Questions API
 
 export default defineEventHandler(async (event) => {
   try {
@@ -43,12 +43,13 @@ export default defineEventHandler(async (event) => {
       );
 
       return {
-        success: true,
+        statusCode: 200,
+        message: "Conditional sub-questions retrieved successfully",
         data: subQuestionsWithOptions
       };
     }
 
-    // Original conditional logic logic
+    // Conditional logic logic
     if (!selectedOptionValue) {
       throw createError({
         statusCode: 400,
@@ -67,7 +68,8 @@ export default defineEventHandler(async (event) => {
 
     if (!selectedOption) {
       return {
-        success: true,
+        statusCode: 200,
+        message: "No conditional sub-questions found",
         data: []
       };
     }
@@ -117,7 +119,8 @@ export default defineEventHandler(async (event) => {
       );
 
       return {
-        success: true,
+        statusCode: 200,
+        message: "Conditional sub-questions retrieved successfully",
         data: subQuestionsWithOptions
       };
     } else {
@@ -151,7 +154,8 @@ export default defineEventHandler(async (event) => {
       );
 
       return {
-        success: true,
+        statusCode: 200,
+        message: "All sub-questions retrieved successfully",
         data: subQuestionsWithOptions
       };
     }
@@ -168,4 +172,4 @@ export default defineEventHandler(async (event) => {
       }
     });
   }
-}); 
+});
