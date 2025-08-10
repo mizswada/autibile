@@ -22,22 +22,7 @@ export default defineEventHandler(async (event) => {
 
     // Special validation for questionnaire ID 1 (MCHAT-R)
     if (parseInt(questionnaireId) === 1 && patientId) {
-      // Check if patient has already taken questionnaire ID 1
-      const existingResponse = await prisma.questionnaires_responds.findFirst({
-        where: {
-          questionnaire_id: 1,
-          patient_id: parseInt(patientId)
-        }
-      });
-
-      if (existingResponse) {
-        return {
-          statusCode: 400,
-          message: "This patient has already completed the MCHAT-R questionnaire. It can only be taken once.",
-        };
-      }
-
-      // Check patient's current mchatr_status
+      // Check patient's current mchatr_status first
       const patient = await prisma.user_patients.findUnique({
         where: {
           patient_id: parseInt(patientId)
@@ -50,6 +35,7 @@ export default defineEventHandler(async (event) => {
           message: "This patient is not eligible to take the MCHAT-R questionnaire.",
         };
       }
+      // If status is Enable or null, allow submission (no need to check existing response)
     }
 
     // Special validation for questionnaire ID 2 (only for patients who scored 3-7 on MCHAT-R)
@@ -174,10 +160,16 @@ export default defineEventHandler(async (event) => {
 
     // Special handling for MCHAT-R (questionnaire ID 1)
     let redirectToQuestionnaire2 = false;
+    let scoreInterpretation = null;
     if (parseInt(questionnaireId) === 1 && patientId) {
       // Check if score is between 3-7 for MCHAT-R
       if (totalScore >= 3 && totalScore <= 7) {
         redirectToQuestionnaire2 = true;
+        scoreInterpretation = "Medium Risk - Follow-up questionnaire recommended";
+      } else if (totalScore >= 0 && totalScore <= 2) {
+        scoreInterpretation = "Low Risk - No follow-up required";
+      } else if (totalScore >= 8) {
+        scoreInterpretation = "High Risk - Immediate professional evaluation recommended";
       }
     }
 
@@ -191,7 +183,9 @@ export default defineEventHandler(async (event) => {
           interpretation: threshold.scoring_interpretation,
           recommendation: threshold.scoring_recommendation
         } : null,
-        redirect_to_questionnaire_2: redirectToQuestionnaire2
+        redirect_to_questionnaire_2: redirectToQuestionnaire2,
+        score_interpretation: scoreInterpretation,
+        questionnaire_id: parseInt(questionnaireId)
       }
     };
 
