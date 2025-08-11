@@ -32,6 +32,7 @@ export default defineEventHandler(async (event) => {
       no: index + 1,
       id: faq.faq_ID, // Add this line for frontend compatibility
       faq_language: faq.lookup ? faq.lookup.title : '',
+      faq_language_id: faq.faq_languange, // Add language ID for editing
       faq_question: faq.faq_question,
       faq_answer: faq.faq_answer,
       faq_status: faq.faq_status,
