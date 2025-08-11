@@ -3,8 +3,11 @@ import { ref, onMounted } from 'vue'
 
 const questions = ref([])
 const showModal = ref(false)
+const showDeleteModal = ref(false)
 const isEdit = ref(false)
 const editId = ref(null)
+const deleteId = ref(null)
+const deleteQuestionText = ref('')
 const newQuestion = ref({
   faq_language: '',
   faq_question: '',
@@ -15,6 +18,7 @@ const languageOptions = ref([])
 
 const loading = ref(false)
 const error = ref('')
+const successMessage = ref('')
 
 async function fetchQuestions() {
   loading.value = true
@@ -52,11 +56,13 @@ function openAddModal() {
   isEdit.value = false
   editId.value = null
   showModal.value = true
+  error.value = ''
+  successMessage.value = ''
 }
 
 function openEditModal(q) {
   newQuestion.value = {
-    faq_language: q.faq_languange,
+    faq_language: q.faq_language_id,
     faq_question: q.faq_question,
     faq_answer: q.faq_answer,
     faq_status: q.faq_status,
@@ -64,6 +70,8 @@ function openEditModal(q) {
   isEdit.value = true
   editId.value = q.id
   showModal.value = true
+  error.value = ''
+  successMessage.value = ''
 }
 
 async function saveQuestion() {
@@ -94,16 +102,35 @@ async function saveQuestion() {
       })
     }
     showModal.value = false
+    successMessage.value = isEdit.value ? 'FAQ updated successfully!' : 'FAQ added successfully!'
     await fetchQuestions()
+    
+    // Clear success message after 3 seconds
+    setTimeout(() => {
+      successMessage.value = ''
+    }, 3000)
   } catch (e) {
     error.value = e.data?.message || e.message || 'Failed to save FAQ'
   }
 }
 
-async function deleteQuestion(id) {
+function confirmDelete(id, questionText) {
+  deleteId.value = id
+  deleteQuestionText.value = questionText
+  showDeleteModal.value = true
+}
+
+async function deleteQuestion() {
   try {
-    await $fetch(`/api/faq/delete?id=${id}`, { method: 'DELETE' })
+    await $fetch(`/api/faq/delete?id=${deleteId.value}`, { method: 'DELETE' })
+    showDeleteModal.value = false
+    successMessage.value = 'FAQ deleted successfully!'
     await fetchQuestions()
+    
+    // Clear success message after 3 seconds
+    setTimeout(() => {
+      successMessage.value = ''
+    }, 3000)
   } catch (e) {
     error.value = 'Failed to delete FAQ'
   }
@@ -118,6 +145,16 @@ onMounted(async () => {
 <template>
   <div class="mb-4">
     <h1 class="text-2xl font-bold">Manage FAQ</h1>
+    
+    <!-- Success Message -->
+    <div v-if="successMessage" class="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
+      {{ successMessage }}
+    </div>
+    
+    <!-- Error Message -->
+    <div v-if="error" class="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+      {{ error }}
+    </div>
     <div class="flex justify-end mb-2">
       <rs-button @click="openAddModal">
         <Icon name="material-symbols:add" class="mr-1" />
@@ -171,7 +208,7 @@ onMounted(async () => {
               name="material-symbols:close-rounded"
               class="text-primary hover:text-primary/90 cursor-pointer"
               size="22"
-              @click="deleteQuestion(data.value.id)"
+              @click="confirmDelete(data.value.id, data.value.faq_question)"
             ></Icon>
           </div>
         </template>
@@ -224,6 +261,26 @@ onMounted(async () => {
         option-value="value"
         option-label="label"
       />
+    </rs-modal>
+    
+    <!-- Delete Confirmation Modal -->
+    <rs-modal
+      title="Confirm Delete"
+      ok-title="Delete"
+      cancel-title="Cancel"
+      :ok-callback="deleteQuestion"
+      v-model="showDeleteModal"
+      :overlay-close="false"
+      ok-variant="danger"
+    >
+      <div class="p-4">
+        <p class="text-gray-700 mb-4">Are you sure you want to delete this FAQ?</p>
+        <div class="bg-gray-100 p-3 rounded">
+          <p class="font-medium text-gray-800">Question:</p>
+          <p class="text-gray-600">{{ deleteQuestionText }}</p>
+        </div>
+        <p class="text-red-600 text-sm mt-3">This action cannot be undone.</p>
+      </div>
     </rs-modal>
   </div>
 </template>
