@@ -37,6 +37,17 @@ const currentPage = ref(1);
 const itemsPerPage = ref(10);
 const appointmentsLoading = ref(false);
 
+// Computed properties for pagination
+const totalPages = computed(() => Math.ceil((appointments.value?.length || 0) / itemsPerPage.value));
+const hasNextPage = computed(() => currentPage.value < totalPages.value);
+const hasPrevPage = computed(() => currentPage.value > 1);
+const paginatedAppointments = computed(() => {
+  if (!appointments.value) return [];
+  const start = (currentPage.value - 1) * itemsPerPage.value;
+  const end = start + itemsPerPage.value;
+  return appointments.value.slice(start, end);
+});
+
 // Tabs
 const tabs = [
   'Patient Details',
@@ -95,17 +106,18 @@ async function loadAllData() {
   isRetrying.value = false;
 
   try {
-    await Promise.all([
-      fetchPatientDetails(),
-      fetchParentDetails(),
-      fetchAppointments(),
-      fetchQuestionnaires(),
-      fetchDoctorReferrals(),
-      fetchDiaryReport()
-    ]);
+    console.log('Loading all data for patient:', patientId.value);
+    
+    // Load data sequentially to avoid blocking on failures
+    await fetchPatientDetails();
+    await fetchParentDetails();
+    await fetchAppointments();
+    await fetchQuestionnaires();
+    await fetchDoctorReferrals();
+    await fetchDiaryReport();
     retryCount.value = 0; // Reset on success
   } catch (err) {
-    console.error(err);
+    console.error('Error in loadAllData:', err);
     if (retryCount.value < maxRetries) {
       isRetrying.value = true;
       retryCount.value++;
@@ -153,6 +165,8 @@ async function fetchAppointments() {
       appointments.value = data.data;
       // Reset to first page when data changes
       currentPage.value = 1;
+    } else {
+      console.error('Failed to fetch appointments:', data.message);
     }
   } catch (error) {
     console.error('Error fetching appointments:', error);
