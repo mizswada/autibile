@@ -4,6 +4,7 @@ import { ref, onMounted } from 'vue'
 const centres = ref([])
 const loading = ref(false)
 const error = ref('')
+const success = ref('') // Add success message state
 const showModal = ref(false)
 const showModalDelete = ref(false)
 const modalType = ref('')
@@ -12,7 +13,8 @@ const showModalForm = ref({
   center_name: '',
   center_address: '',
   center_phone: '',
-  center_location: ''
+  center_location: '',
+  center_logo: '' // Add missing field
 })
 const showModalDeleteForm = ref({
   id: null,
@@ -51,7 +53,8 @@ function openModal(value, action) {
       center_name: '',
       center_address: '',
       center_phone: '',
-      center_location: ''
+      center_location: '',
+      center_logo: ''
     }
   }
   showModal.value = true
@@ -64,36 +67,63 @@ function openModalDelete(value) {
 
 async function saveCentre() {
   error.value = ''
-  // alert(JSON.stringify(modalType.value));
+  success.value = '' // Clear previous success message
+  
+  // Validate required fields
+  if (!showModalForm.value.center_name || !showModalForm.value.center_address || 
+      !showModalForm.value.center_phone || !showModalForm.value.center_location) {
+    error.value = 'Please fill in all required fields'
+    return
+  }
+  
   try {
-    if (modalType.value === 'edit') 
-    {
+    if (modalType.value === 'edit') {
       const res = await $fetch(`/api/autismCentre/update?id=${showModalForm.value.id}`, {
         method: 'PUT',
         body: {
           center_name: showModalForm.value.center_name,
           center_address: showModalForm.value.center_address,
-          center_phone: showModalForm.value.center_phone,
-          center_location: showModalForm.value.center_location
+          center_phone: showModalForm.value.center_phone.toString(), // Convert to string
+          center_location: showModalForm.value.center_location,
+          center_logo: showModalForm.value.center_logo || ''
         }
       })
-      // alert(JSON.stringify(res));
-
-    } 
-    else {
+      
+      if (res.statusCode === 200) {
+        success.value = 'Centre updated successfully!'
+        showModal.value = false
+        await fetchCentres()
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          success.value = ''
+        }, 3000)
+      } else {
+        error.value = res.message || 'Failed to update centre'
+      }
+    } else {
       const res = await $fetch('/api/autismCentre/add', {
         method: 'POST',
         body: {
           center_name: showModalForm.value.center_name,
           center_address: showModalForm.value.center_address,
-          center_phone: showModalForm.value.center_phone,
-          center_location: showModalForm.value.center_location
+          center_phone: showModalForm.value.center_phone.toString(), // Convert to string
+          center_location: showModalForm.value.center_location,
+          center_logo: showModalForm.value.center_logo || ''
         }
       })
-      // alert(JSON.stringify(res));
+      
+      if (res.statusCode === 200) {
+        success.value = 'Centre created successfully!'
+        showModal.value = false
+        await fetchCentres()
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          success.value = ''
+        }, 3000)
+      } else {
+        error.value = res.message || 'Failed to create centre'
+      }
     }
-    showModal.value = false
-    await fetchCentres()
   } catch (e) {
     error.value = e.data?.message || e.message || 'Failed to save centre'
     console.error(e)
@@ -102,10 +132,16 @@ async function saveCentre() {
 
 async function deleteCentre() {
   error.value = ''
+  success.value = '' // Clear previous success message
   try {
     await $fetch(`/api/autismCentre/delete?id=${showModalDeleteForm.value.id}`, { method: 'DELETE' })
+    success.value = 'Centre deleted successfully!'
     showModalDelete.value = false
     await fetchCentres()
+    // Clear success message after 3 seconds
+    setTimeout(() => {
+      success.value = ''
+    }, 3000)
   } catch (e) {
     error.value = 'Failed to delete centre'
   }
@@ -119,6 +155,16 @@ onMounted(fetchCentres)
     <div class="mb-4">
       <h1 class="text-2xl font-bold">Manage Therapy Centre</h1>
       <div class="card p-4 mt-4">
+        <!-- Error Display -->
+        <div v-if="error" class="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+          {{ error }}
+        </div>
+        
+        <!-- Success Display -->
+        <div v-if="success" class="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
+          {{ success }}
+        </div>
+        
         <div class="flex justify-end items-center mb-4">
           <rs-button @click="openModal(null, 'add')">
             <Icon name="material-symbols:add" class="mr-1"></Icon>
@@ -188,26 +234,37 @@ onMounted(fetchCentres)
         type="text"
         v-model="showModalForm.center_name"
         name="centreName"
-        label="Centre Name"
+        label="Centre Name *"
+        validation="required"
       />
       <FormKit
-        type="text"
+        type="textarea"
         v-model="showModalForm.center_address"
         name="address"
-        label="Address"
+        label="Address *"
+        validation="required"
       />
       <FormKit
         type="text"
         v-model="showModalForm.center_location"
         name="location"
-        label="Location"
-        :disabled="modalType == 'edit' ? true : false"
+        label="Location *"
+        validation="required"
       />
       <FormKit
-        type="number"
+        type="text"
         v-model="showModalForm.center_phone"
         name="contactNumber"
-        label="Contact Number"
+        label="Contact Number *"
+        validation="required"
+        placeholder="e.g., +60123456789"
+      />
+      <FormKit
+        type="text"
+        v-model="showModalForm.center_logo"
+        name="logo"
+        label="Logo URL"
+        placeholder="https://example.com/logo.png"
       />
     </rs-modal>
     <!-- Modal Delete Confirmation -->
