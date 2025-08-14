@@ -2,7 +2,7 @@ export default defineEventHandler(async (event) => {
     try {  
       // Get query parameters
       const query = getQuery(event);
-      const { questionnaireID, questionID, status, parentID, selectedOptionValue } = query;
+      const { questionnaireID, questionID, status, parentID, selectedOptionValue, includeOptions, includeConditionalSubQuestions } = query;
   
       // Build where clause
       const whereClause = {
@@ -63,16 +63,19 @@ export default defineEventHandler(async (event) => {
           });
         }
   
-        // Get options for this question to check conditional logic
-        const options = await prisma.questionnaires_questions_action.findMany({
-          where: {
-            question_id: question.question_id,
-            deleted_at: null
-          },
-          orderBy: {
-            option_id: 'asc'
-          }
-        });
+        // Get options for this question if includeOptions is true
+        let options = [];
+        if (includeOptions === 'true') {
+          options = await prisma.questionnaires_questions_action.findMany({
+            where: {
+              question_id: question.question_id,
+              deleted_at: null
+            },
+            orderBy: {
+              option_id: 'asc'
+            }
+          });
+        }
   
         // Check if this question has conditional sub-questions based on selected option
         let conditionalSubQuestions = [];
@@ -126,21 +129,75 @@ export default defineEventHandler(async (event) => {
           });
         }
   
-        // Get options for conditional sub-questions
-        const conditionalSubQuestionsWithOptions = await Promise.all(
-          conditionalSubQuestions.map(async (subQuestion) => {
-            const subOptions = await prisma.questionnaires_questions_action.findMany({
-              where: {
-                question_id: subQuestion.question_id,
-                deleted_at: null
-              },
-              orderBy: {
-                option_id: 'asc'
+        // Get options for conditional sub-questions if includeOptions is true
+        let conditionalSubQuestionsWithOptions = conditionalSubQuestions;
+        if (includeOptions === 'true' && conditionalSubQuestions.length > 0) {
+          conditionalSubQuestionsWithOptions = await Promise.all(
+            conditionalSubQuestions.map(async (subQuestion) => {
+              const subOptions = await prisma.questionnaires_questions_action.findMany({
+                where: {
+                  question_id: subQuestion.question_id,
+                  deleted_at: null
+                },
+                orderBy: {
+                  option_id: 'asc'
+                }
+              });
+              return { ...subQuestion, options: subOptions };
+            })
+          );
+        }
+  
+        // NEW: Automatically include conditional sub-questions for top-level questions
+        let automaticConditionalSubQuestions = [];
+        if (includeConditionalSubQuestions === 'true' && !question.parentID && includeOptions === 'true') {
+          // For top-level questions, check all options for conditional logic
+          for (const option of options) {
+            if (option.conditional_sub_questions_ids) {
+              try {
+                const conditionalIds = JSON.parse(option.conditional_sub_questions_ids);
+                if (conditionalIds.length > 0) {
+                  // Get conditional sub-questions for this option
+                  const optionConditionalQuestions = await prisma.questionnaires_questions.findMany({
+                    where: {
+                      question_id: { in: conditionalIds },
+                      questionnaire_id: parseInt(questionnaireID),
+                      deleted_at: null
+                    },
+                    orderBy: {
+                      question_id: 'asc'
+                    }
+                  });
+                  
+                  // Get options for these conditional questions
+                  const conditionalQuestionsWithOptions = await Promise.all(
+                    optionConditionalQuestions.map(async (q) => {
+                      const qOptions = await prisma.questionnaires_questions_action.findMany({
+                        where: {
+                          question_id: q.question_id,
+                          deleted_at: null
+                        },
+                        orderBy: {
+                          option_id: 'asc'
+                        }
+                      });
+                      return { ...q, options: qOptions };
+                    })
+                  );
+                  
+                  automaticConditionalSubQuestions.push({
+                    option_id: option.option_id,
+                    option_value: option.option_value,
+                    option_title: option.option_title,
+                    conditional_sub_questions: conditionalQuestionsWithOptions
+                  });
+                }
+              } catch (error) {
+                console.error('Error parsing conditional sub-questions IDs for option:', option.option_id, error);
               }
-            });
-            return { ...subQuestion, options: subOptions };
-          })
-        );
+            }
+          }
+        }
   
         return {
           ...question,
@@ -148,7 +205,9 @@ export default defineEventHandler(async (event) => {
           has_sub_questions: subQuestionsCount > 0,
           sub_questions_count: subQuestionsCount,
           parent_question: parentQuestion,
-          conditional_sub_questions: conditionalSubQuestionsWithOptions
+          conditional_sub_questions: conditionalSubQuestionsWithOptions,
+          // NEW: Include conditional sub-questions for each option
+          conditional_logic_by_option: automaticConditionalSubQuestions
         };
       }));
   

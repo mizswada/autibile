@@ -3,10 +3,8 @@ import { DateTime } from "luxon";
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event);
-    console.log('body', body);
-    const { user } = event.context.user;
  
-    const { center_name, center_phone, center_address, center_location } = body;
+    const { center_name, center_phone, center_address, center_location, center_logo } = body;
  
     if (!center_name || !center_phone || !center_address || !center_location) {
       return {
@@ -15,8 +13,6 @@ export default defineEventHandler(async (event) => {
       };
     }
  
- 
- 
     // Create centre record
     const autismCenter = await prisma.therapyst_center.create({
       data: {
@@ -24,6 +20,7 @@ export default defineEventHandler(async (event) => {
         center_phone: center_phone,
         center_address: center_address,
         center_location: center_location,
+        center_logo: center_logo || '',
         created_at: DateTime.now().toISO(),
         updated_at: DateTime.now().toISO(),
       },

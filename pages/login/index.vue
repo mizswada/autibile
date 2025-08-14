@@ -94,7 +94,7 @@ const login = async () => {
         <div class="grid grid-cols-2">
           <FormKit
             type="text"
-            label="Username"
+            label="Email"
             v-model="username"
             validation="required"
             :classes="{
@@ -145,12 +145,6 @@ const login = async () => {
             Sign In
           </FormKit>
         </div>
-        <p class="mt-3 text-center text-slate-500">
-          Don't have an account?
-          <NuxtLink to="/register" class="text-primary hover:underline"
-            >Sign Up</NuxtLink
-          >
-        </p>
       </rs-card>
     </div>
   </div>

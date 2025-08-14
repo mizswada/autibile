@@ -1477,6 +1477,7 @@ const cancelAppointment = async () => {
 
           <FormKit type="form" :actions="false">
             <FormKit type="textarea" v-model="commentForm.comment" name="comment" label="Comment" validation="required" />
+            <p class="text-xs text-red-500 mt-1">Note: Comment field can take up to 255 characters maximum.</p>
           </FormKit>
 
           <div class="flex justify-end gap-2 mt-4">
