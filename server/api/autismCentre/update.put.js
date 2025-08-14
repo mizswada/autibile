@@ -2,12 +2,11 @@ import { DateTime } from "luxon";
 
 export default defineEventHandler(async (event) => {
   try {
-    console.log('event - edit');
     const query = getQuery(event);
     const body = await readBody(event);
 
     const { id } = query;
-    const { center_name, center_phone, center_address, center_location } = body;
+    const { center_name, center_phone, center_address, center_location, center_logo } = body;
 
     if (!id) {
       return {
@@ -22,7 +21,7 @@ export default defineEventHandler(async (event) => {
         message: "Missing required fields",
       };
     }
-    // alert(JSON.stringify(id));
+    
     // Update centre record
     const updatedCentre = await prisma.therapyst_center.update({
       where: {
@@ -33,6 +32,7 @@ export default defineEventHandler(async (event) => {
         center_phone: center_phone,
         center_address: center_address,
         center_location: center_location,
+        center_logo: center_logo || '',
         updated_at: DateTime.now().toISO(),
       },
     });

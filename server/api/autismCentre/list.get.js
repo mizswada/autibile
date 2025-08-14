@@ -7,7 +7,8 @@ export default defineEventHandler(async (event) => {
         center_name: true,
         center_phone: true,
         center_address: true,
-        center_location: true,       
+        center_location: true,
+        center_logo: true,       
       },
       where: {
         deleted_at: null
@@ -30,6 +31,7 @@ export default defineEventHandler(async (event) => {
       center_phone: centre.center_phone,
       center_address: centre.center_address,
       center_location: centre.center_location,
+      center_logo: centre.center_logo,
     }));
  
     return transformedCentres;
