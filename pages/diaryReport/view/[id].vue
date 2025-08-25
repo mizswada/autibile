@@ -522,6 +522,14 @@ onMounted(loadPatientDetails);
               <p class="text-sm font-medium text-gray-500">Status</p>
               <p class="text-base">{{ selectedPatient.status || 'N/A' }}</p>
             </div>
+            <div>
+              <p class="text-sm font-medium text-gray-500">OKU Card</p>
+              <p class="text-base">{{ selectedPatient.OKUCard === 1 ? 'Yes' : 'No' }}</p>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-gray-500">Treatment Type</p>
+              <p class="text-base">{{ selectedPatient.treatment_type || 'N/A' }}</p>
+            </div>
           </div>
         </div>
         

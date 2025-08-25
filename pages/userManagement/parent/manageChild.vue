@@ -30,6 +30,8 @@ const columns = [
   { name: 'availableSession', label: 'Available Sessions' },
   { name: 'status', label: 'Status' },
   { name: 'mchatrStatus', label: 'MCHAT-R Status' },
+  { name: 'okuCard', label: 'OKU Card' },
+  { name: 'treatmentType', label: 'Treatment Type' },
   { name: 'action', label: 'Actions' }
 ];
 
@@ -177,6 +179,8 @@ onMounted(async () => {
         availableSession: p.availableSession || 0, // Use actual session count directly
         status: p.status,
         mchatrStatus: p.mchatr_status || 'Enable', // Default to Enable if not set
+        okuCard: p.okuCard === 1 ? 'Yes' : 'No',
+        treatmentType: p.treatmentType || '-',
       }));
     } else {
       console.error('Failed to load children:', result.message);
@@ -195,10 +199,12 @@ const tableData = computed(() =>
     childIC: p.childIC,
     // nickname: p.nickname,
     //autismDiagnose: p.autismDiagnose,
-    diagnosedDate: p.diagnosedDate,
+    //diagnosedDate: p.diagnosedDate,
     availableSession: p.availableSession,
     status: p.status,
     mchatrStatus: p.mchatrStatus,
+    okuCard: p.okuCard,
+    //treatmentType: p.treatmentType,
     action: 'edit',
   }))
 );
@@ -366,7 +372,7 @@ function getOriginalData(childIC, parentUsername) {
           </div>
           <div class="ml-3">
             <p class="text-sm text-yellow-700">
-              <strong>Note:</strong> This will allow or prevent the child from taking the MCHAT-R questionnaire (Questionnaire ID 1).
+              <strong>Note:</strong> This will allow or prevent the child from taking the MCHAT-R autism screening (Questionnaire ID 1).
             </p>
           </div>
         </div>

@@ -200,6 +200,8 @@ const isEditing = ref(false);
 const patientSearchText = ref('');
 const showPatientDropdown = ref(false);
 const filteredPatients = ref([]);
+const blurTimeout = ref(null); // Add this for better blur handling
+const isSelectingPatient = ref(false); // Flag to prevent blur conflicts during selection
 
 // Form data
 const appointmentForm = ref({
@@ -671,6 +673,11 @@ const saveAppointment = async () => {
        adminSlotsCount.value = 0;
        
        // Reset patient search
+       if (blurTimeout.value) {
+         clearTimeout(blurTimeout.value);
+         blurTimeout.value = null;
+       }
+       isSelectingPatient.value = false;
        patientSearchText.value = '';
        showPatientDropdown.value = false;
        filteredPatients.value = [];
@@ -711,6 +718,11 @@ const openAddAppointmentModal = () => {
   adminSlotsCount.value = 0;
   
   // Reset patient search
+  if (blurTimeout.value) {
+    clearTimeout(blurTimeout.value);
+    blurTimeout.value = null;
+  }
+  isSelectingPatient.value = false;
   patientSearchText.value = '';
   showPatientDropdown.value = false;
   filteredPatients.value = [];
@@ -937,6 +949,11 @@ const saveEditedAppointment = async () => {
        };
        
        // Reset patient search
+       if (blurTimeout.value) {
+         clearTimeout(blurTimeout.value);
+         blurTimeout.value = null;
+       }
+       isSelectingPatient.value = false;
        patientSearchText.value = '';
        showPatientDropdown.value = false;
        filteredPatients.value = [];
@@ -1377,19 +1394,70 @@ const filterPatients = (searchText) => {
     return;
   }
   
+  // Debug: show the actual patient object structure
+  if (optionsData.value.patients.length > 0) {
+    const firstPatient = optionsData.value.patients[0];
+    console.log('First patient object:', firstPatient);
+    console.log('First patient keys:', Object.keys(firstPatient));
+    console.log('First patient values:', Object.values(firstPatient));
+    console.log('First patient label:', firstPatient.label);
+    console.log('First patient value:', firstPatient.value);
+    console.log('First patient IC:', firstPatient.patient_ic);
+  }
+  
   const searchLower = searchText.toLowerCase();
   filteredPatients.value = optionsData.value.patients.filter(patient => {
     const nameMatch = patient.label?.toLowerCase().includes(searchLower);
-    const icMatch = patient.ic?.toLowerCase().includes(searchLower);
+    
+    // Check for IC match using the correct field name
+    const icMatch = patient.patient_ic && patient.patient_ic.toString().toLowerCase().includes(searchLower);
+    
+    console.log(`Patient: ${patient.label}, IC Value: ${patient.patient_ic}, Name match: ${nameMatch}, IC match: ${icMatch}`);
+    
     return nameMatch || icMatch;
   });
+  
+  console.log('Filtered patients:', filteredPatients.value);
+  console.log('Search text:', searchText);
 };
 
 // Function to select a patient
 const selectPatient = (patient) => {
+  console.log('selectPatient called with:', patient); // Debug log
+  
+  // Validate patient data first
+  if (!validatePatientData(patient)) {
+    console.error('Invalid patient data:', patient);
+    return;
+  }
+  
+  // Set flag to prevent blur conflicts
+  isSelectingPatient.value = true;
+  
+  // Clear any pending blur timeout immediately
+  if (blurTimeout.value) {
+    clearTimeout(blurTimeout.value);
+    blurTimeout.value = null;
+  }
+  
+  // Set the patient data immediately
   appointmentForm.value.patient = patient.value;
   patientSearchText.value = patient.label;
+  
+  // Hide the dropdown immediately
   showPatientDropdown.value = false;
+  
+  console.log('Patient selected:', {
+    patientId: patient.value,
+    patientName: patient.label,
+    formPatient: appointmentForm.value.patient,
+    searchText: patientSearchText.value
+  });
+  
+  // Reset the flag after a longer delay to ensure all events are processed
+  setTimeout(() => {
+    isSelectingPatient.value = false;
+  }, 300);
   
   // Check patient sessions when a patient is selected
   if (patient.value) {
@@ -1399,10 +1467,73 @@ const selectPatient = (patient) => {
 
 // Function to clear patient selection
 const clearPatientSelection = () => {
+  // Clear any pending blur timeout
+  if (blurTimeout.value) {
+    clearTimeout(blurTimeout.value);
+    blurTimeout.value = null;
+  }
+  
+  // Reset selection flag
+  isSelectingPatient.value = false;
+  
   appointmentForm.value.patient = '';
   patientSearchText.value = '';
   showPatientDropdown.value = false;
   patientSessionInfo.value = null;
+};
+
+// Handle patient input focus
+const handlePatientFocus = () => {
+  // Clear any pending blur timeout immediately
+  if (blurTimeout.value) {
+    clearTimeout(blurTimeout.value);
+    blurTimeout.value = null;
+  }
+  
+  // Reset selection flag
+  isSelectingPatient.value = false;
+  
+  // Show dropdown immediately
+  showPatientDropdown.value = true;
+};
+
+// Handle patient input blur
+const handlePatientBlur = () => {
+  // If we're in the middle of selecting a patient, don't hide the dropdown
+  if (isSelectingPatient.value) {
+    return;
+  }
+  
+  // Use a longer timeout to allow click events to register
+  blurTimeout.value = setTimeout(() => {
+    // Only hide if no patient is selected and we're not in selection mode
+    if (!appointmentForm.value.patient && !isSelectingPatient.value) {
+      showPatientDropdown.value = false;
+    }
+  }, 200); // Increased timeout to allow click events to register
+};
+
+// Helper function to get patient IC from the correct field name
+const getPatientIC = (patient) => {
+  return patient.patient_ic || null;
+};
+
+// Function to validate patient data structure
+const validatePatientData = (patient) => {
+  if (!patient) return false;
+  
+  const hasRequiredFields = patient.value && patient.label;
+  const hasValidValue = typeof patient.value === 'number' || typeof patient.value === 'string';
+  
+  console.log('Patient validation:', {
+    patient,
+    hasRequiredFields,
+    hasValidValue,
+    valueType: typeof patient.value,
+    labelType: typeof patient.label
+  });
+  
+  return hasRequiredFields && hasValidValue;
 };
 
 </script>
@@ -1705,8 +1836,9 @@ const clearPatientSelection = () => {
                   <input
                     type="text"
                     v-model="patientSearchText"
-                    @focus="showPatientDropdown = true"
-                    @blur="setTimeout(() => showPatientDropdown.value = false, 200)"
+                    @focus="handlePatientFocus"
+                    @blur="handlePatientBlur"
+                    @click.stop
                     placeholder="Type patient name or IC number..."
                     class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     :class="{ 'border-red-500': !appointmentForm.patient && patientSearchText }"
@@ -1730,11 +1862,14 @@ const clearPatientSelection = () => {
                   <div
                     v-for="patient in filteredPatients"
                     :key="patient.value"
-                    @click="selectPatient(patient)"
-                    class="px-3 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                    @mousedown.prevent="selectPatient(patient)"
+                    @click.stop
+                    class="px-3 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors duration-150"
                   >
                     <div class="font-medium">{{ patient.label }}</div>
-                    <div v-if="patient.ic" class="text-sm text-gray-600">IC: {{ patient.ic }}</div>
+                    <div v-if="getPatientIC(patient)" class="text-sm text-gray-600">
+                      IC: {{ getPatientIC(patient) }}
+                    </div>
                   </div>
                 </div>
                 
@@ -2015,49 +2150,11 @@ const clearPatientSelection = () => {
             <FormKit type="form" :actions="false">
               <FormKit type="date" v-model="appointmentForm.date" name="date" label="Date" validation="required" />
               
-              <!-- Patient Selection with Session Check -->
+              <!-- Patient Name Display (Read-only in Edit Mode) -->
               <div class="relative">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Patient Name *</label>
-                <div class="relative">
-                  <input
-                    type="text"
-                    v-model="patientSearchText"
-                    @focus="showPatientDropdown = true"
-                    @blur="setTimeout(() => showPatientDropdown.value = false, 200)"
-                    placeholder="Type patient name or IC number..."
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    :class="{ 'border-red-500': !appointmentForm.patient && patientSearchText }"
-                  />
-                  <div v-if="appointmentForm.patient" class="absolute right-2 top-2">
-                    <button
-                      type="button"
-                      @click="clearPatientSelection"
-                      class="text-gray-400 hover:text-gray-600"
-                    >
-                      <Icon name="material-symbols:close" size="20" />
-                    </button>
-                  </div>
-                  <div v-if="isCheckingSessions" class="absolute right-8 top-2">
-                    <Icon name="line-md:loading-twotone-loop" class="text-primary" />
-                  </div>
-                </div>
-                
-                <!-- Patient Dropdown -->
-                <div v-if="showPatientDropdown && filteredPatients.length > 0" class="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                  <div
-                    v-for="patient in filteredPatients"
-                    :key="patient.value"
-                    @click="selectPatient(patient)"
-                    class="px-3 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
-                  >
-                    <div class="font-medium">{{ patient.label }}</div>
-                    <div v-if="patient.ic" class="text-sm text-gray-600">IC: {{ patient.ic }}</div>
-                  </div>
-                </div>
-                
-                <!-- Validation Error -->
-                <div v-if="!appointmentForm.patient && patientSearchText" class="mt-1 text-sm text-red-600">
-                  Please select a patient from the dropdown
+                <label class="block text-sm font-medium text-gray-700 mb-2">Patient Name</label>
+                <div class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
+                  {{ patientSearchText || 'No patient selected' }}
                 </div>
               </div>
               

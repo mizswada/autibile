@@ -164,11 +164,11 @@ async function fetchQuestionnaire() {
     if (res.ok && result.data && result.data.length > 0) {
       questionnaire.value = result.data[0];
     } else {
-      errorMessage.value = 'Questionnaire not found';
+      errorMessage.value = 'Autism screening not found';
     }
   } catch (err) {
     console.error('Error loading questionnaire:', err);
-    errorMessage.value = 'Error loading questionnaire';
+          errorMessage.value = 'Error loading autism screening';
   } finally {
     isLoading.value = false;
   }
@@ -782,13 +782,13 @@ async function submitQuestionnaire() {
       answers: formattedAnswers
     });
     
-    successMessage.value = 'Questionnaire submitted successfully';
+            successMessage.value = 'Autism screening submitted successfully';
     setTimeout(() => {
       successMessage.value = '';
     }, 3000);
   } catch (err) {
     console.error('Error submitting questionnaire:', err);
-    errorMessage.value = 'Error submitting questionnaire';
+          errorMessage.value = 'Error submitting autism screening';
     setTimeout(() => {
       errorMessage.value = '';
     }, 3000);
@@ -817,7 +817,7 @@ function cancelQuestionnaire() {
     </div>
     
     <div v-else-if="questionnaire && questions.length > 0" class="questionnaire-container">
-      <!-- Questionnaire Header -->
+      <!-- Autism Screening Header -->
       <div class="mb-6">
         <h2 class="text-2xl font-bold mb-2">{{ questionnaire.title }}</h2>
         <p v-if="questionnaire.description" class="text-gray-600 mb-3">
@@ -1276,7 +1276,7 @@ function cancelQuestionnaire() {
       <div class="flex flex-col items-center">
         <Icon name="ic:outline-quiz" size="64" class="text-gray-400 mb-4" />
         <h3 class="text-xl font-medium text-gray-600 mb-2">No Questions Available</h3>
-        <p class="text-gray-500">This questionnaire doesn't have any active questions.</p>
+        <p class="text-gray-500">This autism screening doesn't have any active questions.</p>
       </div>
     </div>
   </div>

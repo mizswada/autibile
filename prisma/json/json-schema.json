@@ -1105,6 +1105,18 @@
             "null"
           ]
         },
+        "OKUCard": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "treatment_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "created_at": {
           "type": [
             "string",
@@ -1211,6 +1223,12 @@
           ]
         },
         "department": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "workplace": {
           "type": [
             "string",
             "null"

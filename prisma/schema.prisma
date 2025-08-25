@@ -293,6 +293,8 @@ model user_patients {
   status                  String?                   @db.VarChar(50)
   available_session       Int?
   mchatr_status           String?                   @db.VarChar(255)
+  OKUCard                 Int?
+  treatment_type          String?                   @db.VarChar(50)
   created_at              DateTime?                 @db.Timestamp(0)
   update_at               DateTime?                 @default(now()) @db.Timestamp(0)
   deleted_at              DateTime?                 @db.Timestamp(0)
@@ -316,7 +318,8 @@ model user_practitioners {
   type             String?          @db.VarChar(50)
   registration_no  String?          @db.VarChar(50)
   specialty        String?          @db.VarChar(255)
-  department       String?          @db.VarChar(255)
+  department       Int?
+  workplace        String?          @db.VarChar(1000)
   qualifications   String?          @db.VarChar(255)
   experience_years Int?
   signature        String?          @db.LongText

@@ -25,6 +25,8 @@ const form = ref({
   diagnosedDate: '',
   availableSession: 0, // Changed to integer with default value 0
   status: '',
+  okuCard: null,
+  treatmentType: '',
 });
 
 // IC validation
@@ -59,6 +61,8 @@ onMounted(async () => {
           diagnosedDate: child.diagnosed_on?.split('T')[0] ?? '',
           availableSession: parseInt(child.available_session) || 0, // Ensure it's an integer
           status: child.status,
+          okuCard: child.OKUCard,
+          treatmentType: child.treatment_type || '',
         };
       } else {
         alert('Failed to load child details.');
@@ -83,6 +87,8 @@ async function saveChild() {
     diagnosedDate: 'Diagnosed Date',
     availableSession: 'Available Sessions',
     status: 'Status',
+    okuCard: 'OKU Card',
+    treatmentType: 'Treatment Type',
   };
 
   const isEmpty = (val) =>
@@ -113,6 +119,7 @@ async function saveChild() {
       body: JSON.stringify({
         ...form.value,
         availableSession: parseInt(form.value.availableSession) || 0, // Ensure it's sent as integer
+        okuCard: form.value.okuCard === 'Yes' ? 1 : 0, // Convert Yes/No to 1/0
         childID: parseInt(childID.value),
       }),
     });
@@ -174,6 +181,22 @@ async function saveChild() {
         v-model="form.status"
         label="Status"
         :options="['-- Please select --', 'Active', 'Inactive']"
+      />
+
+      <FormKit
+        type="select"
+        v-model="form.okuCard"
+        label="OKU Card"
+        :options="['-- Please select --', 'Yes', 'No']"
+        validation="required"
+      />
+
+      <FormKit
+        type="select"
+        v-model="form.treatmentType"
+        label="Treatment Type"
+        :options="['-- Please select --', 'Centre', 'Online', 'In House']"
+        validation="required"
       />
 
       <div class="flex gap-4 mt-4">

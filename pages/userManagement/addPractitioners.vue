@@ -42,13 +42,15 @@ const step2Form = ref({
   type: '',
   registrationNo: '',
   specialty: '',
-  department: '',
+  department: null, // Changed from '' to null for database compatibility
   qualification: '',
   experience_years: null,
   signature: '',
+  workplace: '', // Add workplace field
 });
 
 const roleOptions = ref([]);
+const departmentOptions = ref([]); // Add department options
 
 watch(() => step1Form.value.username, async (newVal) => {
   usernameError.value = '';
@@ -134,16 +136,26 @@ watch(() => step1Form.value.confirmPassword, (newVal) => {
 onMounted(async () => {
   isLoading.value = true;
   try {
-    const [roleRes] = await Promise.all([
+    const [roleRes, departmentRes] = await Promise.all([
       fetch('/api/parents/lookupRole'),
+      fetch('/api/lookup/departments'), // New API endpoint for departments
     ]);
 
     roleOptions.value = [
       { label: '-- Please select --', value: '' },
       ...await roleRes.json().then(data => data.map(i => ({ label: i.roleName, value: i.roleID })))
     ];
+
+    // Load department options
+    if (departmentRes.ok) {
+      const departmentData = await departmentRes.json();
+      departmentOptions.value = [
+        { label: '-- Please select --', value: null }, // Changed from '' to null
+        ...departmentData.map(dept => ({ label: dept.title, value: dept.lookupID }))
+      ];
+    }
   } catch (err) {
-    showMessage('Failed to load role options. Please refresh the page.', 'error');
+    showMessage('Failed to load form options. Please refresh the page.', 'error');
   } finally {
     isLoading.value = false;
   }
@@ -243,6 +255,7 @@ async function submitStep2() {
     qualification: step2Form.value.qualification,
     experience: parseInt(step2Form.value.experience_years),
     signature: step2Form.value.signature || null,
+    workplace: step2Form.value.workplace || null, // Include workplace in payload
   };
 
   // The signature should already be a base64 string from handleSignatureUpload
@@ -495,6 +508,7 @@ function handleSignatureUpload(fileList) {
           v-model="step2Form.registrationNo"
           name="registrationNo"
           label="Registration Number"
+          placeholder="Enter registration number"
           validation="required"
         />
 
@@ -503,13 +517,26 @@ function handleSignatureUpload(fileList) {
           v-model="step2Form.specialty"
           name="specialty"
           label="Specialty"
+          placeholder="Enter specialty"
+        />
+
+        <FormKit
+          type="select"
+          v-model="step2Form.department"
+          name="department"
+          label="Department"
+          :options="departmentOptions"
+          validation="required"
+          placeholder="Select department"
         />
 
         <FormKit
           type="text"
-          v-model="step2Form.department"
-          name="department"
-          label="Department"
+          v-model="step2Form.workplace"
+          name="workplace"
+          label="Workplace"
+          placeholder="Enter workplace or organization name"
+          validation="required"
         />
 
         <FormKit
@@ -517,6 +544,7 @@ function handleSignatureUpload(fileList) {
           v-model="step2Form.qualification"
           name="qualification"
           label="Qualifications"
+          placeholder="Enter qualifications"
           validation="required"
         />
 
@@ -525,9 +553,9 @@ function handleSignatureUpload(fileList) {
           v-model="step2Form.experience_years"
           name="experience_years"
           label="Years of Experience"
+          placeholder="Enter years of experience"
           validation="required"
         />
-
         <FormKit
           type="file"
           v-model="step2Form.signature"

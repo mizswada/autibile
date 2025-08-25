@@ -56,6 +56,7 @@ export default defineEventHandler(async (event) => {
       qualification: p.qualifications || '',
       experience: p.experience_years || '',
       signature: p.signature || '',
+      workplace: p.workplace || '', // Add workplace field
       status: p.status || '',
     }));
 

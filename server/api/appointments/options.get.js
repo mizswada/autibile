@@ -13,7 +13,8 @@ export default defineEventHandler(async (event) => {
       select: {
         patient_id: true,
         fullname: true,
-        nickname: true
+        nickname: true,
+        patient_ic: true
       },
       orderBy: {
         fullname: 'asc'
@@ -76,7 +77,8 @@ export default defineEventHandler(async (event) => {
       return {
         value: patient.patient_id,
         label: patient.fullname,
-        nickname: patient.nickname
+        nickname: patient.nickname,
+        patient_ic: patient.patient_ic
       };
     });
     

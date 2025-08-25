@@ -81,6 +81,8 @@ export default defineEventHandler(async (event) => {
             diagnosed_on: true,
             status: true,
             available_session: true,
+            OKUCard: true,
+            treatment_type: true,
             created_at: true,
             update_at: true
           }
@@ -113,6 +115,8 @@ export default defineEventHandler(async (event) => {
         diagnosed_on: report.user_patients.diagnosed_on,
         status: report.user_patients.status,
         available_session: report.user_patients.available_session,
+        okuCard: report.user_patients.OKUCard,
+        treatmentType: report.user_patients.treatment_type,
         created_at: report.user_patients.created_at,
         update_at: report.user_patients.update_at
       } : null

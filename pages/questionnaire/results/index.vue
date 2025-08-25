@@ -31,10 +31,10 @@ async function fetchQuestionnaires() {
     if (res.ok && result.data) {
       questionnaires.value = result.data;
     } else {
-      console.error('Failed to fetch questionnaires:', result.message);
+              console.error('Failed to fetch autism screenings:', result.message);
     }
   } catch (err) {
-    console.error('Error fetching questionnaires:', err);
+          console.error('Error fetching autism screenings:', err);
   }
 }
 
@@ -97,7 +97,7 @@ async function viewResponseDetails(responseId) {
     if (res.ok && result.data && result.data.length > 0) {
       selectedResponse.value = result.data[0];
       
-      // After getting the response, fetch the score thresholds for this questionnaire
+              // After getting the response, fetch the score thresholds for this autism screening
       await fetchScoreThresholds(selectedResponse.value.questionnaire_id);
       
       // If we have a patient, fetch their details
@@ -231,8 +231,8 @@ const scoreInterpretation = computed(() => {
 <template>
   <div class="p-6">
     <div class="mb-6">
-      <h1 class="text-2xl font-bold mb-2">Questionnaire Results</h1>
-      <p class="text-gray-600">View and analyze questionnaire responses</p>
+      <h1 class="text-2xl font-bold mb-2">Autism Screening Results</h1>
+      <p class="text-gray-600">View and analyze autism screening responses</p>
     </div>
     
     <!-- Filters -->
@@ -240,13 +240,13 @@ const scoreInterpretation = computed(() => {
       <h2 class="text-lg font-medium mb-3">Filters</h2>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Questionnaire</label>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Autism Screening</label>
           <select 
             v-model="selectedQuestionnaire"
             class="w-full p-2 border rounded"
             @change="fetchResponses"
           >
-            <option :value="null">All Questionnaires</option>
+            <option :value="null">All Autism Screenings</option>
             <option 
               v-for="q in questionnaires" 
               :key="q.questionnaire_id" 
@@ -303,7 +303,7 @@ const scoreInterpretation = computed(() => {
           <thead class="bg-gray-50 text-left">
             <tr>
               <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">No</th>
-              <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Questionnaire</th>
+              <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Autism Screening</th>
               <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
               <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Total Score</th>
               <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
@@ -329,7 +329,7 @@ const scoreInterpretation = computed(() => {
                   <button 
                     @click="viewResponse(response.qr_id)"
                     class="text-green-600 hover:text-green-800 flex items-center"
-                    title="View Questionnaire and Answers"
+                    title="View Autism Screening and Answers"
                   >
                     <Icon name="material-symbols:visibility" class="mr-1" />
                   </button>
@@ -386,10 +386,18 @@ const scoreInterpretation = computed(() => {
                 <div class="font-medium">{{ patientDetails.autismDiagnose }}</div>
               </div>
               
-              <div class="mb-3" v-if="patientDetails?.diagnosedDate">
-                <div class="text-sm text-gray-500">Diagnosed Date</div>
-                <div class="font-medium">{{ formatDate(patientDetails.diagnosedDate) }}</div>
-              </div>
+                          <div class="mb-3" v-if="patientDetails?.diagnosedDate">
+              <div class="text-sm text-gray-500">Diagnosed Date</div>
+              <div class="font-medium">{{ formatDate(patientDetails.diagnosedDate) }}</div>
+            </div>
+            <div class="mb-3" v-if="patientDetails?.okuCard !== undefined">
+              <div class="text-sm text-gray-500">OKU Card</div>
+              <div class="font-medium">{{ patientDetails.okuCard === 1 ? 'Yes' : 'No' }}</div>
+            </div>
+            <div class="mb-3" v-if="patientDetails?.treatmentType">
+              <div class="text-sm text-gray-500">Treatment Type</div>
+              <div class="font-medium">{{ patientDetails.treatmentType }}</div>
+            </div>
             </div>
           </div>
         </div>
@@ -400,7 +408,7 @@ const scoreInterpretation = computed(() => {
           
           <div class="bg-blue-50 p-4 rounded border border-blue-100 mb-4">
             <div class="flex justify-between items-center mb-2">
-              <div class="text-sm text-blue-700">Questionnaire</div>
+              <div class="text-sm text-blue-700">Autism Screening</div>
               <div class="text-sm text-blue-700">Score</div>
             </div>
             <div class="flex justify-between items-center">
@@ -415,9 +423,9 @@ const scoreInterpretation = computed(() => {
           <!-- Interpretation and Recommendation -->
           <div class="space-y-4">
             <div class="p-4 rounded bg-blue-50 border border-blue-200">
-              <h4 class="font-medium text-blue-800 mb-2">Interpretation</h4>
+              <h4 class="font-medium text-blue-800 mb-2">Prediction</h4>
               <p class="text-gray-700" v-if="scoreInterpretation">{{ scoreInterpretation.interpretation }}</p>
-              <p class="text-gray-700" v-else>No specific interpretation available for this score. Please consult with a healthcare professional for assessment.</p>
+              <p class="text-gray-700" v-else>No specific prediction available for this score. Please consult with a healthcare professional for assessment.</p>
             </div>
             
             <div class="p-4 rounded bg-green-50 border border-green-200">

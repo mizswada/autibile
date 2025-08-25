@@ -32,9 +32,13 @@ const form = ref({
   experience: '',
   signature: '',
   status: '',
+  workplace: '', // Add workplace field
 });
 
 const isEditing = ref(false);
+
+// Add department options for dropdown
+const departmentOptions = ref([]);
 
 function enableEdit() {
   isEditing.value = true;
@@ -134,6 +138,7 @@ async function performDelete() {
 
 onMounted(async () => {
   await loadPractitioners();
+  await loadDepartmentOptions(); // Load department options on mount
 });
 
 async function loadPractitioners() {
@@ -157,6 +162,7 @@ async function loadPractitioners() {
         experience: p.experience || '',
         signature: p.signature || '',
         status: p.status || '',
+        workplace: p.workplace || '', // Load workplace
       }));
     } else {
       console.error('Failed to fetch practitioners:', response.message);
@@ -166,6 +172,34 @@ async function loadPractitioners() {
   } finally {
     isLoading.value = false;
   }
+}
+
+async function loadDepartmentOptions() {
+  try {
+    const response = await $fetch('/api/lookup/departments');
+    if (response && Array.isArray(response)) {
+      departmentOptions.value = [
+        { label: '-- Please select --', value: null }, // Changed from '' to null
+        ...response.map(dept => ({
+          value: dept.lookupID,
+          label: dept.title,
+        }))
+      ];
+    } else {
+      console.error('Failed to fetch department options:', response);
+    }
+  } catch (error) {
+    console.error('Error loading department options:', error);
+  }
+}
+
+// Add helper function to get department label
+function getDepartmentLabel(departmentId) {
+  if (!departmentId) return '';
+  // Convert both to strings for comparison to handle type mismatches
+  const department = departmentOptions.value.find(d => String(d.value) === String(departmentId));
+  console.log('getDepartmentLabel:', { departmentId, department, allOptions: departmentOptions.value });
+  return department ? department.label : departmentId;
 }
 
 // ✅ Only display needed fields
@@ -192,10 +226,11 @@ function openAddModal() {
     type: '',
     registrationNo: '',
     specialty: '',
-    department: '',
+    department: null, // Changed from '' to null for database compatibility
     qualification: '',
     experience: '',
     signature: '',
+    workplace: '', // Initialize workplace for add
   };
   isEdit.value = false;
   editData.value = null;
@@ -219,6 +254,7 @@ function openEditModal(row) {
     experience: original.experience?.toString().replace(/\D/g, '') || '',
     signature: original.signature || '', 
     status: original.status || '',
+    workplace: original.workplace || '', // Load workplace for edit
   };
 
   isEdit.value = true;
@@ -241,6 +277,7 @@ async function savePractitioner() {
     experience: parseInt(form.value.experience) || 0,
     signature: form.value.signature,
     status: form.value.status,
+    workplace: form.value.workplace, // Include workplace in payload
     userID: editData.value?.userID, 
   };
 
@@ -402,21 +439,23 @@ watch(() => showModal.value, (newVal) => {
           { label: 'Qualification', key: 'qualification' },
           { label: 'Experience', key: 'experience' },
           { label: 'Status', key: 'status' },
+          { label: 'Workplace', key: 'workplace' }, // Add workplace field to form
         ]" :key="field.key" class="flex flex-col gap-1">
           <label class="text-gray-600 text-sm">{{ field.label }}</label>
 
           <div v-if="!isEditing" class="bg-gray-50 border border-gray-200 rounded px-3 py-2">
-            {{ form[field.key] || '-' }}
+            {{ field.key === 'department' ? getDepartmentLabel(form[field.key]) : (form[field.key] || '-') }}
           </div>
 
           <FormKit
             v-else
-            :type="field.key === 'status' ? 'select' : (field.key === 'type' ? 'select' : 'text')"
+            :type="field.key === 'status' ? 'select' : (field.key === 'type' ? 'select' : (field.key === 'department' ? 'select' : 'text'))"
             v-model="form[field.key]"
             :name="field.key"
             :placeholder="field.label"
             :options="field.key === 'status' ? ['-- Please select --', 'Active', 'Inactive'] : 
-                     (field.key === 'type' ? ['-- Please select --', 'Doctor', 'Therapist'] : undefined)"
+                     (field.key === 'type' ? ['-- Please select --', 'Doctor', 'Therapist'] : 
+                     (field.key === 'department' ? departmentOptions : undefined))"
           />
         </div>
 
