@@ -14,6 +14,7 @@ const messageType = ref('success');
 // Data for dropdowns
 const patients = ref([]);
 const packages = ref([]);
+const products = ref([]);
 const isLoading = ref(true);
 
 const form = ref({
@@ -38,6 +39,13 @@ const invoiceTypeOptions = computed(() => {
     }
   });
   
+  // Add product names
+  products.value.forEach(product => {
+    if (product.status === 'Active') {
+      options.push({ label: product.product_name, value: product.product_name });
+    }
+  });
+  
   // Add "Other" option
   options.push({ label: 'Other', value: 'Other' });
   
@@ -47,6 +55,13 @@ const invoiceTypeOptions = computed(() => {
 const selectedPackage = computed(() => {
   if (form.value.invoiceType && form.value.invoiceType !== 'Other' && form.value.invoiceType !== '') {
     return packages.value.find(pkg => pkg.package_name === form.value.invoiceType);
+  }
+  return null;
+});
+
+const selectedProduct = computed(() => {
+  if (form.value.invoiceType && form.value.invoiceType !== 'Other' && form.value.invoiceType !== '') {
+    return products.value.find(product => product.product_name === form.value.invoiceType);
   }
   return null;
 });
@@ -61,7 +76,8 @@ function showMessage(msg, type = 'success') {
 onMounted(async () => {
   await Promise.all([
     fetchPatients(),
-    fetchPackages()
+    fetchPackages(),
+    fetchProducts()
   ]);
   isLoading.value = false;
 });
@@ -92,6 +108,19 @@ async function fetchPackages() {
   }
 }
 
+async function fetchProducts() {
+  try {
+    const response = await $fetch('/api/payment/listProducts');
+    if (response.statusCode === 200) {
+      products.value = response.data;
+    } else {
+      console.error('Failed to fetch products:', response.message);
+    }
+  } catch (error) {
+    console.error('Error fetching products:', error);
+  }
+}
+
 // Handle patient selection
 const handlePatientChange = (patientID) => {
   console.log('Patient changed to:', patientID);
@@ -116,10 +145,19 @@ const handleInvoiceTypeChange = (invoiceType) => {
     form.value.customInvoiceType = '';
     form.value.amount = '';
   } else if (invoiceType && invoiceType !== '') {
+    // Check if it's a package
     const packageData = selectedPackage.value;
     if (packageData) {
       form.value.amount = packageData.amount.toString();
       form.value.description = packageData.description || '';
+      return;
+    }
+    
+    // Check if it's a product
+    const productData = selectedProduct.value;
+    if (productData) {
+      form.value.amount = productData.amount.toString();
+      form.value.description = productData.description || '';
     }
   }
 };
@@ -267,6 +305,17 @@ const saveInvoice = async () => {
             <div><span class="font-medium">Sessions:</span> {{ selectedPackage.avail_session }}</div>
             <div><span class="font-medium">Amount:</span> RM {{ selectedPackage.amount }}</div>
             <div><span class="font-medium">Status:</span> {{ selectedPackage.status }}</div>
+          </div>
+        </div>
+
+        <!-- Product Info (shown when a product is selected) -->
+        <div v-if="selectedProduct" class="p-3 bg-green-50 border border-green-200 rounded-md mb-4">
+          <h6 class="font-medium text-green-800 mb-2">Product Information</h6>
+          <div class="grid grid-cols-2 gap-2 text-sm">
+            <div><span class="font-medium">Product:</span> {{ selectedProduct.product_name }}</div>
+            <div><span class="font-medium">Quantity:</span> {{ selectedProduct.quantity }}</div>
+            <div><span class="font-medium">Amount:</span> RM {{ selectedProduct.amount }}</div>
+            <div><span class="font-medium">Status:</span> {{ selectedProduct.status }}</div>
           </div>
         </div>
 

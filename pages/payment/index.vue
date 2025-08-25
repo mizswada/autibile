@@ -200,6 +200,12 @@ onMounted(() => {
                 View Packages
                 </rs-button>
             </NuxtLink>
+            <NuxtLink to="/payment/products">
+                <rs-button variant="primary">
+                <NuxtIcon name="ic:outline-inventory" class="mr-1" />
+                View Products
+                </rs-button>
+            </NuxtLink>
             <NuxtLink to="/payment/create">
                 <rs-button variant="primary">
                 <NuxtIcon name="ic:outline-add" class="mr-1" />

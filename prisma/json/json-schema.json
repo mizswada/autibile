@@ -293,20 +293,20 @@
           ],
           "format": "date-time"
         },
-        "user": {
+        "role": {
           "anyOf": [
             {
-              "$ref": "#/definitions/user"
+              "$ref": "#/definitions/role"
             },
             {
               "type": "null"
             }
           ]
         },
-        "role": {
+        "user": {
           "anyOf": [
             {
-              "$ref": "#/definitions/role"
+              "$ref": "#/definitions/user"
             },
             {
               "type": "null"
@@ -1537,6 +1537,59 @@
         }
       }
     },
+    "products": {
+      "type": "object",
+      "properties": {
+        "product_id": {
+          "type": "integer"
+        },
+        "product_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "amount": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "quantity": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    },
     "invoice": {
       "type": "object",
       "properties": {
@@ -1923,6 +1976,9 @@
     },
     "renamedpackage": {
       "$ref": "#/definitions/Renamedpackage"
+    },
+    "products": {
+      "$ref": "#/definitions/products"
     },
     "invoice": {
       "$ref": "#/definitions/invoice"
