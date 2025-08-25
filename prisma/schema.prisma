@@ -352,7 +352,7 @@ model faq {
   created_at    DateTime  @db.Timestamp(0)
   updated_at    DateTime  @db.Timestamp(0)
   deleted_at    DateTime? @db.Timestamp(0)
-  lookup        lookup    @relation(fields: [faq_languange], references: [lookupID], onDelete: NoAction, onUpdate: NoAction, map: "faq_ibfk_1")
+  lookup        lookup    @relation(fields: [faq_languange], references: [lookupID], onUpdate: Restrict, map: "faq_ibfk_1")
 
   @@index([faq_languange], map: "faq_languange")
 }

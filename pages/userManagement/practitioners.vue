@@ -326,50 +326,51 @@ watch(() => showModal.value, (newVal) => {
       </div>
     </div>
 
-    <rs-table 
-      v-else
-      :data="tableData" 
-      :options="{ variant: 'default', striped: true, borderless: true }"
-      :columns="[
-        { name: 'username', label: 'Username' },
-        { name: 'fullName', label: 'Full Name' },
-        { name: 'email', label: 'Email' },
-        { name: 'phone', label: 'Phone' },
-        { name: 'ic', label: 'IC' },
-        { name: 'type', label: 'Practitioner Type' },
-        { name: 'registrationNo', label: 'Registration No' },
-        { name: 'status', label: 'Status', slot: true },
-        { name: 'action', label: 'Actions', slot: true },
-      ]" advanced>
-      <template #status="row">
-        <input
-          type="checkbox"
-          class="toggle-checkbox"
-          :checked="row.value.status === 'Active'"
-          @click.prevent="confirmToggleStatus(row.value)"
-        />
-      </template>
-      
-      <template #action="row">
-        <div class="flex gap-2">
-          <!-- Edit Icon -->
-          <span
-            class="relative group cursor-pointer"
-            @click="() => openEditModal(row.value)"
-          >
-            <Icon name="material-symbols:edit" size="22" />
-          </span>
-          
-          <!-- Delete Icon -->
-          <span
-            class="relative group cursor-pointer text-red-500 hover:text-red-700"
-            @click="() => confirmDelete(row.value)"
-          >
-            <Icon name="material-symbols:delete-outline" size="22" />
-          </span>
-        </div>
-      </template>
-    </rs-table>
+    <rs-card v-else class="p-4">
+      <rs-table 
+        :data="tableData" 
+        :options="{ variant: 'default', striped: true, borderless: true }"
+        :columns="[
+          { name: 'username', label: 'Username' },
+          { name: 'fullName', label: 'Full Name' },
+          { name: 'email', label: 'Email' },
+          { name: 'phone', label: 'Phone' },
+          { name: 'ic', label: 'IC' },
+          { name: 'type', label: 'Practitioner Type' },
+          { name: 'registrationNo', label: 'Registration No' },
+          { name: 'status', label: 'Status', slot: true },
+          { name: 'action', label: 'Actions', slot: true },
+        ]" advanced>
+        <template #status="row">
+          <input
+            type="checkbox"
+            class="toggle-checkbox"
+            :checked="row.value.status === 'Active'"
+            @click.prevent="confirmToggleStatus(row.value)"
+          />
+        </template>
+        
+        <template #action="row">
+          <div class="flex gap-2">
+            <!-- Edit Icon -->
+            <span
+              class="relative group cursor-pointer"
+              @click="() => openEditModal(row.value)"
+            >
+              <Icon name="material-symbols:edit" size="22" />
+            </span>
+            
+            <!-- Delete Icon -->
+            <span
+              class="relative group cursor-pointer text-red-500 hover:text-red-700"
+              @click="() => confirmDelete(row.value)"
+            >
+              <Icon name="material-symbols:delete-outline" size="22" />
+            </span>
+          </div>
+        </template>
+      </rs-table>
+    </rs-card>
 
     <rs-modal
       :title="isEdit ? 'Practitioner Details' : 'Add Practitioner'"

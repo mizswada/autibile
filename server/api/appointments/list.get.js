@@ -5,13 +5,25 @@ export default defineEventHandler(async (event) => {
     const prisma = new PrismaClient();
     
     const query = getQuery(event);
-    const { date, patient_id, practitioner_id, status } = query;
+    const { date, patient_id, practitioner_id, status, is_admin, start_date, end_date, appointment_id } = query;
     
     const filter = {};
     if (date) filter.date = new Date(date);
+    if (start_date) filter.date = { gte: new Date(start_date) };
+    if (end_date) filter.date = { ...filter.date, lte: new Date(end_date) };
     if (patient_id) filter.patient_id = parseInt(patient_id);
     if (practitioner_id) filter.practitioner_id = parseInt(practitioner_id);
     if (status) filter.status = parseInt(status);
+    if (appointment_id) filter.appointment_id = parseInt(appointment_id);
+    
+    // Handle admin appointments filter - use practitioner_id being null instead of is_admin_appointment field
+    if (is_admin !== undefined) {
+      if (is_admin === 'true' || is_admin === true) {
+        filter.practitioner_id = null;
+      } else {
+        filter.practitioner_id = { not: null };
+      }
+    }
     
     const appointments = await prisma.appointments.findMany({
       where: {
@@ -53,15 +65,21 @@ export default defineEventHandler(async (event) => {
     }
 
     const formattedAppointments = appointments.map(appointment => {
-      const slotTitle = appointment.lookup?.title || 'Slot';
-      const timeRangeMatch = slotTitle.match(/(\d{1,2}\.\d{2})\s*(am|pm)/gi);
+      // Handle admin appointments (no time slot) - check if practitioner_id is null
+      const isAdminAppointment = appointment.practitioner_id === null;
       
+      let slotTitle = 'Admin Slot';
       let startTime = "09:00";
       let endTime = "10:00";
-
-      if (timeRangeMatch && timeRangeMatch.length >= 2) {
-        startTime = convertTo24Hour(timeRangeMatch[0]);
-        endTime = convertTo24Hour(timeRangeMatch[1]);
+      
+      if (appointment.lookup?.title) {
+        slotTitle = appointment.lookup.title;
+        const timeRangeMatch = slotTitle.match(/(\d{1,2}\.\d{2})\s*(am|pm)/gi);
+        
+        if (timeRangeMatch && timeRangeMatch.length >= 2) {
+          startTime = convertTo24Hour(timeRangeMatch[0]);
+          endTime = convertTo24Hour(timeRangeMatch[1]);
+        }
       }
 
       // Get sequential session number for this appointment
@@ -72,6 +90,12 @@ export default defineEventHandler(async (event) => {
       const serviceName = appointment.service?.name || 'Unknown Service';
       const title = `${patientName} - ${serviceName} (Session ${sessionNumber})`;
       
+      // Determine practitioner name - handle admin appointments
+      let practitionerName = 'Admin';
+      if (appointment.user_practitioners?.user?.userFullName) {
+        practitionerName = appointment.user_practitioners.user.userFullName;
+      }
+      
       return {
         id: appointment.appointment_id,
         title: title,
@@ -81,7 +105,7 @@ export default defineEventHandler(async (event) => {
           patient_id: appointment.patient_id,
           patient_name: appointment.user_patients?.fullname,
           practitioner_id: appointment.practitioner_id,
-          practitioner_name: appointment.user_practitioners?.user?.userFullName,
+          practitioner_name: practitionerName,
           service_id: appointment.service_id,
           service_name: appointment.service?.name,
           status: appointment.status,
@@ -91,7 +115,8 @@ export default defineEventHandler(async (event) => {
           therapist_doctor_comment: appointment.therapist_doctor_comment,
           parent_rate: appointment.parent_rate,
           slot_ID: appointment.slot_ID,
-          session_number: sessionNumber
+          session_number: sessionNumber,
+          is_admin_appointment: isAdminAppointment // Derived from practitioner_id being null
         }
       };
     });

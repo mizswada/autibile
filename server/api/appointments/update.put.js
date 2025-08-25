@@ -16,7 +16,9 @@ export default defineEventHandler(async (event) => {
       status,
       parent_rate,
       parent_comment,
-      therapist_doctor_comment
+      therapist_doctor_comment,
+      is_admin_appointment,
+      assigned_date
     } = body;
     
     // Validate required fields
@@ -74,28 +76,66 @@ export default defineEventHandler(async (event) => {
       }
     }
     
-    // Check if the new time slot is already booked (if changing date or slot)
-    if (date && slot_ID && 
-        (new Date(date).toDateString() !== new Date(existingAppointment.date).toDateString() || 
-         parseInt(slot_ID) !== existingAppointment.slot_ID)) {
-      
-      const slotBooked = await prisma.appointments.findFirst({
-        where: {
-          appointment_id: {
-            not: parseInt(appointment_id)
-          },
-          practitioner_id: parseInt(practitioner_id || existingAppointment.practitioner_id),
-          date: new Date(date),
-          slot_ID: parseInt(slot_ID),
-          deleted_at: null
-        }
-      });
-      
-      if (slotBooked) {
+    // Handle admin appointment assignment - check if current appointment is admin (practitioner_id is null)
+    const isCurrentlyAdmin = existingAppointment.practitioner_id === null;
+    
+    if (is_admin_appointment === false && isCurrentlyAdmin) {
+      // Converting from admin appointment to regular appointment
+      if (!practitioner_id) {
         return {
           success: false,
-          message: 'This time slot is already booked for the selected practitioner'
+          message: 'Practitioner ID is required when converting admin appointment to regular appointment'
         };
+      }
+      
+      // Check if the new time slot is already booked
+      if (date && slot_ID) {
+        const slotBooked = await prisma.appointments.findFirst({
+          where: {
+            appointment_id: {
+              not: parseInt(appointment_id)
+            },
+            practitioner_id: parseInt(practitioner_id),
+            date: new Date(date),
+            slot_ID: parseInt(slot_ID),
+            deleted_at: null
+          }
+        });
+        
+        if (slotBooked) {
+          return {
+            success: false,
+            message: 'This time slot is already booked for the selected practitioner'
+          };
+        }
+      }
+    }
+    
+    // Handle regular appointment updates
+    if (!is_admin_appointment && date && slot_ID && practitioner_id) {
+      // Check if the new time slot is already booked (if changing date or slot)
+      if (new Date(date).toDateString() !== new Date(existingAppointment.date).toDateString() || 
+          parseInt(slot_ID) !== existingAppointment.slot_ID ||
+          parseInt(practitioner_id) !== existingAppointment.practitioner_id) {
+        
+        const slotBooked = await prisma.appointments.findFirst({
+          where: {
+            appointment_id: {
+              not: parseInt(appointment_id)
+            },
+            practitioner_id: parseInt(practitioner_id),
+            date: new Date(date),
+            slot_ID: parseInt(slot_ID),
+            deleted_at: null
+          }
+        });
+        
+        if (slotBooked) {
+          return {
+            success: false,
+            message: 'This time slot is already booked for the selected practitioner'
+          };
+        }
       }
     }
     
@@ -103,21 +143,30 @@ export default defineEventHandler(async (event) => {
     const updateData = {};
     
     if (patient_id) updateData.patient_id = parseInt(patient_id);
-    if (practitioner_id) updateData.practitioner_id = parseInt(practitioner_id);
     if (service_id) updateData.service_id = parseInt(service_id);
     if (date) updateData.date = new Date(date);
-    if (slot_ID) updateData.slot_ID = parseInt(slot_ID);
     if (status !== undefined) updateData.status = parseInt(status);
     if (parent_rate) updateData.parent_rate = parseFloat(parent_rate);
     if (parent_comment !== undefined) updateData.parent_comment = parent_comment;
     if (therapist_doctor_comment !== undefined) updateData.therapist_doctor_comment = therapist_doctor_comment;
     
+    // Handle practitioner_id and slot_ID based on admin status
+    if (is_admin_appointment === true) {
+      // Converting to admin appointment
+      updateData.practitioner_id = null;
+      updateData.slot_ID = null;
+    } else if (is_admin_appointment === false) {
+      // Converting to regular appointment
+      if (practitioner_id) updateData.practitioner_id = parseInt(practitioner_id);
+      if (slot_ID) updateData.slot_ID = parseInt(slot_ID);
+    } else {
+      // Regular update (not changing admin status)
+      if (practitioner_id !== undefined) updateData.practitioner_id = practitioner_id ? parseInt(practitioner_id) : null;
+      if (slot_ID !== undefined) updateData.slot_ID = slot_ID ? parseInt(slot_ID) : null;
+    }
+    
     // Always update the updated_at timestamp
     updateData.updated_at = new Date();
-    
-    // Note: Sessions are now deducted when booking, not when completing
-    // When status is changed to "Completed" (41), no session deduction is needed
-    // as the session was already deducted at booking time
     
     // Update the appointment
     const updatedAppointment = await prisma.appointments.update({
