@@ -43,6 +43,8 @@ const form = ref({
   diagnosedDate: '',
   availableSession: 0,
   status: '',
+  okuCard: null,
+  treatmentType: '',
 });
 
 // IC validation
@@ -106,7 +108,8 @@ async function saveChild() {
   if (!form.value.fullname || !form.value.nickname || !form.value.gender || 
       !form.value.dateOfBirth || !form.value.autismDiagnose || !form.value.diagnosedDate || 
       !form.value.status || form.value.status === '-- Please select --' ||
-      form.value.availableSession === null || form.value.availableSession === undefined) {
+      form.value.availableSession === null || form.value.availableSession === undefined ||
+      form.value.okuCard === null || form.value.okuCard === undefined || !form.value.treatmentType) {
     
     // Debug: Log which fields are missing
     console.log('Missing fields check:');
@@ -119,6 +122,8 @@ async function saveChild() {
     console.log('status:', !!form.value.status);
     console.log('status value:', form.value.status);
     console.log('availableSession:', form.value.availableSession);
+    console.log('okuCard:', form.value.okuCard);
+    console.log('treatmentType:', form.value.treatmentType);
     
     showMessage('Please fill in all required fields.', 'error');
     return;
@@ -130,7 +135,8 @@ async function saveChild() {
       ...form.value, 
       parentID: parseInt(parentID.value), 
       userID: parseInt(userID.value),
-      availableSession: parseInt(form.value.availableSession) || 0
+      availableSession: parseInt(form.value.availableSession) || 0,
+      okuCard: form.value.okuCard === 'Yes' ? 1 : 0, // Convert Yes/No to 1/0
     };
     
     console.log('Sending request:', requestBody); // Debug log
@@ -157,6 +163,8 @@ async function saveChild() {
         diagnosedDate: '',
         availableSession: 0,
         status: '',
+        okuCard: null,
+        treatmentType: '',
       };
       await fetchChildren();
     } else {
@@ -337,6 +345,8 @@ function closeSearchICForm() {
             <th class="px-3 py-2 border">Autism Diagnose</th>
             <th class="px-3 py-2 border">Available Sessions</th>
             <th class="px-3 py-2 border">Status</th>
+            <th class="px-3 py-2 border">OKU Card</th>
+            <th class="px-3 py-2 border">Treatment Type</th>
             <th class="px-3 py-2 border">Actions</th>
           </tr>
         </thead>
@@ -357,6 +367,8 @@ function closeSearchICForm() {
                 @click.prevent="confirmToggleStatus(child)"
               />
             </td>
+            <td class="px-3 py-2 border text-center">{{ child.okuCard === 1 ? 'Yes' : 'No' }}</td>
+            <td class="px-3 py-2 border text-center">{{ child.treatmentType || '-' }}</td>
             <td class="px-3 py-2 border text-center">
               <span
                 class="cursor-pointer text-gray-600 hover:text-blue-600"
@@ -385,6 +397,22 @@ function closeSearchICForm() {
         <FormKit type="number" v-model="form.availableSession" label="Available Sessions" validation="required|number|min:0" placeholder="0" disabled/>
         <p class="text-sm text-gray-600 mt-1">Available sessions start at 0 for new children. Sessions can be added later through package purchases.</p>
         <FormKit type="select" v-model="form.status" label="Status" :options="['-- Please select --', 'Active', 'Inactive']" validation="required" />
+
+        <FormKit
+          type="select"
+          v-model="form.okuCard"
+          label="OKU Card"
+          :options="['-- Please select --', 'Yes', 'No']"
+          validation="required"
+        />
+
+        <FormKit
+          type="select"
+          v-model="form.treatmentType"
+          label="Treatment Type"
+          :options="['-- Please select --', 'Centre', 'Online', 'In House']"
+          validation="required"
+        />
 
         <div class="flex gap-4 mt-4">
           <rs-button class="w-full" @click="saveChild" :disabled="isSubmitting">
@@ -441,6 +469,8 @@ function closeSearchICForm() {
               <th class="px-4 py-2 border">Autism Diagnose</th>
               <th class="px-4 py-2 border">Available Sessions</th>
               <th class="px-4 py-2 border">Status</th>
+              <th class="px-4 py-2 border">OKU Card</th>
+              <th class="px-4 py-2 border">Treatment Type</th>
               <th class="px-4 py-2 border text-center">Action</th>
             </tr>
           </thead>
@@ -454,6 +484,8 @@ function closeSearchICForm() {
               <td class="px-4 py-2 border text-center">{{ u.autismDiagnose }}</td>
               <td class="px-4 py-2 border text-center">{{ u.availableSessionCount }}</td>
               <td class="px-4 py-2 border text-center">{{ u.status }}</td>
+              <td class="px-4 py-2 border text-center">{{ u.okuCard === 1 ? 'Yes' : 'No' }}</td>
+              <td class="px-4 py-2 border text-center">{{ u.treatmentType || '-' }}</td>
               <td class="px-4 py-2 border text-center">
                 <rs-button @click="selectUser(u); addSelectedUserAsChild()" :disabled="isSubmitting">
                   <div class="flex items-center justify-center">

@@ -15,12 +15,12 @@ const adminNavigation = [
     // description: "Wonderful apps",
     child: [
       {
-        title: "Questionnaires",
+        title: "Autism Screening",
         icon: "material-symbols:quiz-outline",
         path: "/questionnaire",
         children: [
           {
-            title: "Manage Questionnaires",
+            title: "Manage Autism Screening",
             path: "/questionnaire",
           },
           {
@@ -28,7 +28,7 @@ const adminNavigation = [
             path: "/questionnaire/results",
           },
           {
-            title: "Take Questionnaire",
+            title: "Take Autism Screening",
             path: "/questionnaire",
             click: (router) => {
               // This will be handled in the questionnaire index page

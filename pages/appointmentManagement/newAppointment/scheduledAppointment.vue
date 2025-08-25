@@ -34,6 +34,7 @@ const calendarOptions = ref({
     timeSlotEl.classList.add('text-xs', 'opacity-90', 'mt-1');
     timeSlotEl.innerHTML = `${extractTimeOnly(arg.event.extendedProps.time_slot) || 'Unknown Time'}`;
     eventEl.appendChild(timeSlotEl);
+    
     // Patient name
     const titleEl = document.createElement('div');
     titleEl.classList.add('font-medium');
@@ -45,6 +46,23 @@ const calendarOptions = ref({
     serviceEl.classList.add('text-xs', 'opacity-80');
     serviceEl.innerHTML = arg.event.extendedProps.service_name || 'Unknown Service';
     eventEl.appendChild(serviceEl);
+    
+    // Practitioner name with Admin indicator
+    const practitionerEl = document.createElement('div');
+    practitionerEl.classList.add('text-xs', 'font-semibold');
+    const practitionerName = arg.event.extendedProps.practitioner_name || 'Unknown Practitioner';
+    const isAdmin = !arg.event.extendedProps.practitioner_id || arg.event.extendedProps.practitioner_id === 'admin';
+    
+    if (isAdmin) {
+      practitionerEl.innerHTML = `<span style="color: #ea580c;">Admin</span>`;
+      practitionerEl.style.border = '1px solid #ea580c';
+      practitionerEl.style.borderRadius = '4px';
+      practitionerEl.style.padding = '1px 4px';
+      practitionerEl.style.backgroundColor = '#fed7aa';
+    } else {
+      practitionerEl.innerHTML = practitionerName;
+    }
+    eventEl.appendChild(practitionerEl);
     
     // Session number
     const sessionEl = document.createElement('div');
@@ -178,6 +196,13 @@ const showCommentModal = ref(false);
 const showRatingModal = ref(false);
 const isEditing = ref(false);
 
+// Patient search state
+const patientSearchText = ref('');
+const showPatientDropdown = ref(false);
+const filteredPatients = ref([]);
+const blurTimeout = ref(null); // Add this for better blur handling
+const isSelectingPatient = ref(false); // Flag to prevent blur conflicts during selection
+
 // Form data
 const appointmentForm = ref({
   date: new Date().toISOString().slice(0, 10),
@@ -204,7 +229,10 @@ const serviceOptions = ref([
   // { label: "Consultation", value: "1" },
   // { label: "Therapy", value: "2" }
 ]);
-const therapistDoctorOptions = ref([{ label: "--- Please select ---", value: "" }]);
+const therapistDoctorOptions = ref([
+  { label: "--- Please select ---", value: "" },
+  { label: "Admin", value: "admin" } // Add Admin as first option
+]);
 const timeSlotOptions = ref([{ label: "--- Please select ---", value: "" }]);
 
 // Table columns
@@ -354,15 +382,16 @@ watch(optionsData, (newData) => {
     ];
     therapistDoctorOptions.value = [
       { label: "--- Please select ---", value: "" },
+      { label: "Admin", value: "admin" }, // Keep Admin as first option
       ...newData.practitioners
     ];
   }
 });
 
-// Update fetchTimeSlots to accept parameters
+// Update fetchTimeSlots to handle admin slots (5 per day)
 const fetchTimeSlots = async (date, practitionerId) => {
-  if (!date || !practitionerId) {
-    console.error("Missing required parameters for fetching time slots");
+  if (!date) {
+    console.error("Missing date parameter for fetching time slots");
     timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
     return;
   }
@@ -370,39 +399,81 @@ const fetchTimeSlots = async (date, practitionerId) => {
   isLoadingSlots.value = true;
   
   try {
-    const { data, error } = await useFetch('/api/appointments/slots', {
-      method: 'GET',
-      params: {
-        date,
-        practitioner_id: practitionerId
-      }
-    });
-    
-    if (error.value) {
-      console.error('Error fetching time slots:', error.value);
-      timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
-      return;
-    }
-    
-    if (data.value && data.value.success) {
-      const slots = data.value.data || [];
-      timeSlotOptions.value = [
-        { label: "--- Please select ---", value: "" },
-        ...slots
-          .filter(slot => slot.isAvailable)
-          .map(slot => ({
-            label: slot.title || slot.value,
-            value: slot.lookupID.toString()
-          }))
-      ];
+    // If practitioner is Admin, fetch admin slots (5 per day)
+    if (practitionerId === 'admin') {
+      const { data, error } = await useFetch('/api/appointments/adminSlots', {
+        method: 'GET',
+        params: { date }
+      });
       
-      // If no available slots, show a message
-      if (timeSlotOptions.value.length === 1) {
-        errorMessage.value = "No available time slots for the selected date and practitioner";
+      if (error.value) {
+        console.error('Error fetching admin slots:', error.value);
+        timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
+        return;
+      }
+      
+      if (data.value && data.value.success) {
+        const slots = data.value.data || [];
+        timeSlotOptions.value = [
+          { label: "--- Please select ---", value: "" },
+          ...slots
+            .filter(slot => slot.isAvailable)
+            .map(slot => ({
+              label: slot.title || slot.value,
+              value: slot.lookupID.toString()
+            }))
+        ];
+        
+        // If no available slots, show a message
+        if (timeSlotOptions.value.length === 1) {
+          errorMessage.value = "No available admin slots for the selected date (maximum 5 slots per day)";
+        }
+      } else {
+        errorMessage.value = data.value?.message || "Failed to load admin slots";
+        timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
       }
     } else {
-      errorMessage.value = data.value?.message || "Failed to load time slots";
-      timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
+      // Original logic for regular practitioners
+      if (!practitionerId) {
+        console.error("Missing practitioner ID for fetching time slots");
+        timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
+        return;
+      }
+      
+      const { data, error } = await useFetch('/api/appointments/slots', {
+        method: 'GET',
+        params: {
+          date,
+          practitioner_id: practitionerId
+        }
+      });
+      
+      if (error.value) {
+        console.error('Error fetching time slots:', error.value);
+        timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
+        return;
+      }
+      
+      if (data.value && data.value.success) {
+        const slots = data.value.data || [];
+        timeSlotOptions.value = [
+          { label: "--- Please select ---", value: "" },
+          ...slots
+            .filter(slot => slot.isAvailable)
+            .map(slot => ({
+              label: slot.title || slot.value,
+              value: slot.lookupID.toString()
+            }))
+        ];
+        
+        // If no available slots, show a message
+        if (timeSlotOptions.value.length === 1) {
+          errorMessage.value = "No available time slots for the selected date and practitioner";
+        }
+      } else {
+        errorMessage.value = data.value?.message || "Failed to load time slots";
+        timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
+      }
     }
   } catch (err) {
     console.error('Error fetching time slots:', err);
@@ -464,12 +535,30 @@ watch([
   () => appointmentForm.value.date,
   () => appointmentForm.value.therapistDoctor
 ], ([newDate, newPractitioner]) => {
+  console.log("Watcher triggered - Date:", newDate, "Practitioner:", newPractitioner);
   if (newDate && newPractitioner) {
+    console.log("Both date and practitioner selected, fetching time slots");
     fetchTimeSlots(newDate, newPractitioner);
+    
+    // If selecting admin, also check admin slots count
+    if (newPractitioner === 'admin') {
+      console.log("Admin selected, checking admin slots count");
+      checkAdminSlotsCount(newDate);
+    }
   } else {
+    console.log("Missing date or practitioner, resetting time slots");
     // Reset time slots if either date or practitioner is not selected
     timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
     appointmentForm.value.time = "";
+  }
+});
+
+// Add watcher for date changes to check admin slots count
+watch(() => appointmentForm.value.date, (newDate) => {
+  console.log("Date watcher triggered:", newDate, "Current therapistDoctor:", appointmentForm.value.therapistDoctor);
+  if (newDate && appointmentForm.value.therapistDoctor === 'admin') {
+    console.log("Date changed and Admin is selected, checking admin slots count");
+    checkAdminSlotsCount(newDate);
   }
 });
 
@@ -482,25 +571,56 @@ watch(() => appointmentForm.value.patient, (newPatientId) => {
   }
 });
 
-// Save appointment to API
+// Add watcher for patient search text
+watch(patientSearchText, (newText) => {
+  if (newText) {
+    filterPatients(newText);
+    showPatientDropdown.value = true;
+  } else {
+    filteredPatients.value = [];
+    showPatientDropdown.value = false;
+  }
+});
+
+// Update saveAppointment to handle admin appointments
 const saveAppointment = async () => {
   try {
+    console.log("saveAppointment called with form data:", appointmentForm.value);
+    console.log("adminSlotsCount:", adminSlotsCount.value);
+    console.log("maxAdminSlotsPerDay:", maxAdminSlotsPerDay);
+    
     // Validate
     if (!appointmentForm.value.date || 
-        !appointmentForm.value.time || 
         !appointmentForm.value.patient || 
         !appointmentForm.value.therapistDoctor || 
         !appointmentForm.value.serviceId) {
       errorMessage.value = "Please fill in all required fields";
+      console.log("Validation failed - missing required fields");
+      return;
+    }
+    
+    // Only require time slot for non-admin appointments
+    if (appointmentForm.value.therapistDoctor !== 'admin' && !appointmentForm.value.time) {
+      errorMessage.value = "Please select a time slot";
+      console.log("Validation failed - missing time slot for non-admin appointment");
       return;
     }
 
     // Check if patient has available sessions
     if (patientSessionInfo.value && !patientSessionInfo.value.can_book_appointment) {
       errorMessage.value = `Cannot create appointment. Patient ${patientSessionInfo.value.patient_name} has no available sessions (${patientSessionInfo.value.available_sessions}). Please purchase more sessions first.`;
+      console.log("Validation failed - patient has no available sessions");
       return;
     }
 
+    // Check admin slots limit
+    if (appointmentForm.value.therapistDoctor === 'admin' && adminSlotsCount.value >= maxAdminSlotsPerDay) {
+      errorMessage.value = `Cannot create admin appointment. Maximum of ${maxAdminSlotsPerDay} admin slots per day reached for ${appointmentForm.value.date}. Please select a different date or assign existing admin appointments first.`;
+      console.log("Validation failed - admin slots limit reached");
+      return;
+    }
+
+    console.log("All validations passed, proceeding to create appointment");
     isLoading.value = true;
     errorMessage.value = "";
     successMessage.value = "";
@@ -508,40 +628,67 @@ const saveAppointment = async () => {
     // Prepare data
     const appointmentData = {
       patient_id: appointmentForm.value.patient,
-      practitioner_id: appointmentForm.value.therapistDoctor,
+      practitioner_id: appointmentForm.value.therapistDoctor === 'admin' ? null : appointmentForm.value.therapistDoctor,
       book_by: currentUserId,
       service_id: appointmentForm.value.serviceId,
       date: appointmentForm.value.date,
-      slot_ID: appointmentForm.value.time,
-      status: 36 // Booked status
+      slot_ID: appointmentForm.value.therapistDoctor === 'admin' ? null : appointmentForm.value.time,
+      status: 36, // Booked status
+      is_admin_appointment: appointmentForm.value.therapistDoctor === 'admin' // Flag for admin appointments
     };
+
+    console.log("Sending appointment data to API:", appointmentData);
 
     const { data } = await useFetch('/api/appointments/create', {
       method: 'POST',
       body: appointmentData
     });
 
+    console.log("API response:", data.value);
+
     if (data.value && data.value.success) {
-      successMessage.value = "Appointment created successfully! One session has been deducted from the patient's available sessions.";
-      // Reset form
-      appointmentForm.value = {
-        date: new Date().toISOString().slice(0, 10),
-        time: "",
-        patient: "",
-        serviceId: "",
-        therapistDoctor: "",
-        status: 36
-      };
-      timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
+      if (appointmentForm.value.therapistDoctor === 'admin') {
+        successMessage.value = "Admin appointment created successfully! One session has been deducted from the patient's available sessions. You can assign this to a doctor/therapist on the appointment date.";
+        // Update admin slots count
+        adminSlotsCount.value += 1;
+        console.log("Admin appointment created successfully, updated adminSlotsCount to:", adminSlotsCount.value);
+      } else {
+        successMessage.value = "Appointment created successfully! One session has been deducted from the patient's available sessions.";
+        console.log("Regular appointment created successfully");
+      }
       
-      // Reset patient session info
-      patientSessionInfo.value = null;
-      
-      // Close modal and refresh appointments
-      showModal.value = false;
-      await refreshAppointments(); // Now refreshes both list and calendar
+             // Reset form
+       appointmentForm.value = {
+         date: new Date().toISOString().slice(0, 10),
+         time: "",
+         patient: "",
+         serviceId: "",
+         therapistDoctor: "",
+         status: 36
+       };
+       timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
+       
+       // Reset patient session info and admin slots count
+       patientSessionInfo.value = null;
+       adminSlotsCount.value = 0;
+       
+       // Reset patient search
+       if (blurTimeout.value) {
+         clearTimeout(blurTimeout.value);
+         blurTimeout.value = null;
+       }
+       isSelectingPatient.value = false;
+       patientSearchText.value = '';
+       showPatientDropdown.value = false;
+       filteredPatients.value = [];
+       
+       // Close modal and refresh appointments
+       showModal.value = false;
+       console.log("Modal closed, refreshing appointments");
+       await refreshAppointments(); // Now refreshes both list and calendar
     } else {
       errorMessage.value = data.value?.message || "Failed to create appointment";
+      console.log("API call failed:", data.value);
     }
   } catch (error) {
     console.error("Error saving appointment:", error);
@@ -553,6 +700,7 @@ const saveAppointment = async () => {
 
 // Function to open the add appointment modal
 const openAddAppointmentModal = () => {
+  console.log("openAddAppointmentModal called");
   // Reset form
   appointmentForm.value = {
     date: new Date().toISOString().slice(0, 10),
@@ -563,11 +711,28 @@ const openAddAppointmentModal = () => {
     status: "36" // Default to booked status
   };
   
-  // Reset patient session info
+  console.log("Form reset to:", appointmentForm.value);
+  
+  // Reset patient session info and admin slots count
   patientSessionInfo.value = null;
+  adminSlotsCount.value = 0;
+  
+  // Reset patient search
+  if (blurTimeout.value) {
+    clearTimeout(blurTimeout.value);
+    blurTimeout.value = null;
+  }
+  isSelectingPatient.value = false;
+  patientSearchText.value = '';
+  showPatientDropdown.value = false;
+  filteredPatients.value = [];
+  
+  console.log("Reset patientSessionInfo and adminSlotsCount");
   
   isEditing.value = false;
   showModal.value = true;
+  
+  console.log("Modal opened, showModal set to:", showModal.value);
 };
 
 // Update appointment status
@@ -685,10 +850,18 @@ const editAppointment = (id) => {
       date: originalDate,
       patient: appointment.patientId?.toString() || "",
       serviceId: appointment.serviceId?.toString() || "",
-      therapistDoctor: appointment.practitionerId?.toString() || "",
+      therapistDoctor: appointment.practitionerId?.toString() || (appointment.isAdminAppointment ? "admin" : ""),
       time: appointment.slotId?.toString() || "",
       status: appointment.status?.toString() || "36"
     };
+    
+    // Set patient search text for display
+    if (appointment.patientId) {
+      const patientOption = optionsData.value?.patients?.find(p => p.value === appointment.patientId?.toString());
+      if (patientOption) {
+        patientSearchText.value = patientOption.label;
+      }
+    }
     
     isEditing.value = true;
     showEditModal.value = true;
@@ -712,11 +885,16 @@ const saveEditedAppointment = async () => {
   try {
     // Validate
     if (!appointmentForm.value.date || 
-        !appointmentForm.value.time || 
         !appointmentForm.value.patient || 
         !appointmentForm.value.therapistDoctor || 
         !appointmentForm.value.serviceId) {
       errorMessage.value = "Please fill in all required fields";
+      return;
+    }
+    
+    // Only require time slot for non-admin appointments
+    if (appointmentForm.value.therapistDoctor !== 'admin' && !appointmentForm.value.time) {
+      errorMessage.value = "Please select a time slot";
       return;
     }
 
@@ -724,6 +902,16 @@ const saveEditedAppointment = async () => {
     if (patientSessionInfo.value && !patientSessionInfo.value.can_book_appointment) {
       errorMessage.value = `Cannot update appointment. Patient ${patientSessionInfo.value.patient_name} has no available sessions (${patientSessionInfo.value.available_sessions}). Please purchase more sessions first.`;
       return;
+    }
+
+    // Check admin slots limit for new admin appointments
+    if (appointmentForm.value.therapistDoctor === 'admin') {
+      // If this was previously not an admin appointment, check the limit
+      const wasAdmin = isAdminAppointment(selectedAppointment.value);
+      if (!wasAdmin && adminSlotsCount.value >= maxAdminSlotsPerDay) {
+        errorMessage.value = `Cannot convert to admin appointment. Maximum of ${maxAdminSlotsPerDay} admin slots per day reached for ${appointmentForm.value.date}. Please select a different date or assign existing admin appointments first.`;
+        return;
+      }
     }
 
     isLoading.value = true;
@@ -734,11 +922,12 @@ const saveEditedAppointment = async () => {
     const appointmentData = {
       appointment_id: selectedAppointment.value.id,
       patient_id: appointmentForm.value.patient,
-      practitioner_id: appointmentForm.value.therapistDoctor,
+      practitioner_id: appointmentForm.value.therapistDoctor === 'admin' ? null : appointmentForm.value.therapistDoctor,
       service_id: appointmentForm.value.serviceId,
       date: appointmentForm.value.date,
-      slot_ID: appointmentForm.value.time,
-      status: parseInt(appointmentForm.value.status)
+      slot_ID: appointmentForm.value.therapistDoctor === 'admin' ? null : appointmentForm.value.time,
+      status: parseInt(appointmentForm.value.status),
+      is_admin_appointment: appointmentForm.value.therapistDoctor === 'admin'
     };
 
     const { data } = await useFetch('/api/appointments/update', {
@@ -748,20 +937,31 @@ const saveEditedAppointment = async () => {
 
     if (data.value && data.value.success) {
       successMessage.value = "Appointment updated successfully!";
-      // Reset form
-      appointmentForm.value = {
-        date: new Date().toISOString().slice(0, 10),
-        time: "",
-        patient: "",
-        serviceId: "",
-        therapistDoctor: "",
-        status: 36
-      };
       
-      // Close modal and refresh appointments
-      showEditModal.value = false;
-      isEditing.value = false;
-      await refreshAppointments(); // Now refreshes both list and calendar
+             // Reset form
+       appointmentForm.value = {
+         date: new Date().toISOString().slice(0, 10),
+         time: "",
+         patient: "",
+         serviceId: "",
+         therapistDoctor: "",
+         status: 36
+       };
+       
+       // Reset patient search
+       if (blurTimeout.value) {
+         clearTimeout(blurTimeout.value);
+         blurTimeout.value = null;
+       }
+       isSelectingPatient.value = false;
+       patientSearchText.value = '';
+       showPatientDropdown.value = false;
+       filteredPatients.value = [];
+       
+       // Close modal and refresh appointments
+       showEditModal.value = false;
+       isEditing.value = false;
+       await refreshAppointments(); // Now refreshes both list and calendar
     } else {
       errorMessage.value = data.value?.message || "Failed to update appointment";
     }
@@ -928,8 +1128,17 @@ const saveRating = async () => {
 // Add a state to track active tab
 const activeTab = ref('calendar'); // Default to calendar view
 
+// Add state for calendar filtering
+const calendarFilter = ref('all'); // Default to show all appointments
+
 // Add state for delete and cancel functionality
 const showDeleteModal = ref(false);
+
+
+
+// Add state for admin slots tracking
+const adminSlotsCount = ref(0);
+const maxAdminSlotsPerDay = 5;
 
 // Watch for activeTab changes to refresh the calendar when switching to calendar view
 watch(() => activeTab.value, (newTab) => {
@@ -1031,6 +1240,302 @@ const cancelAppointment = async () => {
   }
 };
 
+
+
+// Helper function to check if appointment is admin appointment
+const isAdminAppointment = (appointment) => {
+  return appointment && (
+    appointment.practitionerId === null || 
+    appointment.practitionerId === 'admin' || 
+    appointment.isAdminAppointment ||
+    appointment.practitionerName === 'Admin'
+  );
+};
+
+
+
+// Helper function to check if appointment is today or in the future
+const isAppointmentTodayOrFuture = (appointment) => {
+  if (!appointment) return false;
+  
+  const appointmentDate = new Date(appointment.originalDate || appointment.date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  return appointmentDate >= today;
+};
+
+// Helper function to format date for display
+const formatAppointmentDate = (dateString) => {
+  if (!dateString) return '';
+  
+  const date = new Date(dateString);
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  
+  today.setHours(0, 0, 0, 0);
+  const appointmentDate = new Date(date);
+  appointmentDate.setHours(0, 0, 0, 0);
+  
+  if (appointmentDate.getTime() === today.getTime()) {
+    return 'Today';
+  } else if (appointmentDate.getTime() === tomorrow.getTime()) {
+    return 'Tomorrow';
+  } else {
+    return date.toLocaleDateString();
+  }
+};
+
+// Function to apply calendar filter
+const applyCalendarFilter = () => {
+  if (calendarFilter.value === 'all') {
+    // Show all appointments
+    fetchAppointments();
+  } else if (calendarFilter.value === 'admin') {
+    // Show only admin appointments
+    const adminAppointments = rawData.value.filter(appt => isAdminAppointment(appt));
+    calendarOptions.value.events = adminAppointments.map(appt => ({
+      id: appt.id,
+      title: appt.patientName,
+      start: appt.originalDate || appt.date,
+      end: appt.originalDate || appt.date,
+      allDay: false,
+      backgroundColor: '#ea580c', // Orange color for admin appointments
+      borderColor: '#ea580c',
+      textColor: '#fff',
+      extendedProps: {
+        patient_name: appt.patientName,
+        practitioner_name: 'Admin',
+        service_name: appt.serviceName,
+        time_slot: appt.timeSlot,
+        status: appt.status,
+        patient_id: appt.patientId,
+        practitioner_id: null,
+        service_id: appt.serviceId,
+        slot_ID: appt.slotId,
+        parent_comment: appt.parentComment,
+        therapist_doctor_comment: appt.therapistDoctorComment,
+        parent_rate: appt.parentRate,
+        session_number: appt.sessionNumber
+      },
+    }));
+  } else if (calendarFilter.value === 'assigned') {
+    // Show only assigned appointments
+    const assignedAppointments = rawData.value.filter(appt => !isAdminAppointment(appt));
+    calendarOptions.value.events = assignedAppointments.map(appt => ({
+      id: appt.id,
+      title: appt.patientName,
+      start: appt.originalDate || appt.date,
+      end: appt.originalDate || appt.date,
+      allDay: false,
+      backgroundColor: getStatusColor(appt.status),
+      borderColor: getStatusColor(appt.status),
+      textColor: '#fff',
+      extendedProps: {
+        patient_name: appt.patientName,
+        practitioner_name: appt.practitionerName,
+        service_name: appt.serviceName,
+        time_slot: appt.timeSlot,
+        status: appt.status,
+        patient_id: appt.patientId,
+        practitioner_id: appt.practitionerId,
+        service_id: appt.serviceId,
+        slot_ID: appt.slotId,
+        parent_comment: appt.parentComment,
+        therapist_doctor_comment: appt.therapistDoctorComment,
+        parent_rate: appt.parentRate,
+        session_number: appt.sessionNumber
+      },
+    }));
+  }
+};
+
+// Function to check admin slots count for a specific date
+const checkAdminSlotsCount = async (date) => {
+  console.log("checkAdminSlotsCount called with date:", date);
+  if (!date) {
+    console.log("No date provided, returning early");
+    return;
+  }
+  
+  try {
+    console.log("Fetching admin slots count for date:", date);
+    const { data, error } = await useFetch('/api/appointments/adminSlotsCount', {
+      method: 'GET',
+      params: { date }
+    });
+    
+    console.log("Admin slots count API response:", { data: data.value, error: error.value });
+    
+    if (error.value) {
+      console.error('Error checking admin slots count:', error.value);
+      adminSlotsCount.value = 0;
+      return;
+    }
+    
+    if (data.value && data.value.success) {
+      adminSlotsCount.value = data.value.data.count || 0;
+      console.log("Admin slots count updated to:", adminSlotsCount.value);
+    } else {
+      adminSlotsCount.value = 0;
+      console.log("Admin slots count API returned no success, setting to 0");
+    }
+  } catch (err) {
+    console.error('Error checking admin slots count:', err);
+    adminSlotsCount.value = 0;
+  }
+};
+
+// Function to filter patients based on search text
+const filterPatients = (searchText) => {
+  if (!searchText || !optionsData.value?.patients) {
+    filteredPatients.value = [];
+    return;
+  }
+  
+  // Debug: show the actual patient object structure
+  if (optionsData.value.patients.length > 0) {
+    const firstPatient = optionsData.value.patients[0];
+    console.log('First patient object:', firstPatient);
+    console.log('First patient keys:', Object.keys(firstPatient));
+    console.log('First patient values:', Object.values(firstPatient));
+    console.log('First patient label:', firstPatient.label);
+    console.log('First patient value:', firstPatient.value);
+    console.log('First patient IC:', firstPatient.patient_ic);
+  }
+  
+  const searchLower = searchText.toLowerCase();
+  filteredPatients.value = optionsData.value.patients.filter(patient => {
+    const nameMatch = patient.label?.toLowerCase().includes(searchLower);
+    
+    // Check for IC match using the correct field name
+    const icMatch = patient.patient_ic && patient.patient_ic.toString().toLowerCase().includes(searchLower);
+    
+    console.log(`Patient: ${patient.label}, IC Value: ${patient.patient_ic}, Name match: ${nameMatch}, IC match: ${icMatch}`);
+    
+    return nameMatch || icMatch;
+  });
+  
+  console.log('Filtered patients:', filteredPatients.value);
+  console.log('Search text:', searchText);
+};
+
+// Function to select a patient
+const selectPatient = (patient) => {
+  console.log('selectPatient called with:', patient); // Debug log
+  
+  // Validate patient data first
+  if (!validatePatientData(patient)) {
+    console.error('Invalid patient data:', patient);
+    return;
+  }
+  
+  // Set flag to prevent blur conflicts
+  isSelectingPatient.value = true;
+  
+  // Clear any pending blur timeout immediately
+  if (blurTimeout.value) {
+    clearTimeout(blurTimeout.value);
+    blurTimeout.value = null;
+  }
+  
+  // Set the patient data immediately
+  appointmentForm.value.patient = patient.value;
+  patientSearchText.value = patient.label;
+  
+  // Hide the dropdown immediately
+  showPatientDropdown.value = false;
+  
+  console.log('Patient selected:', {
+    patientId: patient.value,
+    patientName: patient.label,
+    formPatient: appointmentForm.value.patient,
+    searchText: patientSearchText.value
+  });
+  
+  // Reset the flag after a longer delay to ensure all events are processed
+  setTimeout(() => {
+    isSelectingPatient.value = false;
+  }, 300);
+  
+  // Check patient sessions when a patient is selected
+  if (patient.value) {
+    checkPatientSessions(patient.value);
+  }
+};
+
+// Function to clear patient selection
+const clearPatientSelection = () => {
+  // Clear any pending blur timeout
+  if (blurTimeout.value) {
+    clearTimeout(blurTimeout.value);
+    blurTimeout.value = null;
+  }
+  
+  // Reset selection flag
+  isSelectingPatient.value = false;
+  
+  appointmentForm.value.patient = '';
+  patientSearchText.value = '';
+  showPatientDropdown.value = false;
+  patientSessionInfo.value = null;
+};
+
+// Handle patient input focus
+const handlePatientFocus = () => {
+  // Clear any pending blur timeout immediately
+  if (blurTimeout.value) {
+    clearTimeout(blurTimeout.value);
+    blurTimeout.value = null;
+  }
+  
+  // Reset selection flag
+  isSelectingPatient.value = false;
+  
+  // Show dropdown immediately
+  showPatientDropdown.value = true;
+};
+
+// Handle patient input blur
+const handlePatientBlur = () => {
+  // If we're in the middle of selecting a patient, don't hide the dropdown
+  if (isSelectingPatient.value) {
+    return;
+  }
+  
+  // Use a longer timeout to allow click events to register
+  blurTimeout.value = setTimeout(() => {
+    // Only hide if no patient is selected and we're not in selection mode
+    if (!appointmentForm.value.patient && !isSelectingPatient.value) {
+      showPatientDropdown.value = false;
+    }
+  }, 200); // Increased timeout to allow click events to register
+};
+
+// Helper function to get patient IC from the correct field name
+const getPatientIC = (patient) => {
+  return patient.patient_ic || null;
+};
+
+// Function to validate patient data structure
+const validatePatientData = (patient) => {
+  if (!patient) return false;
+  
+  const hasRequiredFields = patient.value && patient.label;
+  const hasValidValue = typeof patient.value === 'number' || typeof patient.value === 'string';
+  
+  console.log('Patient validation:', {
+    patient,
+    hasRequiredFields,
+    hasValidValue,
+    valueType: typeof patient.value,
+    labelType: typeof patient.label
+  });
+  
+  return hasRequiredFields && hasValidValue;
+};
+
 </script>
 
 <template>
@@ -1060,17 +1565,75 @@ const cancelAppointment = async () => {
            <button 
             @click="activeTab = 'calendar'" 
             class="py-2 px-4 focus:outline-none"
-            :class="activeTab === 'calendar' ? 'border-b-2 border-primary text-primary font-medium' : 'text-gray-500'"
+            :class="activeTab === 'calendar' ? 'border-b-2 border-primary text-primary font-medium' : 'border-b-2 border-transparent'"
           >
             <Icon name="material-symbols:calendar-month" class="mr-1" /> Calendar View
           </button>
           <button 
             @click="activeTab = 'list'" 
             class="py-2 px-4 mr-2 focus:outline-none"
-            :class="activeTab === 'list' ? 'border-b-2 border-primary text-primary font-medium' : 'text-gray-500'"
+            :class="activeTab === 'list' ? 'border-b-2 border-primary text-primary font-medium' : 'border-b-2 border-transparent'"
           >
             <Icon name="material-symbols:list" class="mr-1" /> Appointment List
           </button>
+        </div>
+
+        <!-- Admin Appointments Summary - Only show for non-doctors -->
+        <div v-if="!userStore.isDoctor" class="mb-6">
+          <rs-card class="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200">
+            <h3 class="text-lg font-semibold text-blue-800 mb-3 flex items-center">
+              <Icon name="material-symbols:admin-panel-settings" class="mr-2" />
+              Admin Appointments Summary
+            </h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <!-- Total Admin Appointments -->
+              <div class="bg-white p-3 rounded-lg border border-blue-200">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-sm text-gray-600">Total Admin Appointments</p>
+                    <p class="text-2xl font-bold text-blue-600">
+                      {{ rawData.filter(appt => isAdminAppointment(appt)).length }}
+                    </p>
+                  </div>
+                  <Icon name="material-symbols:calendar-today" class="text-blue-500" size="24" />
+                </div>
+              </div>
+              
+              <!-- Pending Assignment -->
+              <div class="bg-white p-3 rounded-lg border border-orange-200">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-sm text-gray-600">Pending Assignment</p>
+                    <p class="text-2xl font-bold text-orange-600">
+                      {{ rawData.filter(appt => isAdminAppointment(appt)).length }}
+                    </p>
+                  </div>
+                  <Icon name="material-symbols:pending-actions" class="text-orange-500" size="24" />
+                </div>
+              </div>
+              
+              <!-- Assigned Today -->
+              <div class="bg-white p-3 rounded-lg border border-green-200">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-sm text-gray-600">Assigned Today</p>
+                    <p class="text-2xl font-bold text-green-600">
+                      {{ rawData.filter(appt => !isAdminAppointment(appt) && isAppointmentTodayOrFuture(appt)).length }}
+                    </p>
+                  </div>
+                  <Icon name="material-symbols:check-circle" class="text-green-500" size="24" />
+                </div>
+              </div>
+            </div>
+            
+            <div class="mt-3 text-sm text-blue-700">
+              <p class="flex items-center">
+                <Icon name="material-symbols:info" class="mr-1" size="16" />
+                Admin appointments are created without a specific practitioner and can be assigned to available doctors/therapists on the appointment date.
+              </p>
+            </div>
+          </rs-card>
         </div>
 
         <!-- List View - Only show for non-doctors -->
@@ -1107,6 +1670,28 @@ const cancelAppointment = async () => {
               advanced
               class="w-full"
             >
+              <!-- Practitioner column with Admin indicator -->
+              <template v-slot:practitionerName="row">
+                <div class="flex items-center">
+                  <span 
+                    v-if="isAdminAppointment(getOriginalData(row.value.id))"
+                    class="px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800 mr-2"
+                  >
+                    Admin
+                  </span>
+                  <span :class="{ 'text-gray-500 italic': isAdminAppointment(getOriginalData(row.value.id)) }">
+                    {{ row.value.practitionerName || 'Admin' }}
+                  </span>
+                  
+                  <!-- Show assignment status for admin appointments -->
+                  <div v-if="isAdminAppointment(getOriginalData(row.value.id))" class="ml-2">
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800" title="Pending Assignment">
+                      Pending
+                    </span>
+                  </div>
+                </div>
+              </template>
+              
               <!-- Status column -->
               <template v-slot:status="row">
                 <span 
@@ -1136,6 +1721,8 @@ const cancelAppointment = async () => {
                     <Icon name="material-symbols:visibility" size="22" />
                   </span>
 
+
+
                   <!-- Delete Icon -->
                   <span
                     class="relative group cursor-pointer"
@@ -1158,6 +1745,27 @@ const cancelAppointment = async () => {
               <p class="text-sm text-gray-600">View and manage your scheduled appointments. Click on any appointment to view details.</p>
             </div>
             
+            <!-- Calendar Controls for non-doctors -->
+            <div v-if="!userStore.isDoctor" class="mb-4 flex flex-wrap gap-4 items-center">
+              <div class="flex items-center space-x-2">
+                <label class="text-sm font-medium text-gray-700">Filter:</label>
+                <select 
+                  v-model="calendarFilter" 
+                  class="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  @change="applyCalendarFilter"
+                >
+                  <option value="all">All Appointments</option>
+                  <option value="admin">Admin Appointments Only</option>
+                  <option value="assigned">Assigned Appointments Only</option>
+                </select>
+              </div>
+              
+              <div v-if="calendarFilter === 'admin'" class="text-sm text-orange-600 bg-orange-50 px-3 py-1 rounded-full border border-orange-200">
+                <Icon name="material-symbols:admin-panel-settings" class="mr-1" size="16" />
+                Showing Admin Appointments Only
+              </div>
+            </div>
+            
             <!-- Calendar Loading State -->
             <div v-if="appointmentsLoading" class="flex justify-center items-center h-64">
               <div class="text-center">
@@ -1167,75 +1775,205 @@ const cancelAppointment = async () => {
             </div>
             
             <FullCalendar v-else :options="calendarOptions" />
+            
+            <!-- Calendar Legend -->
+            <div class="mt-4 p-3 bg-gray-50 rounded-lg border">
+              <h4 class="text-sm font-medium text-gray-700 mb-2">Calendar Legend</h4>
+              <div class="flex flex-wrap gap-4 text-xs">
+                <div class="flex items-center">
+                  <div class="w-3 h-3 rounded mr-2" style="background-color: #14452F;"></div>
+                  <span>Booked</span>
+                </div>
+                <div class="flex items-center">
+                  <div class="w-3 h-3 rounded mr-2" style="background-color: #1976D2;"></div>
+                  <span>Started</span>
+                </div>
+                <div class="flex items-center">
+                  <div class="w-3 h-3 rounded mr-2" style="background-color: #388E3C;"></div>
+                  <span>Confirmed Start</span>
+                </div>
+                <div class="flex items-center">
+                  <div class="w-3 h-3 rounded mr-2" style="background-color: #7B1FA2;"></div>
+                  <span>Finished</span>
+                </div>
+                <div class="flex items-center">
+                  <div class="w-3 h-3 rounded mr-2" style="background-color: #303F9F;"></div>
+                  <span>Completed</span>
+                </div>
+                <div class="flex items-center">
+                  <div class="w-3 h-3 rounded mr-2" style="background-color: #ea580c;"></div>
+                  <span class="font-medium">Admin Appointment</span>
+                </div>
+              </div>
+              <div class="mt-2 text-xs text-gray-600">
+                <p><strong>Admin Appointments:</strong> Created without a specific practitioner. Can be assigned to available doctors/therapists on the appointment date.</p>
+              </div>
+            </div>
           </rs-card>
         </div>
       </div>
 
       <!-- Add Appointment Modal -->
-      <div v-if="showModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
-          <div class="flex justify-between items-center mb-4">
+      <div v-if="showModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+          <!-- Header -->
+          <div class="flex justify-between items-center p-6 border-b border-gray-200">
             <h2 class="text-xl font-bold">Book New Appointment</h2>
             <button @click="showModal = false" class="text-gray-500 hover:text-gray-700">
               <Icon name="material-symbols:close" size="24" />
             </button>
           </div>
 
-          <FormKit type="form" :actions="false">
-            <FormKit type="date" v-model="appointmentForm.date" name="date" label="Date" validation="required" />
-            
-            <!-- Patient Selection with Session Check -->
-            <div class="relative">
-              <FormKit type="select" v-model="appointmentForm.patient" name="patient" label="Patient Name" :options="patientOptions" validation="required" />
-              <div v-if="isCheckingSessions" class="absolute right-2 top-8">
-                <Icon name="line-md:loading-twotone-loop" class="text-primary" />
-              </div>
-            </div>
-            
-            <!-- Patient Session Information -->
-            <div v-if="patientSessionInfo" class="p-3 rounded-lg border" :class="patientSessionInfo.can_book_appointment ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'">
-              <div class="flex items-center">
-                <Icon 
-                  :name="patientSessionInfo.can_book_appointment ? 'material-symbols:check-circle' : 'material-symbols:error'" 
-                  :class="patientSessionInfo.can_book_appointment ? 'text-green-600' : 'text-red-600'"
-                  size="20"
-                  class="mr-2"
-                />
-                <div>
-                  <p class="text-sm font-medium" :class="patientSessionInfo.can_book_appointment ? 'text-green-800' : 'text-red-800'">
-                    {{ patientSessionInfo.patient_name }}
-                  </p>
-                  <p class="text-xs" :class="patientSessionInfo.can_book_appointment ? 'text-green-600' : 'text-red-600'">
-                    Available Sessions: {{ patientSessionInfo.available_sessions }}
-                    <span v-if="!patientSessionInfo.can_book_appointment" class="font-medium"> - Cannot book appointment</span>
-                    <span v-else class="text-gray-500"> (1 session will be deducted when booking)</span>
-                  </p>
+          <!-- Scrollable Content -->
+          <div class="flex-1 overflow-y-auto p-6">
+            <FormKit type="form" :actions="false">
+              <FormKit type="date" v-model="appointmentForm.date" name="date" label="Date" validation="required" />
+              
+              <!-- Patient Selection with Session Check -->
+              <div class="relative">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Patient Name *</label>
+                <div class="relative">
+                  <input
+                    type="text"
+                    v-model="patientSearchText"
+                    @focus="handlePatientFocus"
+                    @blur="handlePatientBlur"
+                    @click.stop
+                    placeholder="Type patient name or IC number..."
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    :class="{ 'border-red-500': !appointmentForm.patient && patientSearchText }"
+                  />
+                  <div v-if="appointmentForm.patient" class="absolute right-2 top-2">
+                    <button
+                      type="button"
+                      @click="clearPatientSelection"
+                      class="text-gray-400 hover:text-gray-600"
+                    >
+                      <Icon name="material-symbols:close" size="20" />
+                    </button>
+                  </div>
+                  <div v-if="isCheckingSessions" class="absolute right-8 top-2">
+                    <Icon name="line-md:loading-twotone-loop" class="text-primary" />
+                  </div>
+                </div>
+                
+                <!-- Patient Dropdown -->
+                <div v-if="showPatientDropdown && filteredPatients.length > 0" class="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                  <div
+                    v-for="patient in filteredPatients"
+                    :key="patient.value"
+                    @mousedown.prevent="selectPatient(patient)"
+                    @click.stop
+                    class="px-3 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors duration-150"
+                  >
+                    <div class="font-medium">{{ patient.label }}</div>
+                    <div v-if="getPatientIC(patient)" class="text-sm text-gray-600">
+                      IC: {{ getPatientIC(patient) }}
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Validation Error -->
+                <div v-if="!appointmentForm.patient && patientSearchText" class="mt-1 text-sm text-red-600">
+                  Please select a patient from the dropdown
                 </div>
               </div>
-            </div>
-            
-            <FormKit type="select" v-model="appointmentForm.serviceId" name="serviceId" label="Service" :options="serviceOptions" validation="required" :disabled="patientSessionInfo && !patientSessionInfo.can_book_appointment" />
-            <FormKit type="select" v-model="appointmentForm.therapistDoctor" name="therapistDoctor" label="Therapist/Doctor" :options="therapistDoctorOptions" validation="required" :disabled="patientSessionInfo && !patientSessionInfo.can_book_appointment" />
-            
-            <div class="relative">
-              <FormKit type="select" v-model="appointmentForm.time" name="time" label="Time Slot" :options="timeSlotOptions" validation="required" :disabled="!appointmentForm.date || !appointmentForm.therapistDoctor || isLoadingSlots || (patientSessionInfo && !patientSessionInfo.can_book_appointment)" />
-              <div v-if="isLoadingSlots" class="absolute right-2 top-8">
-                <Icon name="line-md:loading-twotone-loop" class="text-primary" />
+              
+              <!-- Patient Session Information -->
+              <div v-if="patientSessionInfo" class="p-3 rounded-lg border" :class="patientSessionInfo.can_book_appointment ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'">
+                <div class="flex items-center">
+                  <Icon 
+                    :name="patientSessionInfo.can_book_appointment ? 'material-symbols:check-circle' : 'material-symbols:error'" 
+                    :class="patientSessionInfo.can_book_appointment ? 'text-green-600' : 'text-red-600'"
+                    size="20"
+                    class="mr-2"
+                  />
+                  <div>
+                    <p class="text-sm font-medium" :class="patientSessionInfo.can_book_appointment ? 'text-green-800' : 'text-red-800'">
+                      {{ patientSessionInfo.patient_name }}
+                    </p>
+                    <p class="text-xs" :class="patientSessionInfo.can_book_appointment ? 'text-green-600' : 'text-red-600'">
+                      Available Sessions: {{ patientSessionInfo.available_sessions }}
+                      <span v-if="!patientSessionInfo.can_book_appointment" class="font-medium"> - Cannot book appointment</span>
+                      <span v-else class="text-gray-500"> (1 session will be deducted when booking)</span>
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div v-if="timeSlotOptions.length === 1 && appointmentForm.date && appointmentForm.therapistDoctor" class="text-red-500 text-sm mt-1">
-                No available time slots for the selected date and practitioner
+              
+              <FormKit type="select" v-model="appointmentForm.serviceId" name="serviceId" label="Service" :options="serviceOptions" validation="required" :disabled="patientSessionInfo && !patientSessionInfo.can_book_appointment" />
+              
+              <!-- Therapist/Doctor Selection with Admin Option -->
+              <div class="relative">
+                <FormKit type="select" v-model="appointmentForm.therapistDoctor" name="therapistDoctor" label="Therapist/Doctor" :options="therapistDoctorOptions" validation="required" :disabled="patientSessionInfo && !patientSessionInfo.can_book_appointment" />
+                
+                <!-- Show available admin slots info -->
+                <div v-if="appointmentForm.therapistDoctor === 'admin' && appointmentForm.date" class="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
+                  <div class="flex items-center text-blue-700">
+                    <Icon name="material-symbols:info" size="16" class="mr-2" />
+                    <span>Admin appointments: Maximum 5 slots per day. You can assign to available practitioners on the appointment date.</span>
+                  </div>
+                  
+                  <!-- Show current admin slots count -->
+                  <div class="mt-2 p-2 bg-white rounded border border-blue-200">
+                    <div class="flex items-center justify-between">
+                      <span class="text-sm text-gray-600">Current Admin Slots for {{ appointmentForm.date }}:</span>
+                      <span class="font-semibold" :class="adminSlotsCount >= maxAdminSlotsPerDay ? 'text-red-600' : 'text-green-600'">
+                        {{ adminSlotsCount }} / {{ maxAdminSlotsPerDay }}
+                      </span>
+                    </div>
+                    
+                    <!-- Warning when max slots reached -->
+                    <div v-if="adminSlotsCount >= maxAdminSlotsPerDay" class="mt-1 text-xs text-red-600 bg-red-50 p-1 rounded">
+                      <Icon name="material-symbols:warning" class="mr-1" size="14" />
+                      Maximum admin slots reached for this date. Please select a different date or assign existing admin appointments first.
+                    </div>
+                    
+                    <!-- Success when slots available -->
+                    <div v-else class="mt-1 text-xs text-green-600 bg-green-50 p-1 rounded">
+                      <Icon name="material-symbols:check-circle" class="mr-1" size="14" />
+                      {{ maxAdminSlotsPerDay - adminSlotsCount }} admin slot(s) available for this date.
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-            
-            <FormKit type="select" v-model="appointmentForm.status" name="status" label="Status" :options="statusOptions" validation="required" :disabled="patientSessionInfo && !patientSessionInfo.can_book_appointment" />
-          </FormKit>
+              
+              <div class="relative">
+                <FormKit type="select" v-model="appointmentForm.time" name="time" label="Time Slot" :options="timeSlotOptions" :validation="appointmentForm.therapistDoctor === 'admin' ? '' : 'required'" :disabled="!appointmentForm.date || !appointmentForm.therapistDoctor || isLoadingSlots || (patientSessionInfo && !patientSessionInfo.can_book_appointment) || appointmentForm.therapistDoctor === 'admin'" />
+                <div v-if="isLoadingSlots" class="absolute right-2 top-8">
+                  <Icon name="line-md:loading-twotone-loop" class="text-primary" />
+                </div>
+                <div v-if="timeSlotOptions.length === 1 && appointmentForm.date && appointmentForm.therapistDoctor" class="text-red-500 text-sm mt-1">
+                  <span v-if="appointmentForm.therapistDoctor === 'admin'">
+                    No available admin slots for the selected date (maximum 5 slots per day)
+                  </span>
+                  <span v-else>
+                    No available time slots for the selected date and practitioner
+                  </span>
+                </div>
+                
+                <!-- Info message for Admin appointments -->
+                <div v-if="appointmentForm.therapistDoctor === 'admin' && appointmentForm.date" class="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
+                  <div class="flex items-center text-blue-700">
+                    <Icon name="material-symbols:info" size="16" class="mr-2" />
+                    <span>Time slot will be automatically assigned when you assign this appointment to a practitioner on the appointment date.</span>
+                  </div>
+                </div>
+              </div>
+              
+              <FormKit type="select" v-model="appointmentForm.status" name="status" label="Status" :options="statusOptions" validation="required" :disabled="patientSessionInfo && !patientSessionInfo.can_book_appointment" />
+            </FormKit>
+          </div>
 
-          <div class="flex justify-end gap-2 mt-4">
-            <rs-button variant="secondary-outline" @click="showModal = false">Cancel</rs-button>
-            <rs-button variant="primary" @click="saveAppointment" :disabled="isLoading || (patientSessionInfo && !patientSessionInfo.can_book_appointment)">
-              <span v-if="isLoading">Saving...</span>
-              <span v-else>Save Appointment</span>
-            </rs-button>
+          <!-- Fixed Footer with Buttons -->
+          <div class="p-6 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+            <div class="flex justify-end gap-2">
+              <rs-button variant="secondary-outline" @click="showModal = false">Cancel</rs-button>
+              <rs-button variant="primary" @click="saveAppointment" :disabled="isLoading || (patientSessionInfo && !patientSessionInfo.can_book_appointment)">
+                <span v-if="isLoading">Saving...</span>
+                <span v-else>Save Appointment</span>
+              </rs-button>
+            </div>
           </div>
         </div>
       </div>
@@ -1368,7 +2106,7 @@ const cancelAppointment = async () => {
             </div>
           </div>
 
-          <div class="mt-6 flex justify-between">
+          <div class="mt-6 flex justify-center">
             <rs-button variant="primary" @click="showDetailsModal = false">Close</rs-button>
           </div>
         </div>
@@ -1397,70 +2135,124 @@ const cancelAppointment = async () => {
       </div>
 
       <!-- Edit Appointment Modal -->
-      <div v-if="showEditModal && selectedAppointment" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
-          <div class="flex justify-between items-center mb-4">
+      <div v-if="showEditModal && selectedAppointment" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+          <!-- Header -->
+          <div class="flex justify-between items-center p-6 border-b border-gray-200">
             <h2 class="text-xl font-bold">Edit Appointment</h2>
             <button @click="showEditModal = false" class="text-gray-500 hover:text-gray-700">
               <Icon name="material-symbols:close" size="24" />
             </button>
           </div>
 
-          <FormKit type="form" :actions="false">
-            <FormKit type="date" v-model="appointmentForm.date" name="date" label="Date" validation="required" />
-            
-            <!-- Patient Selection with Session Check -->
-            <div class="relative">
-              <FormKit type="select" v-model="appointmentForm.patient" name="patient" label="Patient Name" :options="patientOptions" validation="required" />
-              <div v-if="isCheckingSessions" class="absolute right-2 top-8">
-                <Icon name="line-md:loading-twotone-loop" class="text-primary" />
-              </div>
-            </div>
-            
-            <!-- Patient Session Information -->
-            <div v-if="patientSessionInfo" class="p-3 rounded-lg border" :class="patientSessionInfo.can_book_appointment ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'">
-              <div class="flex items-center">
-                <Icon 
-                  :name="patientSessionInfo.can_book_appointment ? 'material-symbols:check-circle' : 'material-symbols:error'" 
-                  :class="patientSessionInfo.can_book_appointment ? 'text-green-600' : 'text-red-600'"
-                  size="20"
-                  class="mr-2"
-                />
-                <div>
-                  <p class="text-sm font-medium" :class="patientSessionInfo.can_book_appointment ? 'text-green-800' : 'text-red-800'">
-                    {{ patientSessionInfo.patient_name }}
-                  </p>
-                  <p class="text-xs" :class="patientSessionInfo.can_book_appointment ? 'text-green-600' : 'text-red-600'">
-                    Available Sessions: {{ patientSessionInfo.available_sessions }}
-                    <span v-if="!patientSessionInfo.can_book_appointment" class="font-medium"> - Cannot book appointment</span>
-                    <span v-else class="text-gray-500"> (1 session will be deducted when booking)</span>
-                  </p>
+          <!-- Scrollable Content -->
+          <div class="flex-1 overflow-y-auto p-6">
+            <FormKit type="form" :actions="false">
+              <FormKit type="date" v-model="appointmentForm.date" name="date" label="Date" validation="required" />
+              
+              <!-- Patient Name Display (Read-only in Edit Mode) -->
+              <div class="relative">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Patient Name</label>
+                <div class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
+                  {{ patientSearchText || 'No patient selected' }}
                 </div>
               </div>
-            </div>
-            
-            <FormKit type="select" v-model="appointmentForm.serviceId" name="serviceId" label="Service" :options="serviceOptions" validation="required" :disabled="patientSessionInfo && !patientSessionInfo.can_book_appointment" />
-            <FormKit type="select" v-model="appointmentForm.therapistDoctor" name="therapistDoctor" label="Therapist/Doctor" :options="therapistDoctorOptions" validation="required" :disabled="patientSessionInfo && !patientSessionInfo.can_book_appointment" />
-            
-            <div class="relative">
-              <FormKit type="select" v-model="appointmentForm.time" name="time" label="Time Slot" :options="timeSlotOptions" validation="required" :disabled="!appointmentForm.date || !appointmentForm.therapistDoctor || isLoadingSlots || (patientSessionInfo && !patientSessionInfo.can_book_appointment)" />
-              <div v-if="isLoadingSlots" class="absolute right-2 top-8">
-                <Icon name="line-md:loading-twotone-loop" class="text-primary" />
+              
+              <!-- Patient Session Information -->
+              <div v-if="patientSessionInfo" class="p-3 rounded-lg border" :class="patientSessionInfo.can_book_appointment ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'">
+                <div class="flex items-center">
+                  <Icon 
+                    :name="patientSessionInfo.can_book_appointment ? 'material-symbols:check-circle' : 'material-symbols:error'" 
+                    :class="patientSessionInfo.can_book_appointment ? 'text-green-600' : 'text-red-600'"
+                    size="20"
+                    class="mr-2"
+                  />
+                  <div>
+                    <p class="text-sm font-medium" :class="patientSessionInfo.can_book_appointment ? 'text-green-800' : 'text-red-800'">
+                      {{ patientSessionInfo.patient_name }}
+                    </p>
+                    <p class="text-xs" :class="patientSessionInfo.can_book_appointment ? 'text-green-600' : 'text-red-600'">
+                      Available Sessions: {{ patientSessionInfo.available_sessions }}
+                      <span v-if="!patientSessionInfo.can_book_appointment" class="font-medium"> - Cannot book appointment</span>
+                      <span v-else class="text-gray-500"> (1 session will be deducted when booking)</span>
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div v-if="timeSlotOptions.length === 1 && appointmentForm.date && appointmentForm.therapistDoctor" class="text-red-500 text-sm mt-1">
-                No available time slots for the selected date and practitioner
+              
+              <FormKit type="select" v-model="appointmentForm.serviceId" name="serviceId" label="Service" :options="serviceOptions" validation="required" :disabled="patientSessionInfo && !patientSessionInfo.can_book_appointment" />
+              
+              <!-- Therapist/Doctor Selection with Admin Option -->
+              <div class="relative">
+                <FormKit type="select" v-model="appointmentForm.therapistDoctor" name="therapistDoctor" label="Therapist/Doctor" :options="therapistDoctorOptions" validation="required" :disabled="patientSessionInfo && !patientSessionInfo.can_book_appointment" />
+                
+                <!-- Show available admin slots info -->
+                <div v-if="appointmentForm.therapistDoctor === 'admin' && appointmentForm.date" class="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
+                  <div class="flex items-center text-blue-700">
+                    <Icon name="material-symbols:info" size="16" class="mr-2" />
+                    <span>Admin appointments: Maximum 5 slots per day. You can assign to available practitioners on the appointment date.</span>
+                  </div>
+                  
+                  <!-- Show current admin slots count -->
+                  <div class="mt-2 p-2 bg-white rounded border border-blue-200">
+                    <div class="flex items-center justify-between">
+                      <span class="text-sm text-gray-600">Current Admin Slots for {{ appointmentForm.date }}:</span>
+                      <span class="font-semibold" :class="adminSlotsCount >= maxAdminSlotsPerDay ? 'text-red-600' : 'text-green-600'">
+                        {{ adminSlotsCount }} / {{ maxAdminSlotsPerDay }}
+                      </span>
+                    </div>
+                    
+                    <!-- Warning when max slots reached -->
+                    <div v-if="adminSlotsCount >= maxAdminSlotsPerDay" class="mt-1 text-xs text-red-600 bg-red-50 p-1 rounded">
+                      <Icon name="material-symbols:warning" class="mr-1" size="14" />
+                      Maximum admin slots reached for this date. Please select a different date or assign existing admin appointments first.
+                    </div>
+                    
+                    <!-- Success when slots available -->
+                    <div v-else class="mt-1 text-xs text-green-600 bg-green-50 p-1 rounded">
+                      <Icon name="material-symbols:check-circle" class="mr-1" size="14" />
+                      {{ maxAdminSlotsPerDay - adminSlotsCount }} admin slot(s) available for this date.
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-            
-            <FormKit type="select" v-model="appointmentForm.status" name="status" label="Status" :options="statusOptions" validation="required" :disabled="patientSessionInfo && !patientSessionInfo.can_book_appointment" />
-          </FormKit>
+              
+              <div class="relative">
+                <FormKit type="select" v-model="appointmentForm.time" name="time" label="Time Slot" :options="timeSlotOptions" :validation="appointmentForm.therapistDoctor === 'admin' ? '' : 'required'" :disabled="!appointmentForm.date || !appointmentForm.therapistDoctor || isLoadingSlots || (patientSessionInfo && !patientSessionInfo.can_book_appointment) || appointmentForm.therapistDoctor === 'admin'" />
+                <div v-if="isLoadingSlots" class="absolute right-2 top-8">
+                  <Icon name="line-md:loading-twotone-loop" class="text-primary" />
+                </div>
+                <div v-if="timeSlotOptions.length === 1 && appointmentForm.date && appointmentForm.therapistDoctor" class="text-red-500 text-sm mt-1">
+                  <span v-if="appointmentForm.therapistDoctor === 'admin'">
+                    No available admin slots for the selected date (maximum 5 slots per day)
+                  </span>
+                  <span v-else>
+                    No available time slots for the selected date and practitioner
+                  </span>
+                </div>
+                
+                <!-- Info message for Admin appointments -->
+                <div v-if="appointmentForm.therapistDoctor === 'admin' && appointmentForm.date" class="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
+                  <div class="flex items-center text-blue-700">
+                    <Icon name="material-symbols:info" size="16" class="mr-2" />
+                    <span>Time slot will be automatically assigned when you assign this appointment to a practitioner on the appointment date.</span>
+                  </div>
+                </div>
+              </div>
+              
+              <FormKit type="select" v-model="appointmentForm.status" name="status" label="Status" :options="statusOptions" validation="required" :disabled="patientSessionInfo && !patientSessionInfo.can_book_appointment" />
+            </FormKit>
+          </div>
 
-          <div class="flex justify-end gap-2 mt-4">
-            <rs-button variant="secondary-outline" @click="showEditModal = false">Cancel</rs-button>
-            <rs-button variant="primary" @click="saveEditedAppointment" :disabled="isLoading || (patientSessionInfo && !patientSessionInfo.can_book_appointment)">
-              <span v-if="isLoading">Saving...</span>
-              <span v-else>Save Appointment</span>
-            </rs-button>
+          <!-- Fixed Footer with Buttons -->
+          <div class="p-6 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+            <div class="flex justify-end gap-2">
+              <rs-button variant="secondary-outline" @click="showEditModal = false">Cancel</rs-button>
+              <rs-button variant="primary" @click="saveEditedAppointment" :disabled="isLoading || (patientSessionInfo && !patientSessionInfo.can_book_appointment)">
+                <span v-if="isLoading">Saving...</span>
+                <span v-else>Save Appointment</span>
+              </rs-button>
+            </div>
           </div>
         </div>
       </div>
@@ -1531,6 +2323,8 @@ const cancelAppointment = async () => {
           </div>
         </div>
       </div>
+
+
 
       <!-- Delete Confirmation Modal -->
       <div v-if="showDeleteModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

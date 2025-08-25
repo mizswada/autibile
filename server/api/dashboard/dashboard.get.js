@@ -86,14 +86,19 @@ export default defineEventHandler(async (event) => {
 
     const appointments = await prisma.appointments.findMany(appointmentsQuery);
 
-    const formattedAppointments = appointments.map((a) => ({
-      patient: a.user_patients?.fullname || 'Unknown',
-      userType: a.user_practitioners?.type || 'Unknown',
-      userName: a.user_practitioners?.user?.userFullName || 'Unknown',
-      date: a.date.toISOString().slice(0, 10),
-      time: a.lookup?.title || '-',
-      notes: a.therapist_doctor_comment || '',
-    }));
+    const formattedAppointments = appointments.map((a) => {
+      // Check if this is an admin appointment (no practitioner assigned)
+      const isAdminAppointment = !a.user_practitioners;
+      
+      return {
+        patient: a.user_patients?.fullname || 'Unknown',
+        userType: isAdminAppointment ? 'Admin' : (a.user_practitioners?.type || 'Unknown'),
+        userName: isAdminAppointment ? 'Admin' : (a.user_practitioners?.user?.userFullName || 'Unknown'),
+        date: a.date.toISOString().slice(0, 10),
+        time: a.lookup?.title || '-',
+        notes: a.therapist_doctor_comment || '',
+      };
+    });
 
     // Return different data based on user role
     if (isAdmin) {

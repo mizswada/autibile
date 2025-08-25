@@ -26,6 +26,8 @@ export default defineEventHandler(async (event) => {
               autism_diagnose: true,
               diagnosed_on: true,
               status: true,
+              OKUCard: true,
+              treatment_type: true,
               created_at: true,
               update_at: true,
             },
@@ -52,6 +54,8 @@ export default defineEventHandler(async (event) => {
         autism_diagnose: child.user_patients.autism_diagnose,
         diagnosed_on: child.user_patients.diagnosed_on,
         status: child.user_patients.status,
+        okuCard: child.user_patients.OKUCard,
+        treatmentType: child.user_patients.treatment_type,
       }));
   
       return {

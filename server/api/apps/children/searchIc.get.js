@@ -24,6 +24,8 @@ export default defineEventHandler(async (event) => {
           diagnosed_on: true,
           status: true,
           available_session: true,
+          OKUCard: true,
+          treatment_type: true,
         },
       });
   
@@ -46,6 +48,8 @@ export default defineEventHandler(async (event) => {
         diagnosedDate: u.diagnosed_on ? new Date(u.diagnosed_on).toISOString().split('T')[0] : '',
         status: u.status,
         availableSession: u.available_session,
+        okuCard: u.OKUCard,
+        treatmentType: u.treatment_type,
       }));
   
       return {

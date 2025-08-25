@@ -73,8 +73,8 @@ model userrole {
   userRoleUserID      Int?
   userRoleRoleID      Int?
   userRoleCreatedDate DateTime? @db.DateTime(0)
-  user                user?     @relation(fields: [userRoleUserID], references: [userID], onDelete: NoAction, onUpdate: NoAction, map: "FK_userrole_user")
   role                role?     @relation(fields: [userRoleRoleID], references: [roleID], onDelete: NoAction, onUpdate: NoAction, map: "FK_userrole_role")
+  user                user?     @relation(fields: [userRoleUserID], references: [userID], onDelete: NoAction, onUpdate: NoAction, map: "FK_userrole_user")
 
   @@index([userRoleRoleID], map: "userRoleRoleID")
   @@index([userRoleUserID], map: "userRoleUserID")
@@ -293,6 +293,8 @@ model user_patients {
   status                  String?                   @db.VarChar(50)
   available_session       Int?
   mchatr_status           String?                   @db.VarChar(255)
+  OKUCard                 Int?
+  treatment_type          String?                   @db.VarChar(50)
   created_at              DateTime?                 @db.Timestamp(0)
   update_at               DateTime?                 @default(now()) @db.Timestamp(0)
   deleted_at              DateTime?                 @db.Timestamp(0)
@@ -316,7 +318,8 @@ model user_practitioners {
   type             String?          @db.VarChar(50)
   registration_no  String?          @db.VarChar(50)
   specialty        String?          @db.VarChar(255)
-  department       String?          @db.VarChar(255)
+  department       Int?
+  workplace        String?          @db.VarChar(1000)
   qualifications   String?          @db.VarChar(255)
   experience_years Int?
   signature        String?          @db.LongText
@@ -352,9 +355,9 @@ model faq {
   created_at    DateTime  @db.Timestamp(0)
   updated_at    DateTime  @db.Timestamp(0)
   deleted_at    DateTime? @db.Timestamp(0)
-  lookup        lookup    @relation(fields: [faq_languange], references: [lookupID], onDelete: NoAction, onUpdate: NoAction, map: "faq_ibfk_1")
+  lookup        lookup    @relation(fields: [faq_languange], references: [lookupID], onUpdate: Restrict, map: "faq_ibfk_1")
 
-  @@index([faq_languange], map: "faq_languange")
+  @@index([faq_languange], map: "faq_ibfk_1")
 }
 
 model questionnaire_scoring {
@@ -407,6 +410,20 @@ model Renamedpackage {
   deleted_at    DateTime? @db.Timestamp(0)
 
   @@map("package")
+}
+
+model products {
+  product_id   Int       @id @default(autoincrement())
+  product_name String?   @db.VarChar(255)
+  description  String?   @db.VarChar(500)
+  amount       Decimal?  @db.Decimal(10, 2)
+  quantity     Int?
+  status       String?   @db.VarChar(255)
+  created_at   DateTime  @db.Timestamp(0)
+  updated_at   DateTime  @db.Timestamp(0)
+  deleted_at   DateTime? @db.Timestamp(0)
+
+  @@map("products")
 }
 
 model invoice {

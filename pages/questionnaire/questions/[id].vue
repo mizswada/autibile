@@ -107,11 +107,11 @@ async function fetchQuestionnaireData() {
         router.push('/questionnaire');
       }
     } else {
-      showMessage('Failed to load questionnaire data', 'error');
+      showMessage('Failed to load autism screening data', 'error');
     }
   } catch (err) {
-    console.error('Error loading questionnaire data:', err);
-    showMessage('Error loading questionnaire data', 'error');
+          console.error('Error loading autism screening data:', err);
+      showMessage('Error loading autism screening data', 'error');
   } finally {
     isLoading.value = false;
   }
@@ -994,7 +994,7 @@ async function performDelete() {
     </rs-modal>
 
     <rs-modal
-      title="Edit Questionnaire Header"
+      title="Edit Autism Screening Header"
       v-model="showHeaderModal"
       :overlay-close="false"
       :hide-footer="true"
@@ -1005,7 +1005,7 @@ async function performDelete() {
           v-model="headerContent"
           name="headerContent"
           label="Header/Instructions"
-          placeholder="Enter instructions or header text for the questionnaire"
+          placeholder="Enter instructions or header text for the autism screening"
           rows="6"
         />
 

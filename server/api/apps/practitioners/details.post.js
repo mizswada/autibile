@@ -10,6 +10,7 @@ export default defineEventHandler(async (event) => {
         qualification,
         experience,
         signature,
+        workplace, // Add workplace field
       } = body;
   
       if (!practitionerID) {
@@ -41,6 +42,7 @@ export default defineEventHandler(async (event) => {
             qualifications: qualification || null,
             experience_years: parseInt(experience) || null,
             signature: formattedSignature || null,
+            workplace: workplace || null, // Add workplace to update data
             updated_at: new Date(),
             },
         });
