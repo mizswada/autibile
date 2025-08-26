@@ -573,7 +573,7 @@ watch(() => appointmentForm.value.patient, (newPatientId) => {
 
 // Add watcher for patient search text
 watch(patientSearchText, (newText) => {
-  if (newText) {
+  if (newText && !appointmentForm.value.patient) {
     filterPatients(newText);
     showPatientDropdown.value = true;
   } else {
@@ -1444,8 +1444,9 @@ const selectPatient = (patient) => {
   appointmentForm.value.patient = patient.value;
   patientSearchText.value = patient.label;
   
-  // Hide the dropdown immediately
+  // Hide the dropdown immediately and clear search results
   showPatientDropdown.value = false;
+  filteredPatients.value = [];
   
   console.log('Patient selected:', {
     patientId: patient.value,
@@ -1457,6 +1458,11 @@ const selectPatient = (patient) => {
   // Reset the flag after a longer delay to ensure all events are processed
   setTimeout(() => {
     isSelectingPatient.value = false;
+    // Double-check that dropdown is still hidden
+    if (appointmentForm.value.patient) {
+      showPatientDropdown.value = false;
+      filteredPatients.value = [];
+    }
   }, 300);
   
   // Check patient sessions when a patient is selected
@@ -1493,14 +1499,23 @@ const handlePatientFocus = () => {
   // Reset selection flag
   isSelectingPatient.value = false;
   
-  // Show dropdown immediately
-  showPatientDropdown.value = true;
+  // Only show dropdown if no patient is selected
+  if (!appointmentForm.value.patient) {
+    showPatientDropdown.value = true;
+  }
 };
 
 // Handle patient input blur
 const handlePatientBlur = () => {
   // If we're in the middle of selecting a patient, don't hide the dropdown
   if (isSelectingPatient.value) {
+    return;
+  }
+  
+  // If a patient is already selected, don't show the dropdown
+  if (appointmentForm.value.patient) {
+    showPatientDropdown.value = false;
+    filteredPatients.value = [];
     return;
   }
   

@@ -31,6 +31,7 @@ const selectedPayment = ref(null);
 const showPaymentDetails = ref(false);
 const isGeneratingPdf = ref(false);
 const isGeneratingAllPdf = ref(false);
+const isGeneratingReceipt = ref(false);
 
 // Fetch invoices from API
 const fetchInvoices = async () => {
@@ -621,6 +622,276 @@ const printInvoice = (invoice) => {
   printWindow.close();
 };
 
+const downloadReceipt = async (paymentId) => {
+  try {
+    // Find the payment data
+    const payment = paymentHistory.value.find(pay => pay.payment_id === paymentId);
+    if (!payment) {
+      alert('Payment not found.');
+      return;
+    }
+
+    isGeneratingReceipt.value = true;
+
+    // Import jsPDF dynamically
+    const { default: jsPDF } = await import('jspdf');
+    
+    // Create a PDF with A4 dimensions
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    
+    // Add header with company info on the left
+    pdf.setFontSize(18);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Autibile', 20, 20);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(10);
+    
+    // Company address on the left
+    pdf.text('47150 Puchong, Selangor.', 20, 30);
+    pdf.text('1 - 4, Prima Bizwalk Business Park', 20, 35);
+    pdf.text('Jalan Tasik Prima 6/2', 20, 40);
+    pdf.text('Taman Tasik Prima', 20, 45);
+    
+    // Receipt details on the right
+    pdf.setFontSize(12);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('RECEIPT', pageWidth - 20, 20, { align: 'right' });
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(10);
+    pdf.text(`Receipt No: ${formatPaymentId(payment.payment_id)}`, pageWidth - 20, 30, { align: 'right' });
+    pdf.text(`Date: ${formatDate(payment.created_at)}`, pageWidth - 20, 35, { align: 'right' });
+    pdf.text(`Status: Completed`, pageWidth - 20, 40, { align: 'right' });
+    
+    // Bill to section
+    let yPosition = 60;
+    pdf.setFontSize(12);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('PAID BY:', 20, yPosition);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(10);
+    yPosition += 8;
+    pdf.text(`Patient: ${payment.patient_name}`, 20, yPosition);
+    yPosition += 5;
+    pdf.text(`Patient ID: ${payment.patient_id}`, 20, yPosition);
+    yPosition += 5;
+    pdf.text(`Invoice Type: ${payment.invoice_type || 'N/A'}`, 20, yPosition);
+    
+    // Table
+    yPosition += 15;
+    
+    // Define table column positions and widths
+    const tableStartX = 20;
+    const tableWidth = pageWidth - 40; // 170mm for A4
+    const colWidths = [70, 25, 25, 15, 25]; // Description, Price, Discount, Qty, Amount
+    const colPositions = [
+      tableStartX + 5,           // Description: 25mm
+      tableStartX + 75,          // Price: 75mm
+      tableStartX + 100,         // Discount: 100mm
+      tableStartX + 125,         // Qty: 125mm
+      tableStartX + 140          // Amount: 140mm
+    ];
+    
+    // Table headers
+    pdf.setFont(undefined, 'bold');
+    pdf.rect(tableStartX, yPosition - 5, tableWidth, 8);
+    pdf.text('Description', colPositions[0], yPosition);
+    pdf.text('Price', colPositions[1], yPosition);
+    pdf.text('Discount', colPositions[2], yPosition);
+    pdf.text('Qty', colPositions[3], yPosition);
+    pdf.text('Amount', colPositions[4], yPosition);
+    pdf.setFont(undefined, 'normal');
+    
+    // Table content
+    yPosition += 8;
+    pdf.rect(tableStartX, yPosition - 5, tableWidth, 8);
+    
+    // Truncate description if too long
+    const description = payment.invoice_description.length > 25 ? 
+      payment.invoice_description.substring(0, 22) + '...' : payment.invoice_description;
+    pdf.text(description, colPositions[0], yPosition);
+    pdf.text(`RM ${formatPrice(payment.amount)}`, colPositions[1], yPosition);
+    pdf.text('RM 0.00', colPositions[2], yPosition);
+    pdf.text('1', colPositions[3], yPosition);
+    pdf.text(`RM ${formatPrice(payment.amount)}`, colPositions[4], yPosition);
+    
+    // Summary section
+    yPosition += 20;
+    const summaryX = pageWidth - 60;
+    const summaryWidth = 50;
+    
+    pdf.setFont(undefined, 'bold');
+    pdf.text('SUMMARY', summaryX, yPosition);
+    pdf.setFont(undefined, 'normal');
+    yPosition += 8;
+    
+    // Summary rows
+    pdf.text('Sub Total:', summaryX, yPosition);
+    pdf.text(`RM ${formatPrice(payment.amount)}`, summaryX + summaryWidth, yPosition, { align: 'right' });
+    yPosition += 5;
+    
+    pdf.text('Tax (0%):', summaryX, yPosition);
+    pdf.text('RM 0.00', summaryX + summaryWidth, yPosition, { align: 'right' });
+    yPosition += 5;
+    
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Grand Total:', summaryX, yPosition);
+    pdf.text(`RM ${formatPrice(payment.amount)}`, summaryX + summaryWidth, yPosition, { align: 'right' });
+    pdf.setFont(undefined, 'normal');
+    
+    // Payment information
+    yPosition += 15;
+    pdf.setFontSize(12);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('PAYMENT INFORMATION:', 20, yPosition);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(10);
+    yPosition += 8;
+    
+    pdf.text(`Payment Date: ${formatDate(payment.created_at)}`, 20, yPosition);
+    yPosition += 5;
+    pdf.text(`Payment Method: ${payment.method}`, 20, yPosition);
+    yPosition += 5;
+    if (payment.bank_name) {
+      pdf.text(`Bank Name: ${payment.bank_name}`, 20, yPosition);
+      yPosition += 5;
+    }
+    if (payment.reference_code) {
+      pdf.text(`Reference: ${payment.reference_code}`, 20, yPosition);
+      yPosition += 5;
+    }
+    
+    // Terms and conditions
+    yPosition += 15;
+    pdf.setFontSize(10);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Terms and Conditions:', 20, yPosition);
+    pdf.setFont(undefined, 'normal');
+    yPosition += 5;
+    pdf.setFontSize(8);
+    pdf.text('1. This receipt confirms successful payment.', 20, yPosition);
+    yPosition += 4;
+    pdf.text('2. Please keep this receipt for your records.', 20, yPosition);
+    yPosition += 4;
+    pdf.text('3. This is a computer generated receipt.', 20, yPosition);
+    yPosition += 4;
+    pdf.text('4. Thank you for choosing Autibile.', 20, yPosition);
+    
+    // Footer
+    pdf.setFontSize(8);
+    pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+    
+    // Save the PDF with a formatted filename
+    const filename = `Receipt_${formatPaymentId(payment.payment_id)}_${payment.patient_name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`;
+    pdf.save(filename);
+    
+    // Show success message
+    alert('Receipt PDF downloaded successfully!');
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    alert('Error generating PDF: ' + (error.message || 'Unknown error'));
+  } finally {
+    isGeneratingReceipt.value = false;
+  }
+};
+
+const printReceipt = (payment) => {
+  if (!payment) {
+    alert('Payment not found.');
+    return;
+  }
+
+  const printContent = `
+    <html>
+    <head>
+      <title>Receipt ${formatPaymentId(payment.payment_id)}</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 40px; }
+        .header, .footer { text-align: center; }
+        .company-info { text-align: left; }
+        .receipt-meta { text-align: right; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; }
+        th { background-color: #f2f2f2; }
+        .summary { margin-top: 30px; float: right; width: 300px; }
+        .summary div { display: flex; justify-content: space-between; padding: 4px 0; }
+        .signature { margin-top: 60px; display: flex; justify-content: space-between; }
+        .terms { margin-top: 80px; font-size: 12px; text-align: center; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h2>Autibile</h2>
+        <div class="company-info">
+          47150 Puchong, Selangor.<br>
+          1 - 4, Prima Bizwalk Business Park<br>
+          Jalan Tasik Prima 6/2<br>
+          Taman Tasik Prima,
+        </div>
+        <br>
+      </div>
+
+      <div class="receipt-meta">
+        <p>Receipt No ${formatPaymentId(payment.payment_id)}</p>
+        <p>Payment Date ${formatDate(payment.created_at)}</p>
+        <p>Issued Date ${new Date().toLocaleDateString()}</p>
+      </div>
+
+      <div>
+        <h4>PAID BY</h4>
+        <p>${payment.patient_name}</p>
+        <p>${payment.invoice_description}</p>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Price</th>
+            <th>Discount</th>
+            <th>Qty</th>
+            <th>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>${payment.invoice_description}</td>
+            <td>${formatPrice(payment.amount)}</td>
+            <td>0.00</td>
+            <td>1</td>
+            <td>${formatPrice(payment.amount)}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="summary">
+        <div><span>Sub Total</span><span>${formatPrice(payment.amount)}</span></div>
+        <div><span>Grand Total</span><span>${formatPrice(payment.amount)}</span></div>
+        <div><span>${payment.method}</span><span>${formatPrice(payment.amount)}</span></div>
+      </div>
+
+      <div class="signature">
+        <div><strong>Signature:</strong></div>
+        <div><strong>REMARK:</strong></div>
+      </div>
+
+      <div class="terms">
+        <p><strong>Terms and Conditions</strong></p>
+        <p>Thank you.<br>This is computer generated receipt no signature required.</p>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const printWindow = window.open('', '', 'height=800,width=800');
+  printWindow.document.write(printContent);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+  printWindow.close();
+};
+
 // Pagination functions
 const nextPage = () => {
   if (currentPage.value * itemsPerPage.value < totalItems.value) {
@@ -916,7 +1187,6 @@ const pageNumbers = computed(() => {
                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Invoice</th>
                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Date</th>
                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Amount</th>
-                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Method</th>
                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Status</th>
                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Actions</th>
               </tr>
@@ -933,16 +1203,29 @@ const pageNumbers = computed(() => {
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">{{ formatDate(payment.created_at) }}</td>
                 <td class="px-6 py-4 whitespace-nowrap">RM {{ formatPrice(payment.amount) }}</td>
-                <td class="px-6 py-4 whitespace-nowrap">{{ payment.method }}</td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <rs-badge variant="success">
                     Completed
                   </rs-badge>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <rs-button variant="text" size="sm" @click="viewPaymentDetails(payment)">
-                    <Icon name="ic:outline-visibility" />
-                  </rs-button>
+                  <div class="flex space-x-2">
+                    <rs-button variant="text" size="sm" @click="viewPaymentDetails(payment)">
+                      <Icon name="ic:outline-visibility" />
+                    </rs-button>
+                    <rs-button 
+                      variant="text" 
+                      size="sm"
+                      @click="downloadReceipt(payment.payment_id)"
+                      :loading="isGeneratingReceipt"
+                      :disabled="isGeneratingReceipt"
+                    >
+                      <Icon name="mdi:download" />
+                    </rs-button>
+                    <rs-button variant="text" size="sm" @click="printReceipt(payment)">
+                      <Icon name="mdi:printer" />
+                    </rs-button>
+                  </div>
                 </td>
               </tr>
             </tbody>
