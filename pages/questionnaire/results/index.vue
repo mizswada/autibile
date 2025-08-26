@@ -373,6 +373,10 @@ const scoreInterpretation = computed(() => {
                 <div class="text-sm text-gray-500">Gender</div>
                 <div class="font-medium">{{ patientDetails.gender }}</div>
               </div>
+              <div class="mb-3" v-if="patientDetails?.treatmentType">
+                <div class="text-sm text-gray-500">Treatment Type</div>
+                <div class="font-medium">{{ patientDetails.treatmentType }}</div>
+            </div>
             </div>
             
             <div>
@@ -386,17 +390,13 @@ const scoreInterpretation = computed(() => {
                 <div class="font-medium">{{ patientDetails.autismDiagnose }}</div>
               </div>
               
-                          <div class="mb-3" v-if="patientDetails?.diagnosedDate">
-              <div class="text-sm text-gray-500">Diagnosed Date</div>
-              <div class="font-medium">{{ formatDate(patientDetails.diagnosedDate) }}</div>
+              <div class="mb-3" v-if="patientDetails?.diagnosedDate">
+                <div class="text-sm text-gray-500">Diagnosed Date</div>
+                <div class="font-medium">{{ formatDate(patientDetails.diagnosedDate) }}</div>
             </div>
             <div class="mb-3" v-if="patientDetails?.okuCard !== undefined">
               <div class="text-sm text-gray-500">OKU Card</div>
               <div class="font-medium">{{ patientDetails.okuCard === 1 ? 'Yes' : 'No' }}</div>
-            </div>
-            <div class="mb-3" v-if="patientDetails?.treatmentType">
-              <div class="text-sm text-gray-500">Treatment Type</div>
-              <div class="font-medium">{{ patientDetails.treatmentType }}</div>
             </div>
             </div>
           </div>

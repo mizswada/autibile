@@ -485,12 +485,6 @@ function goBackToQuestionnaire() {
           >
             Continue to Follow-up
           </button>
-          <button 
-            @click="goBackToQuestionnaire"
-            :class="mchatrResults.redirect_to_questionnaire_2 ? 'flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400 transition-colors' : 'w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors'"
-          >
-            {{ mchatrResults.redirect_to_questionnaire_2 ? 'Back to List' : 'Done' }}
-          </button>
         </div>
       </div>
     </div>

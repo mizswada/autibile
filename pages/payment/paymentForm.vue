@@ -26,18 +26,48 @@ const form = ref({
   reference_code: '',
 });
 
-// Payment method options
+// Payment method options (removed credit card)
 const paymentMethods = [
   { value: 'Online Banking', label: 'Online Banking' },
-  { value: 'Credit Card', label: 'Credit Card' },
   { value: 'E-Wallet', label: 'E-Wallet' },
 ];
+
+// Bank options from lookup table
+const bankOptions = ref([]);
 
 function showMessage(msg, type = 'success') {
   message.value = msg;
   messageType.value = type;
   setTimeout(() => (message.value = ''), 3000);
 }
+
+// Fetch bank options from lookup table
+const fetchBankOptions = async () => {
+  try {
+    const response = await $fetch('/api/lookup/banks');
+    if (Array.isArray(response)) {
+      bankOptions.value = response.map(bank => ({
+        label: bank.title,
+        value: bank.title
+      }));
+    }
+  } catch (error) {
+    console.error('Error fetching bank options:', error);
+    // Fallback to common Malaysian banks if lookup fails
+    bankOptions.value = [
+      { label: 'Maybank', value: 'Maybank' },
+      { label: 'CIMB Bank', value: 'CIMB Bank' },
+      { label: 'Public Bank', value: 'Public Bank' },
+      { label: 'RHB Bank', value: 'RHB Bank' },
+      { label: 'Hong Leong Bank', value: 'Hong Leong Bank' },
+      { label: 'AmBank', value: 'AmBank' },
+      { label: 'UOB Bank', value: 'UOB Bank' },
+      { label: 'Standard Chartered', value: 'Standard Chartered' },
+      { label: 'HSBC Bank', value: 'HSBC Bank' },
+      { label: 'OCBC Bank', value: 'OCBC Bank' },
+    ];
+  }
+};
 
 // Fetch invoice details
 const fetchInvoice = async () => {
@@ -126,6 +156,7 @@ const formatInvoiceId = (id) => {
 
 onMounted(() => {
   fetchInvoice();
+  fetchBankOptions();
 });
 </script>
 
@@ -202,12 +233,26 @@ onMounted(() => {
               validation="required|not:"
             />
 
-            <!-- Bank Name -->
+            <!-- Bank Name / Payment Provider -->
             <FormKit 
+              v-if="form.method === 'Online Banking'"
+              type="select" 
+              v-model="form.bank_name" 
+              label="Bank Name" 
+              placeholder="Select your bank"
+              :options="[
+                { label: '-- Please select --', value: '' },
+                ...bankOptions
+              ]"
+              validation="required"
+            />
+
+            <FormKit 
+              v-else-if="form.method === 'E-Wallet'"
               type="text" 
               v-model="form.bank_name" 
-              label="Bank Name / Payment Provider" 
-              placeholder="e.g. Maybank, CIMB, Touch n Go, Boost"
+              label="E-Wallet Provider" 
+              placeholder="e.g. Touch n Go, Boost, GrabPay, ShopeePay"
               validation="required"
             />
 
@@ -250,9 +295,8 @@ onMounted(() => {
         <div class="bg-blue-50 border border-blue-200 p-4 rounded-lg">
           <h6 class="font-medium text-blue-800 mb-2">Payment Instructions</h6>
           <div class="text-sm text-blue-700 space-y-2">
-            <p><strong>For Online Banking:</strong> Enter your bank name and the transaction reference number provided by your bank.</p>
-            <p><strong>For Credit Card:</strong> Enter "Credit Card" as bank name and the transaction ID from your card statement.</p>
-            <p><strong>For E-Wallet:</strong> Enter the e-wallet provider name (e.g., Touch n Go, Boost) and the transaction reference.</p>
+            <p><strong>For Online Banking:</strong> Select your bank from the dropdown and enter the transaction reference number provided by your bank.</p>
+            <p><strong>For E-Wallet:</strong> Enter the e-wallet provider name (e.g., Touch n Go, Boost, GrabPay, ShopeePay) and the transaction reference.</p>
             <p class="mt-3"><strong>Note:</strong> Please keep your payment receipt for verification purposes.</p>
           </div>
         </div>
