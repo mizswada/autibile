@@ -238,6 +238,14 @@ function getStatusColor(status) {
               <span class="text-gray-500">Available Sessions:</span>
               <span class="font-medium text-primary">{{ patient.availableSession || 0 }}</span>
             </div>
+            <div class="flex justify-between">
+              <span class="text-gray-500">OKU Card:</span>
+              <span class="font-medium">{{ patient.okuCard === 1 ? 'Yes' : 'No' }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-500">Treatment Type:</span>
+              <span class="font-medium">{{ patient.treatmentType || 'N/A' }}</span>
+            </div>
           </div>
 
           <div class="mt-4 pt-4 border-t border-gray-100">

@@ -17,6 +17,7 @@ const profile = ref({
   department: '',
   qualifications: '',
   experience_years: '',
+  workplace: '', // Add workplace field
 });
 
 const isLoading = ref(false);
@@ -26,6 +27,9 @@ const messageType = ref('success'); // 'success' or 'error'
 const showPassword = ref(false);
 const debugInfo = ref('');
 
+// Add department options for dropdown
+const departmentOptions = ref([]);
+
 // Computed property to check if passwords match
 const passwordsMatch = computed(() => {
   if (!profile.value.newPassword && !profile.value.confirmPassword) return true;
@@ -34,6 +38,7 @@ const passwordsMatch = computed(() => {
 
 onMounted(async () => {
   await fetchUserProfile();
+  await loadDepartmentOptions(); // Load department options
 });
 
 async function fetchUserProfile() {
@@ -58,6 +63,7 @@ async function fetchUserProfile() {
         department: result.data.practitioner?.department || '',
         qualifications: result.data.practitioner?.qualifications || '',
         experience_years: result.data.practitioner?.experience_years?.toString() || '',
+        workplace: result.data.practitioner?.workplace || '',
       };
     } else {
       showMessage(result.message || 'Failed to load profile data', 'error');
@@ -69,6 +75,22 @@ async function fetchUserProfile() {
     debugInfo.value = `Error: ${error.message || error}`;
   } finally {
     isLoading.value = false;
+  }
+}
+
+// Add function to load department options
+async function loadDepartmentOptions() {
+  try {
+    const response = await fetch('/api/lookup/departments');
+    if (response.ok) {
+      const departmentData = await response.json();
+      departmentOptions.value = [
+        { label: '-- Please select --', value: null }, // Changed from '' to null
+        ...departmentData.map(dept => ({ label: dept.title, value: dept.lookupID }))
+      ];
+    }
+  } catch (error) {
+    console.error('Error loading department options:', error);
   }
 }
 
@@ -139,6 +161,11 @@ async function saveProfile() {
       payload.department = profile.value.department;
       payload.qualifications = profile.value.qualifications;
       payload.experience_years = profile.value.experience_years;
+    }
+
+    // Add workplace field if available
+    if (profile.value.workplace) {
+      payload.workplace = profile.value.workplace;
     }
     
     // Only include password fields if changing password
@@ -306,16 +333,17 @@ function togglePasswordVisibility() {
               :validation-messages="{ required: 'Specialty is required' }"
             />
             
-            <FormKit
-              v-if="userStore.isDoctor"
-              type="text"
-              v-model="profile.department"
-              name="department"
-              label="Department"
-              placeholder="e.g., Psychology Department, Therapy Center"
-              validation="required"
-              :validation-messages="{ required: 'Department is required' }"
-            />
+                          <FormKit
+                v-if="userStore.isDoctor"
+                type="select"
+                v-model="profile.department"
+                name="department"
+                label="Department"
+                placeholder="Select your department"
+                validation="required"
+                :validation-messages="{ required: 'Department is required' }"
+                :options="departmentOptions"
+              />
             
             <FormKit
               v-if="userStore.isDoctor"
@@ -340,6 +368,16 @@ function togglePasswordVisibility() {
                 required: 'Years of experience is required',
                 number: 'Please enter a valid number'
               }"
+            />
+
+            <!-- Workplace Field -->
+            <FormKit
+              v-if="userStore.isDoctor"
+              type="text"
+              v-model="profile.workplace"
+              name="workplace"
+              label="Workplace"
+              placeholder="e.g., ABC Clinic, XYZ Hospital"
             />
             
             <!-- Change Password Section -->

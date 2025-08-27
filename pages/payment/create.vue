@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 definePageMeta({
@@ -14,7 +14,9 @@ const messageType = ref('success');
 // Data for dropdowns
 const patients = ref([]);
 const packages = ref([]);
+const products = ref([]);
 const isLoading = ref(true);
+const isMounted = ref(false);
 
 const form = ref({
   patientID: '',
@@ -23,6 +25,7 @@ const form = ref({
   customInvoiceType: '',
   description: '',
   amount: '',
+  quantity: 1, // Add quantity field for products only
   invoiceDate: '',
   status: '',
 });
@@ -35,6 +38,13 @@ const invoiceTypeOptions = computed(() => {
   packages.value.forEach(pkg => {
     if (pkg.status === 'Active') {
       options.push({ label: pkg.package_name, value: pkg.package_name });
+    }
+  });
+  
+  // Add product names
+  products.value.forEach(product => {
+    if (product.status === 'Active') {
+      options.push({ label: product.product_name, value: product.product_name });
     }
   });
   
@@ -51,6 +61,21 @@ const selectedPackage = computed(() => {
   return null;
 });
 
+const selectedProduct = computed(() => {
+  if (form.value.invoiceType && form.value.invoiceType !== 'Other' && form.value.invoiceType !== '') {
+    return products.value.find(product => product.product_name === form.value.invoiceType);
+  }
+  return null;
+});
+
+// Computed property for total amount with quantity (products only)
+const totalAmount = computed(() => {
+  if (selectedProduct.value) {
+    return (selectedProduct.value.amount * form.value.quantity).toFixed(2);
+  }
+  return form.value.amount;
+});
+
 function showMessage(msg, type = 'success') {
   message.value = msg;
   messageType.value = type;
@@ -61,9 +86,11 @@ function showMessage(msg, type = 'success') {
 onMounted(async () => {
   await Promise.all([
     fetchPatients(),
-    fetchPackages()
+    fetchPackages(),
+    fetchProducts()
   ]);
   isLoading.value = false;
+  isMounted.value = true; // Set mounted to true after data fetching
 });
 
 async function fetchPatients() {
@@ -92,6 +119,19 @@ async function fetchPackages() {
   }
 }
 
+async function fetchProducts() {
+  try {
+    const response = await $fetch('/api/payment/listProducts');
+    if (response.statusCode === 200) {
+      products.value = response.data;
+    } else {
+      console.error('Failed to fetch products:', response.message);
+    }
+  } catch (error) {
+    console.error('Error fetching products:', error);
+  }
+}
+
 // Handle patient selection
 const handlePatientChange = (patientID) => {
   console.log('Patient changed to:', patientID);
@@ -115,19 +155,46 @@ const handleInvoiceTypeChange = (invoiceType) => {
   if (invoiceType === 'Other') {
     form.value.customInvoiceType = '';
     form.value.amount = '';
+    form.value.quantity = 1; // Reset quantity for "Other"
   } else if (invoiceType && invoiceType !== '') {
+    // Check if it's a package
     const packageData = selectedPackage.value;
     if (packageData) {
       form.value.amount = packageData.amount.toString();
       form.value.description = packageData.description || '';
+      form.value.quantity = 1; // Reset quantity for packages
+      return;
     }
+    
+    // Check if it's a product
+    const productData = selectedProduct.value;
+    if (productData) {
+      form.value.amount = productData.amount.toString();
+      form.value.description = productData.description || '';
+      form.value.quantity = productData.quantity || 1; // Set quantity for products
+    }
+  } else {
+    // Reset form when no invoice type is selected
+    form.value.amount = '';
+    form.value.description = '';
+    form.value.quantity = 1;
   }
 };
+
+// Watch quantity changes for products only
+watch(() => form.value.quantity, (newQuantity) => {
+  // Only run if we have a selected product and the component is fully initialized
+  if (selectedProduct.value && selectedProduct.value.amount && newQuantity > 0 && isMounted.value) {
+    const newAmount = selectedProduct.value.amount * newQuantity;
+    form.value.amount = newAmount.toString();
+    console.log(`Product quantity changed to ${newQuantity}, new amount: ${newAmount}`);
+  }
+});
 
 const saveInvoice = async () => {
   // Debug: Log form data
   console.log('Form data before submission:', form.value);
-  
+
   // Fallback: Set patient name if missing but patientID is selected
   if (form.value.patientID && !form.value.patientName) {
     const selectedPatient = patients.value.find(p => p.childID === parseInt(form.value.patientID));
@@ -176,8 +243,9 @@ const saveInvoice = async () => {
       patientID: parseInt(form.value.patientID),
       patientName: form.value.patientName,
       invoiceType: form.value.invoiceType === 'Other' ? form.value.customInvoiceType : form.value.invoiceType,
-      description: form.value.description,
+      description: form.value.description + (selectedProduct.value && form.value.quantity > 1 ? ` (Qty: ${form.value.quantity})` : ''),
       amount: amountValue,
+      quantity: form.value.quantity, // Include quantity for all invoice types
       date: form.value.invoiceDate,
       status: form.value.status,
     };
@@ -270,8 +338,42 @@ const saveInvoice = async () => {
           </div>
         </div>
 
+        <!-- Product Info (shown when a product is selected) -->
+        <div v-if="selectedProduct" class="p-3 bg-green-50 border border-green-200 rounded-md mb-4">
+          <h6 class="font-medium text-green-800 mb-2">Product Information</h6>
+          <div class="grid grid-cols-2 gap-2 text-sm">
+            <div><span class="font-medium">Product:</span> {{ selectedProduct.product_name }}</div>
+            <div><span class="font-medium">Unit Price:</span> RM {{ selectedProduct.amount }}</div>
+            <div><span class="font-medium">Status:</span> {{ selectedProduct.status }}</div>
+          </div>
+          
+          <!-- Quantity field for products -->
+          <div class="mt-3 pt-3 border-t border-green-200">
+            <FormKit
+              type="number"
+              v-model="form.quantity"
+              label="Quantity"
+              placeholder="Enter quantity"
+              validation="required|number|min:1"
+              min="1"
+              class="max-w-xs"
+            />
+            <div class="mt-2 text-sm text-green-700">
+              <span class="font-medium">Total Amount:</span> RM {{ totalAmount }}
+            </div>
+          </div>
+        </div>
+
         <FormKit type="text" v-model="form.description" label="Description" placeholder="e.g. Therapy Session" validation="required" />
-        <FormKit type="number" v-model="form.amount" label="Amount (RM)" placeholder="e.g. 250.00" validation="required|number|min:0.01" />
+        <FormKit 
+          type="number" 
+          v-model="form.amount" 
+          label="Amount (RM)" 
+          placeholder="e.g. 250.00" 
+          validation="required|number|min:0.01"
+          :disabled="selectedProduct"
+          :help="selectedProduct ? 'Amount is calculated automatically based on quantity' : ''"
+        />
         <FormKit type="date" v-model="form.invoiceDate" label="Date" validation="required" />
         <FormKit type="select" v-model="form.status" label="Status" :options="[
           { label: '-- Please select --', value: '' },

@@ -58,6 +58,7 @@ export default defineEventHandler(async (event) => {
         department: body.department,
         qualifications: body.qualification,
         experience_years: parseInt(body.experience),
+        workplace: body.workplace, // Add workplace field
         ...(signatureValue !== null && { signature: signatureValue }),
         status: body.status || 'Active', // Default to Active if not provided
       },

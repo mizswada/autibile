@@ -12,6 +12,8 @@ export default defineEventHandler(async (event) => {
         diagnosedDate,
         availableSession,
         status,
+        okuCard,
+        treatmentType,
         parentID,
         userID,
       } = body;
@@ -41,6 +43,8 @@ export default defineEventHandler(async (event) => {
             diagnosed_on: new Date(diagnosedDate),
             status,
             available_session: parseInt(availableSession) || 0,
+            OKUCard: parseInt(okuCard),
+            treatment_type: treatmentType,
             created_at: new Date(),
           },
         });

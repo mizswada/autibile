@@ -12,6 +12,20 @@ export default defineEventHandler(async (event) => {
       const prisma = new PrismaClient();
       const child = await prisma.user_patients.findUnique({
         where: { patient_id: parseInt(childID) },
+        select: {
+          patient_id: true,
+          fullname: true,
+          nickname: true,
+          gender: true,
+          patient_ic: true,
+          dob: true,
+          autism_diagnose: true,
+          diagnosed_on: true,
+          available_session: true,
+          status: true,
+          OKUCard: true,
+          treatment_type: true,
+        }
       });
   
       return {

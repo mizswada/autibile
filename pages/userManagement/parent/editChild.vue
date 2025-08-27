@@ -25,6 +25,8 @@ const form = ref({
   diagnosedDate: '',
   availableSession: 0, // Changed to integer with default value 0
   status: '',
+  okuCard: null,
+  treatmentType: '',
 });
 
 // IC validation
@@ -51,14 +53,16 @@ onMounted(async () => {
 
         form.value = {
           fullname: child.fullname || '',
-          nickname: child.nickname,
-          gender: child.gender,
-          icNumber: child.patient_ic,
+          nickname: child.nickname || '',
+          gender: child.gender || '',
+          icNumber: child.patient_ic || '',
           dateOfBirth: child.dob?.split('T')[0] ?? '',
-          autismDiagnose: child.autism_diagnose,
+          autismDiagnose: child.autism_diagnose || '',
           diagnosedDate: child.diagnosed_on?.split('T')[0] ?? '',
           availableSession: parseInt(child.available_session) || 0, // Ensure it's an integer
-          status: child.status,
+          status: child.status || '',
+          okuCard: child.OKUCard === 1 ? 'Yes' : child.OKUCard === 0 ? 'No' : null, // Convert 0/1 to Yes/No
+          treatmentType: child.treatment_type || '',
         };
       } else {
         alert('Failed to load child details.');
@@ -83,6 +87,8 @@ async function saveChild() {
     diagnosedDate: 'Diagnosed Date',
     availableSession: 'Available Sessions',
     status: 'Status',
+    okuCard: 'OKU Card',
+    treatmentType: 'Treatment Type',
   };
 
   const isEmpty = (val) =>
@@ -107,14 +113,20 @@ async function saveChild() {
   isSubmitting.value = true;
   
   try {
+    // Prepare the data for submission
+    const submissionData = {
+      ...form.value,
+      availableSession: parseInt(form.value.availableSession) || 0, // Ensure it's sent as integer
+      okuCard: form.value.okuCard === 'Yes' ? 1 : form.value.okuCard === 'No' ? 0 : null, // Convert Yes/No to 1/0
+      childID: parseInt(childID.value),
+    };
+    
+
+
     const response = await fetch('/api/parents/manageChild/updateChild', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...form.value,
-        availableSession: parseInt(form.value.availableSession) || 0, // Ensure it's sent as integer
-        childID: parseInt(childID.value),
-      }),
+      body: JSON.stringify(submissionData),
     });
 
     const result = await response.json();
@@ -154,7 +166,11 @@ async function saveChild() {
         type="select"
         v-model="form.gender"
         label="Gender"
-        :options="['-- Please select --', 'Male', 'Female']"
+        :options="[
+          { label: '-- Please select --', value: '' },
+          { label: 'Male', value: 'Male' },
+          { label: 'Female', value: 'Female' }
+        ]"
       />
       <FormKit type="text" v-model="form.icNumber" label="IC Number" placeholder="Enter 12 digit IC number" />
       <p v-if="icError" class="text-red-500 text-sm mt-1 mb-2">{{ icError }}</p>
@@ -173,7 +189,36 @@ async function saveChild() {
         type="select"
         v-model="form.status"
         label="Status"
-        :options="['-- Please select --', 'Active', 'Inactive']"
+        :options="[
+          { label: '-- Please select --', value: '' },
+          { label: 'Active', value: 'Active' },
+          { label: 'Inactive', value: 'Inactive' }
+        ]"
+      />
+
+      <FormKit
+        type="select"
+        v-model="form.okuCard"
+        label="OKU Card"
+        :options="[
+          { label: '-- Please select --', value: null },
+          { label: 'Yes', value: 'Yes' },
+          { label: 'No', value: 'No' }
+        ]"
+        validation="required"
+      />
+
+      <FormKit
+        type="select"
+        v-model="form.treatmentType"
+        label="Treatment Type"
+        :options="[
+          { label: '-- Please select --', value: '' },
+          { label: 'Centre', value: 'Centre' },
+          { label: 'Online', value: 'Online' },
+          { label: 'In House', value: 'In House' }
+        ]"
+        validation="required"
       />
 
       <div class="flex gap-4 mt-4">

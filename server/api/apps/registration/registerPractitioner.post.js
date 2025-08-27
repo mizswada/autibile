@@ -62,6 +62,7 @@ export default defineEventHandler(async (event) => {
           qualifications: '',
           experience_years: null,
           signature: '',
+          workplace: '', // Add workplace field with empty default
           status: 'Pending',
           created_at: new Date(),
         },

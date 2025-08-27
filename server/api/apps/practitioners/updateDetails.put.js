@@ -13,7 +13,8 @@ export default defineEventHandler(async (event) => {
         department,
         qualification,
         experience,
-        signature
+        signature,
+        workplace, // Add workplace field
       } = body;
   
       // Validate required fields
@@ -70,6 +71,7 @@ export default defineEventHandler(async (event) => {
           qualifications: qualification || existingPractitioner.qualifications,
           experience_years: experience ? parseInt(experience) : existingPractitioner.experience_years,
           signature: signature || existingPractitioner.signature,
+          workplace: workplace || existingPractitioner.workplace, // Add workplace field
           updated_at: new Date(),
         },
       });
@@ -108,6 +110,7 @@ export default defineEventHandler(async (event) => {
         qualification: updatedPractitionerWithUser.qualifications || '',
         experience: updatedPractitionerWithUser.experience_years || '',
         signature: updatedPractitionerWithUser.signature || '',
+        workplace: updatedPractitionerWithUser.workplace || '', // Add workplace field
         status: updatedPractitionerWithUser.status || '',
       };
   

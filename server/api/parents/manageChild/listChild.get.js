@@ -59,6 +59,8 @@ export default defineEventHandler(async (event) => {
         availableSession: c.available_session,
         status: c.status,
         mchatr_status: c.mchatr_status,
+        okuCard: c.OKUCard,
+        treatmentType: c.treatment_type,
       };
     });
 

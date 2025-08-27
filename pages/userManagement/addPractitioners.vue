@@ -42,13 +42,20 @@ const step2Form = ref({
   type: '',
   registrationNo: '',
   specialty: '',
-  department: '',
+  department: null, // Changed from '' to null for database compatibility
   qualification: '',
   experience_years: null,
   signature: '',
+  workplace: '', // Add workplace field
 });
 
 const roleOptions = ref([]);
+const departmentOptions = ref([]); // Add department options
+
+// File upload handling
+const selectedFile = ref(null);
+const filePreview = ref('');
+const fileError = ref('');
 
 watch(() => step1Form.value.username, async (newVal) => {
   usernameError.value = '';
@@ -131,19 +138,49 @@ watch(() => step1Form.value.confirmPassword, (newVal) => {
   }
 });
 
+// Debug watcher for signature field
+watch(() => step2Form.value.signature, (newVal) => {
+  console.log('Signature value changed:', {
+    hasValue: !!newVal,
+    type: typeof newVal,
+    length: newVal ? newVal.length : 0,
+    isBase64: newVal ? newVal.startsWith('data:image/') : false
+  });
+});
+
+// Debug watcher for selectedFile
+watch(() => selectedFile.value, (newVal) => {
+  console.log('Selected file changed:', {
+    hasFile: !!newVal,
+    fileName: newVal?.name,
+    fileSize: newVal?.size,
+    fileType: newVal?.type
+  });
+});
+
 onMounted(async () => {
   isLoading.value = true;
   try {
-    const [roleRes] = await Promise.all([
+    const [roleRes, departmentRes] = await Promise.all([
       fetch('/api/parents/lookupRole'),
+      fetch('/api/lookup/departments'), // New API endpoint for departments
     ]);
 
     roleOptions.value = [
       { label: '-- Please select --', value: '' },
       ...await roleRes.json().then(data => data.map(i => ({ label: i.roleName, value: i.roleID })))
     ];
+
+    // Load department options
+    if (departmentRes.ok) {
+      const departmentData = await departmentRes.json();
+      departmentOptions.value = [
+        { label: '-- Please select --', value: null }, // Changed from '' to null
+        ...departmentData.map(dept => ({ label: dept.title, value: dept.lookupID }))
+      ];
+    }
   } catch (err) {
-    showMessage('Failed to load role options. Please refresh the page.', 'error');
+    showMessage('Failed to load form options. Please refresh the page.', 'error');
   } finally {
     isLoading.value = false;
   }
@@ -231,6 +268,12 @@ async function submitStep2() {
     return;
   }
   
+  // Validate file if present
+  if (selectedFile.value && !step2Form.value.signature) {
+    showMessage('File upload failed. Please try uploading the file again.', 'error');
+    return;
+  }
+  
   isSubmittingStep2.value = true;
 
   const payload = {
@@ -243,23 +286,15 @@ async function submitStep2() {
     qualification: step2Form.value.qualification,
     experience: parseInt(step2Form.value.experience_years),
     signature: step2Form.value.signature || null,
+    workplace: step2Form.value.workplace || null,
   };
 
-  // The signature should already be a base64 string from handleSignatureUpload
-  // If it's still a File object, we need to handle that case
-  if (step2Form.value.signature instanceof File) {
-    try {
-      const toBase64 = file => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = error => reject(error);
-      });
-      payload.signature = await toBase64(step2Form.value.signature);
-    } catch (error) {
-      payload.signature = null;
-    }
-  }
+  // Log the payload for debugging
+  console.log('Submitting practitioner data:', {
+    ...payload,
+    signatureLength: payload.signature ? payload.signature.length : 0,
+    hasFile: !!selectedFile.value
+  });
 
   try {
     const res = await fetch('/api/practitioners/update', {
@@ -276,7 +311,8 @@ async function submitStep2() {
       showMessage(result.message || 'Update failed', 'error');
     }
   } catch (err) {
-    showMessage('Unexpected error occurred', 'error');
+    console.error('Error submitting form:', err);
+    showMessage('An unexpected error occurred while submitting the form', 'error');
   } finally {
     isSubmittingStep2.value = false;
   }
@@ -285,18 +321,48 @@ async function submitStep2() {
 function handleSignatureUpload(fileList) {
   const file = fileList?.[0]?.file || fileList?.[0];
   if (file instanceof File) {
-    // Convert file to base64 immediately to avoid issues
+    fileToBase64(file).then(base64 => {
+      step2Form.value.signature = base64;
+      selectedFile.value = file;
+      filePreview.value = base64;
+      fileError.value = '';
+      
+      console.log('File uploaded successfully:', {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        base64Length: base64.length
+      });
+    }).catch(error => {
+      console.error('File conversion error:', error);
+      fileError.value = 'Failed to process file. Please try again.';
+      step2Form.value.signature = '';
+      selectedFile.value = null;
+      filePreview.value = '';
+    });
+  } else {
+    console.warn('No valid file in handleSignatureUpload', fileList);
+    fileError.value = 'Please select a valid file.';
+    step2Form.value.signature = '';
+    selectedFile.value = null;
+    filePreview.value = '';
+  }
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
-    reader.onload = () => {
-      step2Form.value.signature = reader.result;
-    };
-    reader.onerror = error => {
-      step2Form.value.signature = '';
-    };
-  } else {
-    step2Form.value.signature = '';
-  }
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = error => reject(error);
+  });
+}
+
+function removeFile() {
+  selectedFile.value = null;
+  filePreview.value = '';
+  step2Form.value.signature = '';
+  fileError.value = '';
 }
 
 </script>
@@ -486,7 +552,7 @@ function handleSignatureUpload(fileList) {
           v-model="step2Form.type"
           name="type"
           label="Practitioner Type"
-          :options="['-- Select Type --', 'Doctor', 'Therapist', 'Nurse', 'Other']"
+          :options="['-- Select Type --', 'Doctor', 'Therapist']"
           validation="required"
         />
 
@@ -495,6 +561,7 @@ function handleSignatureUpload(fileList) {
           v-model="step2Form.registrationNo"
           name="registrationNo"
           label="Registration Number"
+          placeholder="Enter registration number"
           validation="required"
         />
 
@@ -503,13 +570,26 @@ function handleSignatureUpload(fileList) {
           v-model="step2Form.specialty"
           name="specialty"
           label="Specialty"
+          placeholder="Enter specialty"
+        />
+
+        <FormKit
+          type="select"
+          v-model="step2Form.department"
+          name="department"
+          label="Department"
+          :options="departmentOptions"
+          validation="required"
+          placeholder="Select department"
         />
 
         <FormKit
           type="text"
-          v-model="step2Form.department"
-          name="department"
-          label="Department"
+          v-model="step2Form.workplace"
+          name="workplace"
+          label="Workplace"
+          placeholder="Enter workplace or organization name"
+          validation="required"
         />
 
         <FormKit
@@ -517,6 +597,7 @@ function handleSignatureUpload(fileList) {
           v-model="step2Form.qualification"
           name="qualification"
           label="Qualifications"
+          placeholder="Enter qualifications"
           validation="required"
         />
 
@@ -525,18 +606,57 @@ function handleSignatureUpload(fileList) {
           v-model="step2Form.experience_years"
           name="experience_years"
           label="Years of Experience"
+          placeholder="Enter years of experience"
           validation="required"
         />
-
         <FormKit
           type="file"
-          v-model="step2Form.signature"
           name="signature"
           label="Signature (Optional)"
-          accept="image/*"
+          accept="image/*,application/pdf"
           @input="handleSignatureUpload"
         />
-
+        
+        <!-- File preview and error display -->
+        <div v-if="fileError" class="text-red-500 text-sm mt-1 mb-2">
+          {{ fileError }}
+        </div>
+        
+        <div v-if="selectedFile" class="mt-3 p-3 border border-gray-200 rounded-lg">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+              <div class="w-12 h-12 bg-gray-100 rounded flex items-center justify-center">
+                <Icon name="material-symbols:image" class="text-gray-500" />
+              </div>
+              <div>
+                <p class="font-medium text-sm">{{ selectedFile.name }}</p>
+                <p class="text-xs text-gray-500">{{ (selectedFile.size / 1024).toFixed(1) }} KB</p>
+              </div>
+            </div>
+            <rs-button 
+              variant="ghost" 
+              size="sm" 
+              @click="removeFile"
+              class="text-red-500 hover:text-red-700"
+            >
+              <Icon name="material-symbols:delete" />
+            </rs-button>
+          </div>
+          
+          <!-- Image preview -->
+          <div v-if="filePreview && filePreview.startsWith('data:image/')" class="mt-3">
+            <img 
+              :src="filePreview" 
+              alt="Signature preview" 
+              class="max-w-xs max-h-32 object-contain border border-gray-200 rounded"
+            />
+          </div>
+        </div>
+        
+        <p class="text-sm text-gray-600 mt-1">
+          Accepted formats: Images (JPEG, PNG, GIF) and PDF. File will be converted to base64 for storage.
+        </p>
+        
         <div class="flex justify-end gap-2 mt-4">
           <rs-button @click="submitStep2" :disabled="isSubmittingStep2">
             <span v-if="isSubmittingStep2">

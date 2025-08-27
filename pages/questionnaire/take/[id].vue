@@ -132,11 +132,11 @@ async function fetchQuestionnaireData() {
     if (res.ok && result.data && result.data.length > 0) {
       questionnaire.value = result.data[0];
     } else {
-      error.value = 'Questionnaire not found';
+      error.value = 'Autism screening not found';
     }
   } catch (err) {
-    console.error('Error loading questionnaire:', err);
-    error.value = 'Error loading questionnaire';
+          console.error('Error loading autism screening:', err);
+          error.value = 'Error loading autism screening';
   } finally {
     isLoading.value = false;
   }
@@ -180,14 +180,14 @@ function handleSubmit(data) {
   
   // Validate that a patient is selected
   if (!selectedPatientId.value) {
-    message.value = 'Please select a patient before submitting the questionnaire.';
+            message.value = 'Please select a patient before submitting the autism screening.';
     messageType.value = 'error';
     return;
   }
   
   // Additional validation for questionnaire ID 2
   if (questionnaireId === '2' && !isEligibleForQuestionnaire2.value) {
-    message.value = 'This questionnaire is only available for patients who scored 3-7 on the MCHAT-R questionnaire.';
+            message.value = 'This autism screening is only available for patients who scored 3-7 on the MCHAT-R autism screening.';
     messageType.value = 'error';
     return;
   }
@@ -207,7 +207,7 @@ function handleSubmit(data) {
   .then(response => response.json())
   .then(result => {
     if (result.statusCode === 200) {
-      message.value = 'Questionnaire submitted successfully!';
+              message.value = 'Autism screening submitted successfully!';
       messageType.value = 'success';
       
       // Check if this is MCHAT-R with score 3-7 that requires follow-up
@@ -221,13 +221,13 @@ function handleSubmit(data) {
         }, 2000);
       }
     } else {
-      message.value = result.message || 'Error submitting questionnaire';
+              message.value = result.message || 'Error submitting autism screening';
       messageType.value = 'error';
     }
   })
   .catch(error => {
-    console.error('Error submitting questionnaire:', error);
-    message.value = 'Error submitting questionnaire';
+          console.error('Error submitting autism screening:', error);
+          message.value = 'Error submitting autism screening';
     messageType.value = 'error';
   });
 }
@@ -263,7 +263,7 @@ function goBackToQuestionnaire() {
       <button @click="goBack" class="mr-2 p-2 rounded hover:bg-gray-100">
         <Icon name="ic:outline-arrow-back" />
       </button>
-      <h1 class="text-2xl font-bold">Take Questionnaire</h1>
+      <h1 class="text-2xl font-bold">Take Autism Screening</h1>
     </div>
 
     <div v-if="message" class="mb-4 p-3 rounded text-white"
@@ -484,12 +484,6 @@ function goBackToQuestionnaire() {
             class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
           >
             Continue to Follow-up
-          </button>
-          <button 
-            @click="goBackToQuestionnaire"
-            :class="mchatrResults.redirect_to_questionnaire_2 ? 'flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400 transition-colors' : 'w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors'"
-          >
-            {{ mchatrResults.redirect_to_questionnaire_2 ? 'Back to List' : 'Done' }}
           </button>
         </div>
       </div>

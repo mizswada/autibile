@@ -37,12 +37,12 @@ async function fetchQuestionnaireData() {
     if (res.ok && result.data && result.data.length > 0) {
       questionnaire.value = result.data[0];
     } else {
-      errorMessage.value = 'Questionnaire not found';
-      console.error('Questionnaire not found. API response:', result);
+      errorMessage.value = 'Autism screening not found';
+              console.error('Autism screening not found. API response:', result);
     }
   } catch (err) {
-    console.error('Error loading questionnaire:', err);
-    errorMessage.value = 'Error loading questionnaire';
+          console.error('Error loading autism screening:', err);
+          errorMessage.value = 'Error loading autism screening';
   } finally {
     isLoading.value = false;
   }
@@ -96,7 +96,7 @@ async function saveThreshold() {
   if (!newThreshold.value.scoring_min || 
       !newThreshold.value.interpretation || 
       !newThreshold.value.recommendation) {
-    modalErrorMessage.value = 'Minimum score, interpretation, and recommendation are required';
+    modalErrorMessage.value = 'Minimum score, prediction, and recommendation are required';
     return;
   }
 
@@ -237,7 +237,7 @@ function getScoreRangeDisplay(threshold) {
           <div class="flex flex-col items-center">
             <Icon name="material-symbols:format-list-bulleted-add" size="64" class="text-gray-400 mb-4" />
             <h3 class="text-xl font-medium text-gray-600 mb-2">No Thresholds Defined Yet</h3>
-            <p class="text-gray-500 mb-6">Define scoring thresholds to provide interpretations and recommendations based on questionnaire scores.</p>
+            <p class="text-gray-500 mb-6">Define scoring thresholds to provide predictions and recommendations based on autism screening scores.</p>
             <div class="flex gap-4">
               <rs-button @click="openAddThresholdModal">
                 <Icon name="material-symbols:add" class="mr-1" />
@@ -254,7 +254,7 @@ function getScoreRangeDisplay(threshold) {
                   Score Range
                 </th>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Interpretation
+                  Prediction
                 </th>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Recommendation
@@ -304,8 +304,8 @@ function getScoreRangeDisplay(threshold) {
     <div v-else class="text-center py-12">
       <div class="flex flex-col items-center">
         <Icon name="material-symbols:error-outline" size="64" class="text-gray-400 mb-4" />
-        <h3 class="text-xl font-medium text-gray-600 mb-2">Questionnaire Not Found</h3>
-        <p class="text-gray-500">The requested questionnaire could not be found.</p>
+        <h3 class="text-xl font-medium text-gray-600 mb-2">Autism Screening Not Found</h3>
+        <p class="text-gray-500">The requested autism screening could not be found.</p>
       </div>
     </div>
 
@@ -349,8 +349,8 @@ function getScoreRangeDisplay(threshold) {
           type="textarea"
           v-model="newThreshold.interpretation"
           name="interpretation"
-          label="Interpretation"
-          placeholder="Enter interpretation for this score range"
+          label="Prediction"
+          placeholder="Enter prediction for this score range"
           validation="required"
           validation-visibility="dirty"
           :validation-messages="{ required: 'This field is required' }"

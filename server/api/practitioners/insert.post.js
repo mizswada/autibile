@@ -28,6 +28,7 @@ export default defineEventHandler(async (event) => {
         qualification,
         experience,
         signature,
+        workplace, // Add workplace field
       } = body;
   
       // Basic validation
@@ -77,6 +78,7 @@ export default defineEventHandler(async (event) => {
           qualifications: qualification,
           experience_years: experience,
           signature: signature,
+          workplace: workplace, // Add workplace field
           status: 'Active',
           created_at: new Date(),
         },

@@ -53,7 +53,7 @@ const tabs = [
   'Patient Details',
   'Parent Details',
   'Appointments',
-  'Questionnaires',
+  'Autism Screenings',
   'Doctor Referrals',
   'Diary Report'
 ];
@@ -65,7 +65,7 @@ const tabMap = {
   'Patient Details': 'patient-details',
   'Parent Details': 'parent-details',
   'Appointments': 'appointments',
-  'Questionnaires': 'questionnaires',
+  'Autism Screenings': 'questionnaires',
   'Doctor Referrals': 'doctor-referrals'
 };
 const reverseTabMap = Object.fromEntries(Object.entries(tabMap).map(([k, v]) => [v, k]));
@@ -569,6 +569,8 @@ async function downloadReferralLetter(referral) {
               <div class="flex"><span class="font-medium w-32 text-left">Diagnosed On</span><span class="mx-2">:</span><span>{{ formatDateOnly(patientDetails.diagnosed_on) }}</span></div>
               <div class="flex"><span class="font-medium w-32 text-left">Status</span><span class="mx-2">:</span><span>{{ patientDetails.status }}</span></div>
               <div class="flex"><span class="font-medium w-32 text-left">Available Sessions</span><span class="mx-2">:</span><span>{{ patientDetails.available_session }}</span></div>
+              <div class="flex"><span class="font-medium w-32 text-left">OKU Card</span><span class="mx-2">:</span><span>{{ patientDetails.OKUCard === 1 ? 'Yes' : 'No' }}</span></div>
+              <div class="flex"><span class="font-medium w-32 text-left">Treatment Type</span><span class="mx-2">:</span><span>{{ patientDetails.treatment_type || 'N/A' }}</span></div>
             </div>
             <div v-else class="text-gray-400">No patient details found.</div>
           </div>
@@ -789,10 +791,10 @@ async function downloadReferralLetter(referral) {
           </div>
         </div>
 
-        <!-- Questionnaires -->
-        <div v-else-if="activeTab === 'Questionnaires'">
+        <!-- Autism Screenings -->
+        <div v-else-if="activeTab === 'Autism Screenings'">
           <div class="bg-white rounded-xl shadow p-6">
-            <h2 class="text-xl font-semibold mb-4 bg-purple-50 text-purple-800 border-b border-purple-200 p-2 rounded-lg">Questionnaires</h2>
+            <h2 class="text-xl font-semibold mb-4 bg-purple-50 text-purple-800 border-b border-purple-200 p-2 rounded-lg">Autism Screenings</h2>
             
             <div v-if="questionnaires && questionnaires.length" class="space-y-6">
               <!-- Summary Table -->
@@ -805,7 +807,7 @@ async function downloadReferralLetter(referral) {
                     <thead class="bg-gray-50">
                       <tr>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Questionnaire Title
+                          Autism Screening Title
                         </th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Score
@@ -855,7 +857,7 @@ async function downloadReferralLetter(referral) {
             
             <div v-else class="text-gray-400 text-center py-8">
               <Icon name="material-symbols:quiz" size="48" class="mx-auto mb-4 text-gray-300" />
-              <p>No questionnaire responses found.</p>
+              <p>No autism screening responses found.</p>
             </div>
           </div>
         </div>
