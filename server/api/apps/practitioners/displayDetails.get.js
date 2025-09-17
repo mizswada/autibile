@@ -41,6 +41,7 @@ export default defineEventHandler(async (event) => {
         experience: p.experience_years || '',
         signature: p.signature || '',
         status: p.status || '',
+        workplace: p.workplace || '',
       }));
   
       return {

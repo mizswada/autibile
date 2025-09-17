@@ -248,9 +248,11 @@ async function generateReport() {
     yPosition = addField('Autism Diagnosis', selectedPatient.value.autism_diagnose || 'Not diagnosed', yPosition, leftColumnX);
     yPosition = addField('Diagnosed Date', formatDate(selectedPatient.value.diagnosed_on), yPosition, leftColumnX);
     yPosition = addField('Status', selectedPatient.value.status || 'N/A', yPosition, leftColumnX);
+    yPosition = addField('OKU Card', selectedPatient.value.OKUCard || 'N/A', yPosition, leftColumnX);
+    yPosition = addField('Treatment Type', selectedPatient.value.treatment_type || 'N/A', yPosition, leftColumnX);
     
     // Parent Information (Right Column)
-    const parentY = yPosition - (9 * lineHeight); // Reset to same starting position as patient info
+    const parentY = yPosition - (11 * lineHeight); // Reset to same starting position as patient info (updated count)
     pdf.setFont(undefined, 'bold');
     pdf.text('Parent Information:', rightColumnX, parentY);
     pdf.setFont(undefined, 'normal');
@@ -524,7 +526,7 @@ onMounted(loadPatientDetails);
             </div>
             <div>
               <p class="text-sm font-medium text-gray-500">OKU Card</p>
-              <p class="text-base">{{ selectedPatient.OKUCard === 1 ? 'Yes' : 'No' }}</p>
+              <p class="text-base">{{ selectedPatient.OKUCard || 'N/A' }}</p>
             </div>
             <div>
               <p class="text-sm font-medium text-gray-500">Treatment Type</p>

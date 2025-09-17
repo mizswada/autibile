@@ -37,6 +37,24 @@ export default defineEventHandler(async (event) => {
             },
           },
         },
+      });
+
+      // Fetch department lookup information
+      const departmentLookups = await prisma.lookup.findMany({
+        where: {
+          type: 'department', // Assuming department type
+        },
+        select: {
+          lookupID: true,
+          title: true,
+          value: true,
+        },
+      });
+
+      // Create a map for quick lookup
+      const departmentMap = {};
+      departmentLookups.forEach(dept => {
+        departmentMap[dept.lookupID] = dept.title || dept.value;
       });      
   
       const formattedPractitioners = practitioners.map(p => ({
@@ -50,7 +68,8 @@ export default defineEventHandler(async (event) => {
         phone: p.user?.userPhone || '',
         ic: p.user?.userIC || '',
         specialty: p.specialty || '',
-        department: p.department || '',
+        department: p.department ? departmentMap[p.department] || p.department : '',
+        workplace: p.workplace || '',
         qualification: p.qualifications || '',
         experience: p.experience_years || '',
         signature: p.signature || '',

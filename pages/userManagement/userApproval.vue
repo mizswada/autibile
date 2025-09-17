@@ -19,8 +19,8 @@ const columns = [
   { name: 'email', label: 'Email' },
   { name: 'phoneNumber', label: 'Phone Number' },
   { name: 'role', label: 'Role' },
-  { name: 'specialization', label: 'Specialization' },
-  { name: 'experience', label: 'Experience (years)' },
+  { name: 'department', label: 'Department' },
+  { name: 'workplace', label: 'Workplace' },
   { name: 'action', label: 'Actions' },
 ];
 
@@ -43,8 +43,8 @@ async function fetchPractitioners() {
         email: p.email,
         phoneNumber: p.phone,
         role: p.type,
-        specialization: p.specialty,
-        experience: p.experience,
+        department: p.department,
+        workplace: p.workplace,
       }));
     } else {
       error.value = result.message;
@@ -65,8 +65,8 @@ const tableData = computed(() =>
     email: p.email,
     phoneNumber: p.phoneNumber,
     role: p.role,
-    specialization: p.specialization,
-    experience: p.experience,
+    department: p.department,
+    workplace: p.workplace,
     action: 'edit',
   }))
 );

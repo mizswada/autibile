@@ -27,6 +27,8 @@ const appointments = ref([]);
 const questionnaires = ref([]);
 const doctorReferrals = ref([]);
 const diaryReportData = ref(null);
+const diaryEntries = ref([]);
+const expandedDates = ref(new Set());
 const collapsedQnA = ref({});
 const scoreThresholds = ref({});
 const thresholdsLoading = ref(false);
@@ -66,7 +68,8 @@ const tabMap = {
   'Parent Details': 'parent-details',
   'Appointments': 'appointments',
   'Autism Screenings': 'questionnaires',
-  'Doctor Referrals': 'doctor-referrals'
+  'Doctor Referrals': 'doctor-referrals',
+  'Diary Report': 'diary-report'
 };
 const reverseTabMap = Object.fromEntries(Object.entries(tabMap).map(([k, v]) => [v, k]));
 
@@ -115,6 +118,7 @@ async function loadAllData() {
     await fetchQuestionnaires();
     await fetchDoctorReferrals();
     await fetchDiaryReport();
+    await fetchDiaryEntries();
     retryCount.value = 0; // Reset on success
   } catch (err) {
     console.error('Error in loadAllData:', err);
@@ -250,6 +254,69 @@ async function generateDiaryReport() {
   } finally {
     isGeneratingReport.value = false;
   }
+}
+
+// Fetch diary entries
+async function fetchDiaryEntries() {
+  try {
+    const response = await fetch(`/api/apps/diaryReport/listDiary?patientID=${patientId.value}`);
+    const result = await response.json();
+    
+    if (result.statusCode === 200) {
+      diaryEntries.value = result.data || [];
+    } else {
+      console.warn('Failed to load diary entries:', result.message);
+    }
+  } catch (error) {
+    console.error('Error fetching diary entries:', error);
+  }
+}
+
+// Format timestamp for display
+function formatTimestamp(timestamp) {
+  if (!timestamp) return 'N/A';
+  return new Date(timestamp).toLocaleString();
+}
+
+// Group entries by date
+function groupEntriesByDate(entries) {
+  const grouped = {};
+  
+  entries.forEach(entry => {
+    const date = new Date(entry.created_at).toDateString();
+    if (!grouped[date]) {
+      grouped[date] = [];
+    }
+    grouped[date].push(entry);
+  });
+  
+  return grouped;
+}
+
+// Format date for display
+function formatDateForGroup(dateString) {
+  if (!dateString) return 'N/A';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+}
+
+// Toggle date expansion
+function toggleDate(date) {
+  if (expandedDates.value.has(date)) {
+    expandedDates.value.delete(date);
+  } else {
+    expandedDates.value.add(date);
+  }
+}
+
+// Check if date is expanded
+function isDateExpanded(date) {
+  return expandedDates.value.has(date);
 }
 
 function calculateAge(dob) {
@@ -569,7 +636,7 @@ async function downloadReferralLetter(referral) {
               <div class="flex"><span class="font-medium w-32 text-left">Diagnosed On</span><span class="mx-2">:</span><span>{{ formatDateOnly(patientDetails.diagnosed_on) }}</span></div>
               <div class="flex"><span class="font-medium w-32 text-left">Status</span><span class="mx-2">:</span><span>{{ patientDetails.status }}</span></div>
               <div class="flex"><span class="font-medium w-32 text-left">Available Sessions</span><span class="mx-2">:</span><span>{{ patientDetails.available_session }}</span></div>
-              <div class="flex"><span class="font-medium w-32 text-left">OKU Card</span><span class="mx-2">:</span><span>{{ patientDetails.OKUCard === 1 ? 'Yes' : 'No' }}</span></div>
+              <div class="flex"><span class="font-medium w-32 text-left">OKU Card</span><span class="mx-2">:</span><span>{{ patientDetails.OKUCard || 'N/A' }}</span></div>
               <div class="flex"><span class="font-medium w-32 text-left">Treatment Type</span><span class="mx-2">:</span><span>{{ patientDetails.treatment_type || 'N/A' }}</span></div>
             </div>
             <div v-else class="text-gray-400">No patient details found.</div>
@@ -1014,6 +1081,69 @@ async function downloadReferralLetter(referral) {
                 </div>
               </div>
             </rs-modal>
+          </div>
+        </div>
+
+        <!-- Diary Report -->
+        <div v-else-if="activeTab === 'Diary Report'">
+          <div class="bg-white rounded-xl shadow p-6">
+            <!-- Diary Entries Section -->
+            <div class="mt-6 border rounded-lg overflow-hidden">
+              <div class="bg-purple-50 px-4 py-2 border-b">
+                <h3 class="text-lg font-medium text-purple-800">Diary Entries</h3>
+              </div>
+              <div class="bg-white p-4">
+                <!-- Diary Entries List -->
+                <div>
+                  <h4 class="text-md font-medium text-gray-700 mb-3">Diary Entries</h4>
+                  <div v-if="diaryEntries.length === 0" class="text-center py-8 text-gray-500">
+                    <Icon name="material-symbols:description" size="48" class="mx-auto mb-2 text-gray-300" />
+                    <p>No diary entries available for this patient.</p>
+                  </div>
+                  <div v-else class="space-y-6">
+                    <div
+                      v-for="(entries, date) in groupEntriesByDate(diaryEntries)"
+                      :key="date"
+                      class="border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      <!-- Date Header -->
+                      <div class="flex justify-between items-center p-4 cursor-pointer" @click="toggleDate(date)">
+                        <div class="flex items-center space-x-3">
+                          <Icon 
+                            :name="isDateExpanded(date) ? 'material-symbols:expand-less' : 'material-symbols:expand-more'" 
+                            class="text-gray-500 transition-transform"
+                          />
+                          <h5 class="text-lg font-semibold text-gray-800">{{ formatDateForGroup(date) }}</h5>
+                          <span class="text-sm text-gray-500">({{ entries.length }} entries)</span>
+                        </div>
+                        <span class="text-xs text-gray-400">
+                          {{ isDateExpanded(date) ? 'Minimize' : 'View' }}
+                        </span>
+                      </div>
+                      
+                      <!-- Entries for this date -->
+                      <div 
+                        v-show="isDateExpanded(date)"
+                        class="px-4 pb-4 border-t border-gray-100"
+                      >
+                        <div class="space-y-3 mt-3">
+                          <div
+                            v-for="entry in entries"
+                            :key="entry.diary_id"
+                            class="border border-gray-200 rounded-lg p-4 bg-white"
+                          >
+                            <div class="flex justify-between items-start mb-2">
+                              <span class="text-sm text-gray-500">{{ formatTimestamp(entry.created_at) }}</span>
+                            </div>
+                            <p class="text-gray-800 whitespace-pre-wrap">{{ entry.description }}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
