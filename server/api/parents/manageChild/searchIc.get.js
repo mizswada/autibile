@@ -24,6 +24,8 @@ export default defineEventHandler(async (event) => {
           diagnosed_on: true,
           status: true,
           available_session: true,
+          OKUCard: true,
+          treatment_type: true,
         },
       });
   
@@ -34,6 +36,22 @@ export default defineEventHandler(async (event) => {
         };
       }
   
+      // Function to map treatment type numbers to strings
+      const mapTreatmentType = (treatmentType) => {
+        if (!treatmentType) return '';
+        
+        const typeMap = {
+          '1': 'Centre',
+          '2': 'Online', 
+          '3': 'In House',
+          'Centre': 'Centre',
+          'Online': 'Online',
+          'In House': 'In House'
+        };
+        
+        return typeMap[treatmentType] || treatmentType;
+      };
+
       // Map DB fields to frontend-friendly keys
       const mappedUsers = users.map(u => ({
         userID: u.patient_id,
@@ -46,6 +64,8 @@ export default defineEventHandler(async (event) => {
         diagnosedDate: u.diagnosed_on ? new Date(u.diagnosed_on).toISOString().split('T')[0] : '',
         status: u.status,
         availableSession: u.available_session,
+        okuCard: u.OKUCard,
+        treatmentType: mapTreatmentType(u.treatment_type),
       }));
   
       return {

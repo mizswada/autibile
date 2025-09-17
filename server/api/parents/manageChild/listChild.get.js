@@ -42,6 +42,22 @@ export default defineEventHandler(async (event) => {
       });
     }
 
+    // Function to map treatment type numbers to strings
+    const mapTreatmentType = (treatmentType) => {
+      if (!treatmentType) return '';
+      
+      const typeMap = {
+        '1': 'Centre',
+        '2': 'Online', 
+        '3': 'In House',
+        'Centre': 'Centre',
+        'Online': 'Online',
+        'In House': 'In House'
+      };
+      
+      return typeMap[treatmentType] || treatmentType;
+    };
+
     const transformed = relations.map(r => {
       const c = r.user_patients;
       const p = r.user_parents;
@@ -60,7 +76,7 @@ export default defineEventHandler(async (event) => {
         status: c.status,
         mchatr_status: c.mchatr_status,
         okuCard: c.OKUCard,
-        treatmentType: c.treatment_type,
+        treatmentType: mapTreatmentType(c.treatment_type),
       };
     });
 

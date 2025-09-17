@@ -28,9 +28,48 @@ export default defineEventHandler(async (event) => {
         }
       });
   
+      // Function to map treatment type numbers to strings
+      const mapTreatmentType = (treatmentType) => {
+        if (!treatmentType) return '';
+        
+        const typeMap = {
+          '1': 'Centre',
+          '2': 'Online', 
+          '3': 'In House',
+          'Centre': 'Centre',
+          'Online': 'Online',
+          'In House': 'In House'
+        };
+        
+        return typeMap[treatmentType] || treatmentType;
+      };
+
+      // Function to map OKU card numbers to strings
+      const mapOKUCard = (okuCard) => {
+        if (okuCard === null || okuCard === undefined) return '';
+        
+        const cardMap = {
+          1: 'Yes',
+          0: 'No',
+          '1': 'Yes',
+          '0': 'No',
+          'Yes': 'Yes',
+          'No': 'No'
+        };
+        
+        return cardMap[okuCard] || '';
+      };
+
+      // Map treatment type and OKU card if they exist
+      const mappedChild = child ? {
+        ...child,
+        treatment_type: mapTreatmentType(child.treatment_type),
+        OKUCard: mapOKUCard(child.OKUCard)
+      } : null;
+
       return {
         statusCode: 200,
-        data: child,
+        data: mappedChild,
       };
     } catch (error) {
       console.error('Error fetching child detail:', error);

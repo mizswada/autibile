@@ -4,6 +4,8 @@ export default defineEventHandler(async (event) => {
     try {  
       const body = await readBody(event);
 
+      console.log(body);
+
       const { 
         username,
         fullname,
@@ -13,6 +15,8 @@ export default defineEventHandler(async (event) => {
         password,
         role,   
         type,
+        department,
+        workplace,
       } = body;
   
       // Basic validation
@@ -58,11 +62,11 @@ export default defineEventHandler(async (event) => {
           type: type,
           registration_no: '',
           specialty: '',
-          department: '',
+          department: department ? parseInt(department) : null,
           qualifications: '',
           experience_years: null,
           signature: '',
-          workplace: '', // Add workplace field with empty default
+          workplace: workplace, // Add workplace field with empty default
           status: 'Pending',
           created_at: new Date(),
         },

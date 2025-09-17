@@ -22,6 +22,23 @@ export default defineEventHandler(async (event) => {
     }
   
     try {
+      // Function to convert OKU card string to number
+      const convertOKUCard = (okuCard) => {
+        if (okuCard === 'Yes') return 1;
+        if (okuCard === 'No') return 0;
+        if (okuCard === 1 || okuCard === '1') return 1;
+        if (okuCard === 0 || okuCard === '0') return 0;
+        return null;
+      };
+
+      // Function to convert treatment type string to number
+      const convertTreatmentType = (treatmentType) => {
+        if (treatmentType === 'Centre') return '1';
+        if (treatmentType === 'Online') return '2';
+        if (treatmentType === 'In House') return '3';
+        return treatmentType; // Return as-is if already a number or unknown
+      };
+
       await prisma.user_patients.update({
         where: { patient_id: parseInt(childID) },
         data: {
@@ -34,8 +51,8 @@ export default defineEventHandler(async (event) => {
           diagnosed_on: new Date(diagnosedDate),
           available_session: parseInt(availableSession),
           status,
-          OKUCard: parseInt(okuCard),
-          treatment_type: treatmentType,
+          OKUCard: convertOKUCard(okuCard),
+          treatment_type: convertTreatmentType(treatmentType),
           update_at: new Date(),
         },
       });

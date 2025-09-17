@@ -61,7 +61,7 @@ onMounted(async () => {
           diagnosedDate: child.diagnosed_on?.split('T')[0] ?? '',
           availableSession: parseInt(child.available_session) || 0, // Ensure it's an integer
           status: child.status || '',
-          okuCard: child.OKUCard === 1 ? 'Yes' : child.OKUCard === 0 ? 'No' : null, // Convert 0/1 to Yes/No
+          okuCard: child.OKUCard || '', // Use the API-mapped value directly
           treatmentType: child.treatment_type || '',
         };
       } else {
