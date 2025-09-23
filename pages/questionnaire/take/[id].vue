@@ -210,12 +210,12 @@ function handleSubmit(data) {
               message.value = 'Autism screening submitted successfully!';
       messageType.value = 'success';
       
-      // Check if this is MCHAT-R with score 3-7 that requires follow-up
-      if (result.data && result.data.redirect_to_questionnaire_2) {
-        // Show results and confirmation instead of auto-redirecting
+      // Check if this is MCHAT-R (questionnaire ID 1) - show results modal for all scores
+      if (result.data && result.data.questionnaire_id === 1) {
+        // Show results and confirmation for all MCHAT-R submissions
         showMchatrResultsAndConfirmation(result.data);
       } else {
-        // For other cases, redirect after a short delay
+        // For other questionnaires, redirect after a short delay
         setTimeout(() => {
           router.push('/questionnaire');
         }, 2000);
@@ -484,6 +484,13 @@ function goBackToQuestionnaire() {
             class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
           >
             Continue to Follow-up
+          </button>
+          <button 
+            v-else
+            @click="goBackToQuestionnaire"
+            class="flex-1 bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            Close
           </button>
         </div>
       </div>
