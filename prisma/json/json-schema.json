@@ -532,6 +532,12 @@
             "$ref": "#/definitions/questionnaires_questions"
           }
         },
+        "questionnaires_questions_followups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/questionnaires_questions_followups"
+          }
+        },
         "questionnaires_responds": {
           "type": "array",
           "items": {
@@ -547,6 +553,12 @@
           "type": "integer"
         },
         "parentID": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "mchatr_id": {
           "type": [
             "integer",
             "null"
@@ -1901,6 +1913,41 @@
           ]
         }
       }
+    },
+    "questionnaires_questions_followups": {
+      "type": "object",
+      "properties": {
+        "followup_id": {
+          "type": "integer"
+        },
+        "followup_section": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "followup_description": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "questionnaires": {
+          "$ref": "#/definitions/questionnaires"
+        }
+      }
     }
   },
   "type": "object",
@@ -1991,6 +2038,9 @@
     },
     "diary_report": {
       "$ref": "#/definitions/diary_report"
+    },
+    "questionnaires_questions_followups": {
+      "$ref": "#/definitions/questionnaires_questions_followups"
     }
   }
 }
