@@ -129,17 +129,18 @@ model progress_track {
 }
 
 model questionnaires {
-  questionnaire_id         Int                        @id @default(autoincrement())
-  title                    String?                    @db.VarChar(255)
-  description              String?                    @db.Text
-  header                   String?                    @db.Text
-  status                   String?                    @db.VarChar(50)
-  created_at               DateTime?                  @db.Timestamp(0)
-  updated_at               DateTime?                  @default(now()) @db.Timestamp(0)
-  deleted_at               DateTime?                  @db.Timestamp(0)
-  questionnaire_scoring    questionnaire_scoring[]
-  questionnaires_questions questionnaires_questions[]
-  questionnaires_responds  questionnaires_responds[]
+  questionnaire_id                   Int                                  @id @default(autoincrement())
+  title                              String?                              @db.VarChar(255)
+  description                        String?                              @db.Text
+  header                             String?                              @db.Text
+  status                             String?                              @db.VarChar(50)
+  created_at                         DateTime?                            @db.Timestamp(0)
+  updated_at                         DateTime?                            @default(now()) @db.Timestamp(0)
+  deleted_at                         DateTime?                            @db.Timestamp(0)
+  questionnaire_scoring              questionnaire_scoring[]
+  questionnaires_questions           questionnaires_questions[]
+  questionnaires_questions_followups questionnaires_questions_followups[]
+  questionnaires_responds            questionnaires_responds[]
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -147,6 +148,7 @@ model questionnaires_questions {
   question_id                      Int                                @id @default(autoincrement())
   questionnaire_id                 Int?
   parentID                         Int?
+  mchatr_id                        Int?
   question_text_bm                 String?                            @db.VarChar(255)
   question_text_bi                 String?                            @db.VarChar(255)
   is_required                      Boolean?
@@ -500,4 +502,17 @@ model diary_report {
   user_patients user_patients? @relation(fields: [patient_id], references: [patient_id], onDelete: NoAction, onUpdate: NoAction, map: "diary_report_ibfk_1")
 
   @@index([patient_id], map: "patient_id")
+}
+
+model questionnaires_questions_followups {
+  followup_id          Int            @id @default(autoincrement())
+  questionnaire_id     Int
+  followup_section     String?        @db.Char(1)
+  followup_description String         @db.VarChar(255)
+  created_at           DateTime       @db.Timestamp(0)
+  updated_at           DateTime       @db.Timestamp(0)
+  deleted_at           DateTime?      @db.Timestamp(0)
+  questionnaires       questionnaires @relation(fields: [questionnaire_id], references: [questionnaire_id], onDelete: NoAction, onUpdate: NoAction, map: "questionnaires_questions_followups_ibfk_1")
+
+  @@index([questionnaire_id], map: "questionnaire_id")
 }

@@ -2,6 +2,7 @@
 import { ref, onMounted, watch, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import RsQuestionnaireForm from '~/components/RsQuestionnaireForm.vue';
+import MchatrFForm from '~/components/MchatrFForm.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -28,6 +29,10 @@ const showMchatrResults = ref(false);
 const mchatrResults = ref(null);
 const showContinueConfirmation = ref(false);
 
+// New state for MCHATR-F
+const showMchatrFQuestions = ref(false);
+const mchatrFAnswers = ref({});
+
 onMounted(async () => {
   await Promise.all([
     fetchQuestionnaireData(),
@@ -42,6 +47,9 @@ onMounted(async () => {
   // If this is questionnaire ID 2, check if patient is eligible
   if (questionnaireId === '2' && patientId) {
     await checkQuestionnaire2Eligibility(patientId);
+  } else if (questionnaireId === '2') {
+    // If navigating directly to questionnaire 2, show MCHATR-F form
+    showMchatrFQuestions.value = true;
   }
 });
 
@@ -95,6 +103,11 @@ async function checkQuestionnaire2Eligibility(patientId) {
       
       // Check if score is between 3-7 (inclusive)
       isEligibleForQuestionnaire2.value = mchatrScore.value >= 3 && mchatrScore.value <= 7;
+      
+      // If eligible, show MCHATR-F questions
+      if (isEligibleForQuestionnaire2.value) {
+        showMchatrFQuestions.value = true;
+      }
       
       console.log(`Questionnaire 2 eligibility check: Score ${mchatrScore.value}, Eligible: ${isEligibleForQuestionnaire2.value}`);
     } else {
@@ -255,6 +268,48 @@ function goBackToQuestionnaire() {
   mchatrResults.value = null;
   router.push('/questionnaire');
 }
+
+// MCHATR-F handlers
+function handleMchatrFSubmit(data) {
+  console.log('MCHATR-F submitted:', data);
+  
+  // Send data to backend
+  fetch('/api/questionnaire/submit', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      questionnaireId: data.questionnaireId,
+      answers: data.answers,
+      patientId: selectedPatientId.value || null
+    })
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.statusCode === 200) {
+      message.value = 'MCHATR-F questionnaire submitted successfully!';
+      messageType.value = 'success';
+      
+      // Redirect to questionnaire list after a delay
+      setTimeout(() => {
+        router.push('/questionnaire');
+      }, 2000);
+    } else {
+      message.value = result.message || 'Error submitting MCHATR-F questionnaire';
+      messageType.value = 'error';
+    }
+  })
+  .catch(error => {
+    console.error('Error submitting MCHATR-F questionnaire:', error);
+    message.value = 'Error submitting MCHATR-F questionnaire';
+    messageType.value = 'error';
+  });
+}
+
+function handleMchatrFAnswersUpdated(updatedAnswers) {
+  mchatrFAnswers.value = updatedAnswers;
+}
 </script>
 
 <template>
@@ -409,9 +464,9 @@ function goBackToQuestionnaire() {
         </div>
       </div>
 
-      <!-- Show questionnaire form if eligible -->
+      <!-- Show questionnaire form if eligible (but NOT for questionnaire ID 2) -->
       <RsQuestionnaireForm
-        v-if="canShowQuestionnaire"
+        v-if="canShowQuestionnaire && questionnaireId !== '2'"
         :questionnaire-id="questionnaireId"
         :patient-id="selectedPatientId"
         :read-only="questionnaireId === '2' && !isEligibleForQuestionnaire2"
@@ -419,6 +474,15 @@ function goBackToQuestionnaire() {
         :show-questions="true"
         @submit="handleSubmit"
         @cancel="handleCancel"
+      />
+
+      <!-- Show MCHATR-F form for questionnaire ID 2 ONLY -->
+      <MchatrFForm
+        v-if="questionnaireId === '2'"
+        :patient-id="selectedPatientId"
+        :read-only="!isEligibleForQuestionnaire2"
+        @submit="handleMchatrFSubmit"
+        @answers-updated="handleMchatrFAnswersUpdated"
       />
     </div>
 
