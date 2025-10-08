@@ -273,42 +273,21 @@ function goBackToQuestionnaire() {
 function handleMchatrFSubmit(data) {
   console.log('MCHATR-F submitted:', data);
   
-  // Send data to backend
-  fetch('/api/questionnaire/submit', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      questionnaireId: data.questionnaireId,
-      answers: data.answers,
-      patientId: selectedPatientId.value || null
-    })
-  })
-  .then(response => response.json())
-  .then(result => {
-    if (result.statusCode === 200) {
-      message.value = 'MCHATR-F questionnaire submitted successfully!';
-      messageType.value = 'success';
-      
-      // Redirect to questionnaire list after a delay
-      setTimeout(() => {
-        router.push('/questionnaire');
-      }, 2000);
-    } else {
-      message.value = result.message || 'Error submitting MCHATR-F questionnaire';
-      messageType.value = 'error';
-    }
-  })
-  .catch(error => {
-    console.error('Error submitting MCHATR-F questionnaire:', error);
-    message.value = 'Error submitting MCHATR-F questionnaire';
-    messageType.value = 'error';
-  });
+  // Note: MCHATR-F form now handles its own submission via the scoring API
+  // This function is kept for compatibility but the actual submission happens in MchatrFForm.vue
+  // The form will show the results and stay on the page
+  message.value = 'MCHATR-F questionnaire submitted successfully!';
+  messageType.value = 'success';
+  
+  // No redirect - stay on the page to show results
 }
 
 function handleMchatrFAnswersUpdated(updatedAnswers) {
   mchatrFAnswers.value = updatedAnswers;
+}
+
+function handleMchatrFNavigateBack() {
+  router.push('/questionnaire');
 }
 </script>
 
@@ -483,6 +462,7 @@ function handleMchatrFAnswersUpdated(updatedAnswers) {
         :read-only="!isEligibleForQuestionnaire2"
         @submit="handleMchatrFSubmit"
         @answers-updated="handleMchatrFAnswersUpdated"
+        @navigate-back="handleMchatrFNavigateBack"
       />
     </div>
 

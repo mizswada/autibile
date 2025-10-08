@@ -35,6 +35,24 @@ const conditionalLogicConfig = ref({
 const availableSubQuestions = ref([]);
 const isConfiguringConditionalLogic = ref(false);
 
+// Sub-question creation modal
+const showCreateSubQuestionModal = ref(false);
+const selectedOptionForSubQuestion = ref(null);
+const newSubQuestionForm = ref({
+  question_en: '',
+  question_bm: '',
+  is_required: false,
+  answer_type: 35, // Default to Option Type
+  sub_question_options: [] // For storing options when answer_type is 35
+});
+
+// Answer types for sub-questions
+const answerTypes = [
+  { value: 33, label: 'Text Input', description: 'Single line text input' },
+  { value: 34, label: 'Range/Scale', description: 'Scale from 1-5' },
+  { value: 35, label: 'Multiple Choice', description: 'Radio buttons or checkboxes' }
+];
+
 // Define available option types
 const optionTypes = [
   { value: 'radio', label: 'Radio Button (Single Select)' },
@@ -205,6 +223,173 @@ function openEditOptionModal(option) {
   showOptionModal.value = true;
 }
 
+// Open modal for creating sub-question for an option
+function openCreateSubQuestionModal(option) {
+  selectedOptionForSubQuestion.value = option;
+  resetSubQuestionForm();
+  showCreateSubQuestionModal.value = true;
+}
+
+// Reset sub-question form
+function resetSubQuestionForm() {
+  newSubQuestionForm.value.question_en = '';
+  newSubQuestionForm.value.question_bm = '';
+  newSubQuestionForm.value.is_required = false;
+  newSubQuestionForm.value.answer_type = 35;
+  newSubQuestionForm.value.sub_question_options = [];
+}
+
+// Create sub-question for option
+async function createSubQuestionForOption() {
+  if (!newSubQuestionForm.value.question_en || !newSubQuestionForm.value.question_en.trim()) {
+    alert('Please enter the sub-question text');
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/questionnaire/questions/createSubQuestion', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        questionnaire_id: question.value.questionnaire_id,
+        parent_question_id: questionId, // This is the ID of the question whose options are being configured
+        question_bm: newSubQuestionForm.value.question_bm,
+        question_en: newSubQuestionForm.value.question_en,
+        requiredQuestion: newSubQuestionForm.value.is_required ? '1' : '0',
+        status: 'Active',
+        answer_type: newSubQuestionForm.value.answer_type
+      })
+    });
+
+    const result = await response.json();
+
+    if (response.ok && result.data) {
+      const newSubQuestionId = result.data.sub_question.question_id;
+      
+      // If answer type is 35 (Option Type), create options for the sub-question
+      if (newSubQuestionForm.value.answer_type === 35 && newSubQuestionForm.value.sub_question_options.length > 0) {
+        await createSubQuestionOptions(newSubQuestionId);
+      }
+      
+      // Update the option's conditional_sub_questions_ids
+      await updateOptionConditionalLogic(selectedOptionForSubQuestion.value.id, newSubQuestionId);
+      
+      message.value = 'Sub-question created successfully!';
+      messageType.value = 'success';
+      showCreateSubQuestionModal.value = false;
+      
+      // Reload options to show updated conditional logic
+      await loadOptions();
+    } else {
+      throw new Error(result.message || 'Failed to create sub-question');
+    }
+  } catch (error) {
+    console.error('Error creating sub-question:', error);
+    message.value = `Error creating sub-question: ${error.message}`;
+    messageType.value = 'error';
+  }
+}
+
+// Create options for sub-question
+async function createSubQuestionOptions(subQuestionId) {
+  try {
+    for (const option of newSubQuestionForm.value.sub_question_options) {
+      const response = await fetch('/api/questionnaire/questions/options/insert', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          question_id: subQuestionId,
+          option_title: option.option_title,
+          option_value: option.option_value,
+          order_number: option.order_number,
+          option_type: option.option_type
+        })
+      });
+
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.message || 'Failed to create option');
+      }
+    }
+  } catch (error) {
+    console.error('Error creating sub-question options:', error);
+    throw error;
+  }
+}
+
+// Update option's conditional logic to include the new sub-question
+async function updateOptionConditionalLogic(optionId, subQuestionId) {
+  try {
+    const currentOption = options.value.find(opt => opt.id === optionId);
+    let currentSubQuestions = [];
+    
+    if (currentOption && currentOption.conditional_sub_questions_ids) {
+      try {
+        currentSubQuestions = JSON.parse(currentOption.conditional_sub_questions_ids);
+      } catch (e) {
+        currentSubQuestions = [];
+      }
+    }
+    
+    // Add the new sub-question ID if it's not already there
+    if (!currentSubQuestions.includes(subQuestionId)) {
+      currentSubQuestions.push(subQuestionId);
+    }
+    
+    const response = await fetch('/api/questionnaire/questions/options/updateConditionalLogic', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        option_id: optionId,
+        conditional_sub_questions_ids: JSON.stringify(currentSubQuestions)
+      })
+    });
+
+    if (!response.ok) {
+      const result = await response.json();
+      throw new Error(result.message || 'Failed to update conditional logic');
+    }
+  } catch (error) {
+    console.error('Error updating conditional logic:', error);
+    throw error;
+  }
+}
+
+// Add sub-question option
+function addSubQuestionOption() {
+  newSubQuestionForm.value.sub_question_options.push({
+    option_title: '',
+    option_value: 1,
+    order_number: newSubQuestionForm.value.sub_question_options.length + 1,
+    option_type: 'radio'
+  });
+}
+
+// Remove sub-question option
+function removeSubQuestionOption(index) {
+  newSubQuestionForm.value.sub_question_options.splice(index, 1);
+  // Update order numbers
+  newSubQuestionForm.value.sub_question_options.forEach((option, idx) => {
+    option.order_number = idx + 1;
+  });
+}
+
+// Generate range options for sub-question
+function generateSubQuestionRangeOptions() {
+  newSubQuestionForm.value.sub_question_options = [
+    { option_title: '[radio]1', option_value: 1, order_number: 1, option_type: 'radio' },
+    { option_title: '[radio]2', option_value: 2, order_number: 2, option_type: 'radio' },
+    { option_title: '[radio]3', option_value: 3, order_number: 3, option_type: 'radio' },
+    { option_title: '[radio]4', option_value: 4, order_number: 4, option_type: 'radio' },
+    { option_title: '[radio]5', option_value: 5, order_number: 5, option_type: 'radio' }
+  ];
+}
 
 // // Open modal for editing an existing option
 // function openEditOptionModal(option) {
@@ -764,6 +949,11 @@ watch(() => newOption.value.option_type, (newType, oldType) => {
                      </div>
                    </td>
                   <td class="px-4 py-2 text-right">
+                    <button @click="openCreateSubQuestionModal(option)"
+                      class="inline-flex items-center justify-center p-1.5 text-green-600 hover:text-green-800 hover:bg-green-100 rounded-full mr-1"
+                      title="Add Sub-Question for this Option">
+                      <Icon name="ic:outline-add" size="18" />
+                    </button>
                     <button @click="openEditOptionModal(option)"
                       class="inline-flex items-center justify-center p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-full mr-1"
                       title="Edit Option">
@@ -927,6 +1117,163 @@ watch(() => newOption.value.option_type, (newType, oldType) => {
             >
               <span v-if="isConfiguringConditionalLogic">Saving...</span>
               <span v-else>Save Configuration</span>
+            </button>
+          </div>
+        </FormKit>
+      </rs-modal>
+
+      <!-- Create Sub-Question Modal -->
+      <rs-modal
+        title="Create Sub-Question for Option"
+        v-model="showCreateSubQuestionModal"
+        :overlay-close="false"
+        :hide-footer="true"
+      >
+        <div v-if="selectedOptionForSubQuestion" class="mb-4 p-3 bg-green-50 border border-green-200 rounded">
+          <div class="text-sm font-medium text-green-800">Creating sub-question for option: {{ cleanOptionTitle(selectedOptionForSubQuestion.title) }}</div>
+          <div class="text-xs text-green-600 mt-1">Option Value: {{ selectedOptionForSubQuestion.value }}</div>
+        </div>
+
+        <FormKit type="form" @submit="createSubQuestionForOption" :actions="false" :submit-attrs="{ disabled: false }">
+          <div class="mb-4 p-3 bg-green-50 border border-green-200 rounded">
+            <h4 class="font-medium text-green-800 mb-2">Create New Sub-Question</h4>
+            <p class="text-sm text-green-600">
+              This sub-question will be triggered when the selected option is chosen.
+            </p>
+          </div>
+
+          <FormKit
+            type="textarea"
+            v-model="newSubQuestionForm.question_en"
+            label="Sub-Question Text (English) *"
+            help="Enter the sub-question text in English"
+            validation="required"
+            validation-visibility="dirty"
+            :validation-messages="{ required: 'Sub-question text is required' }"
+            rows="3"
+          />
+
+          <FormKit
+            type="textarea"
+            v-model="newSubQuestionForm.question_bm"
+            label="Sub-Question Text (Bahasa Malaysia)"
+            help="Enter the sub-question text in Bahasa Malaysia (optional)"
+            rows="3"
+          />
+
+          <FormKit
+            type="select"
+            v-model="newSubQuestionForm.answer_type"
+            label="Answer Type *"
+            help="Choose how users will answer this sub-question"
+            validation="required"
+            :options="answerTypes.map(type => ({ value: type.value, label: `${type.label} - ${type.description}` }))"
+          />
+
+          <FormKit
+            type="checkbox"
+            v-model="newSubQuestionForm.is_required"
+            label="Required Question"
+            help="Check this if the sub-question is required to be answered"
+          />
+
+          <!-- Answer Type Configuration -->
+          <div v-if="newSubQuestionForm.answer_type" class="mt-6 p-4 bg-gray-50 rounded-lg">
+            <h4 class="font-medium mb-3 text-gray-800">Answer Configuration</h4>
+            
+            <!-- Text Type -->
+            <div v-if="newSubQuestionForm.answer_type === 33" class="bg-blue-50 p-3 rounded-lg border border-blue-200">
+              <div class="flex items-center">
+                <Icon name="ic:outline-info" class="text-blue-600 mr-2" size="20" />
+                <p class="text-blue-800 text-sm">Text inputs don't require options. The system will automatically create a text field for this sub-question.</p>
+              </div>
+            </div>
+
+            <!-- Range Type -->
+            <div v-else-if="newSubQuestionForm.answer_type === 34" class="bg-blue-50 p-3 rounded-lg border border-blue-200">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                  <Icon name="ic:outline-info" class="text-blue-600 mr-2" size="20" />
+                  <p class="text-blue-800 text-sm">Range questions use a 1-5 scale. Click the button to auto-generate options.</p>
+                </div>
+                <button
+                  type="button"
+                  @click="generateSubQuestionRangeOptions"
+                  class="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                >
+                  Generate 1-5 Scale
+                </button>
+              </div>
+            </div>
+
+            <!-- Option Type -->
+            <div v-else-if="newSubQuestionForm.answer_type === 35">
+              <div class="flex justify-between items-center mb-3">
+                <h5 class="font-medium text-gray-700">Options ({{ newSubQuestionForm.sub_question_options.length }})</h5>
+                <button
+                  type="button"
+                  @click="addSubQuestionOption"
+                  class="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                >
+                  <Icon name="ic:outline-add" size="16" class="mr-1" />
+                  Add Option
+                </button>
+              </div>
+
+              <div v-if="newSubQuestionForm.sub_question_options.length === 0" class="text-center py-4 text-gray-500">
+                <Icon name="ic:outline-list" size="32" class="mx-auto mb-2" />
+                <p class="text-sm">No options added yet. Add at least one option for this sub-question.</p>
+              </div>
+
+              <div v-else class="space-y-3">
+                <div 
+                  v-for="(option, index) in newSubQuestionForm.sub_question_options" 
+                  :key="index"
+                  class="flex items-center gap-3 p-3 bg-white border rounded-lg"
+                >
+                  <div class="flex-1">
+                    <input
+                      v-model="option.option_title"
+                      type="text"
+                      placeholder="Option text"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div class="w-20">
+                    <input
+                      v-model.number="option.option_value"
+                      type="number"
+                      placeholder="Value"
+                      class="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    @click="removeSubQuestionOption(index)"
+                    class="p-2 text-red-600 hover:bg-red-100 rounded-full"
+                    title="Remove Option"
+                  >
+                    <Icon name="ic:outline-delete" size="16" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-2 mt-6">
+            <button
+              type="button"
+              @click="showCreateSubQuestionModal = false"
+              class="px-4 py-2 rounded border border-gray-300 hover:bg-gray-50 text-gray-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              @click="createSubQuestionForOption"
+              class="px-4 py-2 rounded bg-green-600 hover:bg-green-700 text-white"
+            >
+              Create Sub-Question
             </button>
           </div>
         </FormKit>
