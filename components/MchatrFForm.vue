@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 
 const props = defineProps({
   patientId: {
@@ -28,30 +28,58 @@ const multipleAnswers = ref({}); // For multiple answers (checkbox)
 const textAnswers = ref({}); // For text input answers
 const rangeAnswers = ref({}); // For range/scale answers
 const conditionalSubQuestions = ref({});
+const nestedSubQuestions = ref({}); // For nested sub-questions (tier 2)
 const loadingConditionalQuestions = ref({});
+const loadingNestedSubQuestions = ref({});
+const showingNestedSubQuestions = ref({}); // Track which nested sub-questions are visible
 const isLoading = ref(true);
 const submissionResult = ref(null);
 const showSubmissionResult = ref(false);
 
 const progress = computed(() => {
+  // Get all questions including conditional and nested sub-questions
   const allQuestions = [
     ...mchatrFQuestions.value,
-    ...Object.values(conditionalSubQuestions.value).flat()
+    ...Object.values(conditionalSubQuestions.value).flat(),
+    ...Object.values(nestedSubQuestions.value).flat()
   ];
   
   const totalQuestions = allQuestions.length;
   const answeredQuestions = allQuestions.filter(q => {
     const questionId = q.question_id;
-    return answers.value[questionId] !== undefined && answers.value[questionId] !== null;
+    
+    // Check single answers (radio)
+    if (answers.value[questionId] !== undefined && answers.value[questionId] !== null) {
+      return true;
+    }
+    
+    // Check multiple answers (checkbox)
+    if (multipleAnswers.value[questionId] && multipleAnswers.value[questionId].length > 0) {
+      return true;
+    }
+    
+    // Check text answers
+    if (textAnswers.value[questionId] && textAnswers.value[questionId].trim().length > 0) {
+      return true;
+    }
+    
+    // Check range answers
+    if (rangeAnswers.value[questionId] !== undefined && rangeAnswers.value[questionId] !== null) {
+      return true;
+    }
+    
+    return false;
   }).length;
   
   return totalQuestions > 0 ? Math.round((answeredQuestions / totalQuestions) * 100) : 0;
 });
 
 const requiredQuestionsAnswered = computed(() => {
+  // Get all questions including conditional and nested sub-questions
   const allQuestions = [
     ...mchatrFQuestions.value,
-    ...Object.values(conditionalSubQuestions.value).flat()
+    ...Object.values(conditionalSubQuestions.value).flat(),
+    ...Object.values(nestedSubQuestions.value).flat()
   ];
   
   return allQuestions
@@ -166,11 +194,9 @@ function cleanOptionTitle(optionTitle) {
 }
 
 function handleOptionSelect(questionId, optionId) {
-  
   if (props.readOnly) {
     return;
   }
-  
   
   // Find the question and the specific option being clicked
   // Check both main questions and conditional sub-questions
@@ -179,16 +205,27 @@ function handleOptionSelect(questionId, optionId) {
     // Look in conditional sub-questions
     const allSubQuestions = Object.values(conditionalSubQuestions.value).flat();
     question = allSubQuestions.find(q => q.question_id === questionId);
+    
+    // If still not found, look in nested sub-questions
+    if (!question) {
+      const allNestedSubQuestions = Object.values(nestedSubQuestions.value).flat();
+      question = allNestedSubQuestions.find(q => q.question_id === questionId);
+    }
   } else {
     console.log('Found in main questions:', question);
   }
   
-  const selectedOption = question ? question.options.find(opt => opt.option_id === optionId) : null;
-  
-  if (!selectedOption) {
+  if (!question) {
+    console.error(`❌ Question ${questionId} not found`);
     return;
   }
   
+  const selectedOption = question.options.find(opt => opt.option_id === optionId);
+  
+  if (!selectedOption) {
+    console.error(`❌ Option ${optionId} not found in question ${questionId}`);
+    return;
+  }
   
   // Check if this specific option is a checkbox
   if (selectedOption.option_type === 'checkbox') {
@@ -196,28 +233,67 @@ function handleOptionSelect(questionId, optionId) {
     const isCurrentlySelected = multipleAnswers.value[questionId] && multipleAnswers.value[questionId].includes(optionId);
     console.log(`🔄 Toggling checkbox for question ${questionId}, option ${optionId}, currently selected: ${isCurrentlySelected}`);
     handleMultipleAnswerChange(questionId, optionId, !isCurrentlySelected);
+    
+    // For checkbox options, check if this specific option has conditional sub-questions
+    console.log('🔍 Checking if checkbox option has conditional sub-questions:', {
+      questionId,
+      optionId,
+      hasConditionalSubQuestions: selectedOption && selectedOption.conditional_sub_questions_ids
+    });
+    
+    if (!isCurrentlySelected && selectedOption.conditional_sub_questions_ids) {
+      // If we're checking the box and it has conditional sub-questions, load them
+      console.log('✅ Checkbox option has conditional sub-questions, loading...');
+      loadConditionalSubQuestions(questionId, selectedOption);
+    } else if (isCurrentlySelected && selectedOption.conditional_sub_questions_ids) {
+      // If we're unchecking the box and it had conditional sub-questions, check if we should clear them
+      // Only clear if no other selected options have conditional sub-questions
+      const otherSelectedOptions = multipleAnswers.value[questionId] ? 
+        multipleAnswers.value[questionId].filter(id => id !== optionId) : [];
+      
+      let shouldClearSubQuestions = true;
+      for (const otherId of otherSelectedOptions) {
+        const otherOption = question.options.find(opt => opt.option_id === otherId);
+        if (otherOption && otherOption.conditional_sub_questions_ids) {
+          shouldClearSubQuestions = false;
+          break;
+        }
+      }
+      
+      if (shouldClearSubQuestions) {
+        console.log('❌ No other selected options have conditional sub-questions, clearing...');
+        conditionalSubQuestions.value = {
+          ...conditionalSubQuestions.value,
+          [questionId]: []
+        };
+      }
+    }
   } else {
     // Handle single answer (radio) - clear other selections
     console.log(`📻 Selecting radio for question ${questionId}, option ${optionId}`);
     answers.value[questionId] = optionId;
     // Force reactivity update
     answers.value = { ...answers.value };
-  }
-  
-  // Check for conditional sub-questions - only show if the selected option triggers them
-  console.log('🔍 Checking for conditional sub-questions:', {
-    questionId,
-    selectedOption,
-    hasConditionalSubQuestions: selectedOption && selectedOption.conditional_sub_questions_ids
-  });
-  
-  if (selectedOption && selectedOption.conditional_sub_questions_ids) {
-    console.log('✅ Option has conditional sub-questions, loading...');
-    loadConditionalSubQuestions(questionId, selectedOption);
-  } else {
-    console.log('❌ Option does not have conditional sub-questions, clearing...');
-    // Clear sub-questions if this option doesn't trigger them
-    conditionalSubQuestions.value[questionId] = [];
+    
+    // Check for conditional sub-questions - only show if the selected option triggers them
+    console.log('🔍 Checking for conditional sub-questions:', {
+      questionId,
+      selectedOption,
+      hasConditionalSubQuestions: selectedOption && selectedOption.conditional_sub_questions_ids
+    });
+    
+    if (selectedOption && selectedOption.conditional_sub_questions_ids) {
+      console.log('✅ Option has conditional sub-questions, loading...');
+      // Load conditional sub-questions but DON'T automatically show nested sub-questions
+      loadConditionalSubQuestions(questionId, selectedOption);
+    } else {
+      console.log('❌ Option does not have conditional sub-questions, clearing...');
+      // Clear sub-questions if this option doesn't trigger them
+      conditionalSubQuestions.value = {
+        ...conditionalSubQuestions.value,
+        [questionId]: []
+      };
+    }
   }
   
   
@@ -251,6 +327,106 @@ function handleMultipleAnswerChange(questionId, optionId, isChecked) {
   // Force reactivity update
   multipleAnswers.value = { ...multipleAnswers.value };
   console.log(`📊 Updated multipleAnswers for question ${questionId}:`, multipleAnswers.value[questionId]);
+  
+  // Check if this is a conditional sub-question with nested sub-questions
+  checkForNestedSubQuestions(questionId, optionId, isChecked);
+}
+
+// Function to check if a conditional sub-question has nested sub-questions
+function checkForNestedSubQuestions(questionId, optionId, isChecked) {
+  console.log(`🔍 Checking if conditional sub-question ${questionId} option ${optionId} has nested sub-questions`);
+  
+  // Find the question in conditional sub-questions
+  let foundQuestion = null;
+  let parentId = null;
+  
+  for (const [pId, subQuestions] of Object.entries(conditionalSubQuestions.value)) {
+    const found = subQuestions.find(sq => sq.question_id === parseInt(questionId));
+    if (found) {
+      foundQuestion = found;
+      parentId = pId;
+      break;
+    }
+  }
+  
+  if (!foundQuestion) {
+    console.log(`❌ Question ${questionId} not found in conditional sub-questions`);
+    return;
+  }
+  
+  console.log(`✅ Found question ${questionId} in conditional sub-questions of parent ${parentId}`);
+  
+  // Find the selected option
+  const selectedOption = foundQuestion.options.find(opt => opt.option_id === optionId);
+  if (!selectedOption) {
+    console.log(`❌ Option ${optionId} not found in question ${questionId}`);
+    return;
+  }
+  
+  console.log(`✅ Found option ${optionId} in question ${questionId}:`, selectedOption);
+  
+  // Check if the option has conditional sub-questions
+  if (selectedOption.conditional_sub_questions_ids) {
+    const nestedSubQuestionIds = JSON.parse(selectedOption.conditional_sub_questions_ids || '[]');
+    console.log(`📊 Option ${optionId} has nested sub-questions:`, nestedSubQuestionIds);
+    
+    if (nestedSubQuestionIds.length > 0 && isChecked) {
+      console.log(`✅ Loading nested sub-questions for option ${optionId}`);
+      
+      // Load the nested sub-questions
+      loadConditionalSubQuestions(questionId, selectedOption).then(() => {
+        // Directly load the nested sub-questions for this option
+        const nestedSubQuestionIds = JSON.parse(selectedOption.conditional_sub_questions_ids || '[]');
+        
+        if (nestedSubQuestionIds.length > 0) {
+          console.log(`✅ Loading nested sub-questions ${nestedSubQuestionIds.join(', ')} for option ${optionId}`);
+          
+          // Fetch each nested sub-question
+          Promise.all(nestedSubQuestionIds.map(async (nestedId) => {
+            try {
+              const res = await fetch(`/api/questionnaire/questions/listQuestions?questionnaireID=2&parentID=${questionId}`);
+              const result = await res.json();
+              
+              if (res.ok && result.data && result.data.length > 0) {
+                console.log(`✅ Found ${result.data.length} nested sub-questions for ${questionId}`);
+                
+                // Get options for nested sub-questions
+                const nestedQuestionIds = result.data.map(q => q.question_id);
+                const batchRes = await fetch(`/api/questionnaire/questions/options/batch?questionIDs=${nestedQuestionIds.join(',')}`);
+                const batchResult = await batchRes.json();
+                
+                const processedNestedSubQuestions = result.data.map(q => {
+                  const questionOptions = batchResult.data && batchResult.data[q.question_id] ? batchResult.data[q.question_id] : [];
+                  return {
+                    ...q,
+                    options: questionOptions.map(option => ({
+                      ...option,
+                      option_type: extractOptionType(option.option_title),
+                      original_title: option.option_title,
+                      option_title: cleanOptionTitle(option.option_title),
+                      conditional_sub_questions_ids: option.conditional_sub_questions_ids
+                    })),
+                    optionsLoading: false,
+                    optionsError: false
+                  };
+                });
+                
+                // Update the nestedSubQuestions state
+                nestedSubQuestions.value = {
+                  ...nestedSubQuestions.value,
+                  [questionId]: processedNestedSubQuestions
+                };
+                
+                console.log(`✅ Processed ${processedNestedSubQuestions.length} nested sub-questions for ${questionId}`);
+              }
+            } catch (err) {
+              console.error(`Error loading nested sub-question ${nestedId}:`, err);
+            }
+          }));
+        }
+      });
+    }
+  }
 }
 
 function isOptionSelected(questionId, optionId) {
@@ -298,28 +474,171 @@ function handleRangeAnswerChange(questionId, value) {
   });
 }
 
+function handleSubmitClick() {
+  console.log('🖱️ Submit button clicked!');
+  console.log('Button disabled state:', !requiredQuestionsAnswered.value || props.readOnly);
+  console.log('requiredQuestionsAnswered:', requiredQuestionsAnswered.value);
+  console.log('props.readOnly:', props.readOnly);
+  
+  if (!requiredQuestionsAnswered.value || props.readOnly) {
+    console.log('❌ Button click ignored due to disabled state');
+    return;
+  }
+  
+  console.log('✅ Proceeding with submission...');
+  submitMchatrF();
+}
+
+
+
 function shouldShowSubQuestions(questionId) {
-  // Check if the currently selected answer for this question triggers sub-questions
+  // First check if this is a main question
   const question = mchatrFQuestions.value.find(q => q.question_id === questionId);
-  if (!question) return false;
+  if (question) {
+    // For radio button questions
+    const selectedAnswer = answers.value[questionId];
+    if (selectedAnswer) {
+      const selectedOption = question.options.find(opt => opt.option_id === selectedAnswer);
+      if (selectedOption && selectedOption.conditional_sub_questions_ids) {
+        const hasConditionalSubQuestions = JSON.parse(selectedOption.conditional_sub_questions_ids || '[]').length > 0;
+        return hasConditionalSubQuestions;
+      }
+    }
+    
+    // For checkbox questions - if any selected option has conditional sub-questions
+    const multipleSelectedAnswers = multipleAnswers.value[questionId];
+    if (multipleSelectedAnswers && multipleSelectedAnswers.length > 0) {
+      for (const optionId of multipleSelectedAnswers) {
+        const selectedOption = question.options.find(opt => opt.option_id === optionId);
+        if (selectedOption && selectedOption.conditional_sub_questions_ids) {
+          const hasConditionalSubQuestions = JSON.parse(selectedOption.conditional_sub_questions_ids || '[]').length > 0;
+          if (hasConditionalSubQuestions) {
+            return true;
+          }
+        }
+      }
+    }
+    
+    return false;
+  }
   
-  const selectedAnswer = answers.value[questionId];
-  if (!selectedAnswer) return false;
+  // If not found in main questions, check in conditional sub-questions
+  // This is for nested sub-questions (tier 2)
+  for (const [parentId, subQuestions] of Object.entries(conditionalSubQuestions.value)) {
+    const subQuestion = subQuestions.find(sq => sq.question_id === questionId);
+    if (subQuestion) {
+      // For checkbox questions in conditional sub-questions
+      const multipleSelectedAnswers = multipleAnswers.value[questionId];
+      if (multipleSelectedAnswers && multipleSelectedAnswers.length > 0) {
+        for (const optionId of multipleSelectedAnswers) {
+          const selectedOption = subQuestion.options.find(opt => opt.option_id === optionId);
+          if (selectedOption && selectedOption.conditional_sub_questions_ids) {
+            const hasConditionalSubQuestions = JSON.parse(selectedOption.conditional_sub_questions_ids || '[]').length > 0;
+            if (hasConditionalSubQuestions) {
+              return true;
+            }
+          }
+        }
+      }
+      
+      // For radio button questions in conditional sub-questions
+      const selectedAnswer = answers.value[questionId];
+      if (selectedAnswer) {
+        const selectedOption = subQuestion.options.find(opt => opt.option_id === selectedAnswer);
+        if (selectedOption && selectedOption.conditional_sub_questions_ids) {
+          const hasConditionalSubQuestions = JSON.parse(selectedOption.conditional_sub_questions_ids || '[]').length > 0;
+          return hasConditionalSubQuestions;
+        }
+      }
+      
+      return false;
+    }
+  }
   
-  const selectedOption = question.options.find(opt => opt.option_id === selectedAnswer);
-  if (!selectedOption) return false;
+  return false;
+}
+
+// Function to check if we should show nested sub-questions for a conditional question
+function shouldShowNestedSubQuestions(conditionalQuestionId) {
+  // First check if nested sub-questions are loaded
+  if (!nestedSubQuestions.value[conditionalQuestionId] || nestedSubQuestions.value[conditionalQuestionId].length === 0) {
+    return false;
+  }
   
-  const hasConditionalSubQuestions = selectedOption.conditional_sub_questions_ids && 
-    JSON.parse(selectedOption.conditional_sub_questions_ids || '[]').length > 0;
+  // Find the conditional question in all parent questions
+  let foundQuestion = null;
+  let parentId = null;
   
-  return hasConditionalSubQuestions;
+  // Look in all conditional sub-questions
+  for (const [pId, subQuestions] of Object.entries(conditionalSubQuestions.value)) {
+    const found = subQuestions.find(sq => sq.question_id === parseInt(conditionalQuestionId));
+    if (found) {
+      foundQuestion = found;
+      parentId = pId;
+      break;
+    }
+  }
+  
+  if (!foundQuestion) {
+    return false;
+  }
+  
+  // Check if any selected option for this question has conditional_sub_questions_ids
+  // For checkbox questions
+  const multipleSelectedAnswers = multipleAnswers.value[conditionalQuestionId];
+  if (multipleSelectedAnswers && multipleSelectedAnswers.length > 0) {
+    for (const optionId of multipleSelectedAnswers) {
+      const selectedOption = foundQuestion.options.find(opt => opt.option_id === optionId);
+      if (selectedOption && selectedOption.conditional_sub_questions_ids) {
+        const nestedSubQIds = JSON.parse(selectedOption.conditional_sub_questions_ids || '[]');
+        if (nestedSubQIds.length > 0) {
+          return true;
+        }
+      }
+    }
+  }
+  
+  // For radio button questions
+  const selectedAnswer = answers.value[conditionalQuestionId];
+  if (selectedAnswer) {
+    const selectedOption = foundQuestion.options.find(opt => opt.option_id === selectedAnswer);
+    if (selectedOption && selectedOption.conditional_sub_questions_ids) {
+      const nestedSubQIds = JSON.parse(selectedOption.conditional_sub_questions_ids || '[]');
+      if (nestedSubQIds.length > 0) {
+        return true;
+      }
+    }
+  }
+  
+  return false;
+}
+
+
+// Function to toggle nested sub-questions visibility
+function toggleNestedSubQuestions(subQuestionId) {
+  // Toggle the visibility state
+  const currentState = !!showingNestedSubQuestions.value[subQuestionId];
+  showingNestedSubQuestions.value = {
+    ...showingNestedSubQuestions.value,
+    [subQuestionId]: !currentState
+  };
+  
+  // If we're showing the nested sub-questions and they haven't been loaded yet, load them
+  if (!currentState && (!nestedSubQuestions.value[subQuestionId] || nestedSubQuestions.value[subQuestionId].length === 0)) {
+    loadNestedSubQuestions(subQuestionId);
+  }
 }
 
 async function loadConditionalSubQuestions(parentQuestionId, selectedOption) {
-  loadingConditionalQuestions.value[parentQuestionId] = true;
+  console.log(`🔄 Loading conditional sub-questions for parent ${parentQuestionId}`);
+  loadingConditionalQuestions.value = {
+    ...loadingConditionalQuestions.value,
+    [parentQuestionId]: true
+  };
   
   try {
     const conditionalSubQuestionsIds = JSON.parse(selectedOption.conditional_sub_questions_ids || '[]');
+    console.log(`📋 Conditional sub-questions IDs for parent ${parentQuestionId}:`, conditionalSubQuestionsIds);
     
     if (conditionalSubQuestionsIds.length > 0) {
       // Fetch the conditional sub-questions
@@ -327,15 +646,45 @@ async function loadConditionalSubQuestions(parentQuestionId, selectedOption) {
       const result = await res.json();
       
       if (res.ok && result.data && result.data.length > 0) {
+        console.log(`✅ Found ${result.data.length} conditional sub-questions for parent ${parentQuestionId}:`, result.data);
+        
         // Get options for each sub-question
         const subQuestionIds = result.data.map(q => q.question_id);
         const batchRes = await fetch(`/api/questionnaire/questions/options/batch?questionIDs=${subQuestionIds.join(',')}`);
         const batchResult = await batchRes.json();
         
+        // Fetch nested sub-questions information for each sub-question
+        const nestedInfoPromises = subQuestionIds.map(async (sqId) => {
+          try {
+            const nestedRes = await fetch(`/api/questionnaire/questions/listQuestions?questionnaireID=2&parentID=${sqId}`);
+            const nestedResult = await nestedRes.json();
+            return { 
+              id: sqId, 
+              has_sub_questions: nestedRes.ok && nestedResult.data && nestedResult.data.length > 0,
+              sub_questions_count: nestedRes.ok && nestedResult.data ? nestedResult.data.length : 0,
+              nested_questions: nestedRes.ok && nestedResult.data ? nestedResult.data : []
+            };
+          } catch (err) {
+            console.error(`Error checking nested sub-questions for ${sqId}:`, err);
+            return { id: sqId, has_sub_questions: false, sub_questions_count: 0, nested_questions: [] };
+          }
+        });
+        
+        const nestedInfoResults = await Promise.all(nestedInfoPromises);
+        console.log(`📊 Nested sub-questions info for parent ${parentQuestionId}:`, nestedInfoResults);
+        
         const subQuestions = result.data.map(q => {
           const questionOptions = batchResult.data && batchResult.data[q.question_id] ? batchResult.data[q.question_id] : [];
+          const nestedInfo = nestedInfoResults.find(ni => ni.id === q.question_id) || { 
+            has_sub_questions: false, 
+            sub_questions_count: 0,
+            nested_questions: []
+          };
+          
           return {
             ...q,
+            has_sub_questions: nestedInfo.has_sub_questions,
+            sub_questions_count: nestedInfo.sub_questions_count,
             options: questionOptions.map(option => ({
               ...option,
               option_type: extractOptionType(option.option_title),
@@ -348,22 +697,125 @@ async function loadConditionalSubQuestions(parentQuestionId, selectedOption) {
           };
         });
         
+        console.log(`✅ Processed ${subQuestions.length} conditional sub-questions for parent ${parentQuestionId}:`, subQuestions);
+        
         conditionalSubQuestions.value = {
           ...conditionalSubQuestions.value,
           [parentQuestionId]: subQuestions
         };
+        
+        // Pre-fetch nested sub-questions data but don't show them
+        for (const subQuestion of subQuestions) {
+          if (subQuestion.has_sub_questions && subQuestion.sub_questions_count > 0) {
+            // Pre-fetch the nested sub-questions but don't auto-show them
+            await loadNestedSubQuestions(subQuestion.question_id);
+            
+            // Make sure they're not automatically shown
+            showingNestedSubQuestions.value = {
+              ...showingNestedSubQuestions.value,
+              [subQuestion.question_id]: false
+            };
+          }
+        }
       }
     }
   } catch (err) {
     console.error('Error loading conditional sub-questions:', err);
-    conditionalSubQuestions.value[parentQuestionId] = [];
+    conditionalSubQuestions.value = {
+      ...conditionalSubQuestions.value,
+      [parentQuestionId]: []
+    };
   } finally {
-    loadingConditionalQuestions.value[parentQuestionId] = false;
+    loadingConditionalQuestions.value = {
+      ...loadingConditionalQuestions.value,
+      [parentQuestionId]: false
+    };
+  }
+}
+
+// Function to load nested sub-questions (tier 2)
+async function loadNestedSubQuestions(subQuestionId) {
+  console.log(`🔄 Loading nested sub-questions for ${subQuestionId}`);
+  loadingNestedSubQuestions.value = {
+    ...loadingNestedSubQuestions.value,
+    [subQuestionId]: true
+  };
+  
+  try {
+    // Fetch the nested sub-questions
+    const res = await fetch(`/api/questionnaire/questions/listQuestions?questionnaireID=2&parentID=${subQuestionId}`);
+    const result = await res.json();
+    
+    if (res.ok && result.data && result.data.length > 0) {
+      console.log(`✅ Found ${result.data.length} nested sub-questions for ${subQuestionId}`);
+      
+      // Get options for each nested sub-question
+      const nestedSubQuestionIds = result.data.map(q => q.question_id);
+      const batchRes = await fetch(`/api/questionnaire/questions/options/batch?questionIDs=${nestedSubQuestionIds.join(',')}`);
+      const batchResult = await batchRes.json();
+      
+      const processedNestedSubQuestions = result.data.map(q => {
+        const questionOptions = batchResult.data && batchResult.data[q.question_id] ? batchResult.data[q.question_id] : [];
+        return {
+          ...q,
+          options: questionOptions.map(option => ({
+            ...option,
+            option_type: extractOptionType(option.option_title),
+            original_title: option.option_title,
+            option_title: cleanOptionTitle(option.option_title),
+            conditional_sub_questions_ids: option.conditional_sub_questions_ids
+          })),
+          optionsLoading: false,
+          optionsError: false
+        };
+      });
+      
+      // Update the nestedSubQuestions state
+      nestedSubQuestions.value = {
+        ...nestedSubQuestions.value,
+        [subQuestionId]: processedNestedSubQuestions
+      };
+      
+      console.log(`✅ Processed ${processedNestedSubQuestions.length} nested sub-questions for ${subQuestionId}`);
+    } else {
+      console.log(`❌ No nested sub-questions found for ${subQuestionId}`);
+      nestedSubQuestions.value[subQuestionId] = [];
+    }
+  } catch (err) {
+    console.error(`Error loading nested sub-questions for ${subQuestionId}:`, err);
+    nestedSubQuestions.value[subQuestionId] = [];
+  } finally {
+    loadingNestedSubQuestions.value = {
+      ...loadingNestedSubQuestions.value,
+      [subQuestionId]: false
+    };
   }
 }
 
 async function submitMchatrF() {
+  console.log('🔍 Checking if all required questions are answered...');
+  console.log('requiredQuestionsAnswered.value:', requiredQuestionsAnswered.value);
+  
+  // Debug: Show which questions are required and their status
+  const allQuestions = [
+    ...mchatrFQuestions.value,
+    ...Object.values(conditionalSubQuestions.value).flat()
+  ];
+  
+  const requiredQuestions = allQuestions.filter(q => q.is_required);
+  console.log('📋 Required questions:', requiredQuestions.map(q => ({
+    question_id: q.question_id,
+    text: q.question_text_bi?.substring(0, 50) + "...",
+    is_required: q.is_required,
+    has_answer: answers.value[q.question_id] !== undefined && answers.value[q.question_id] !== null,
+    has_multiple_answer: multipleAnswers.value[q.question_id] && multipleAnswers.value[q.question_id].length > 0,
+    has_text_answer: textAnswers.value[q.question_id] && textAnswers.value[q.question_id].trim().length > 0,
+    has_range_answer: rangeAnswers.value[q.question_id] !== undefined && rangeAnswers.value[q.question_id] !== null
+  })));
+  
   if (!requiredQuestionsAnswered.value) {
+    console.log('❌ Submission blocked: Not all required questions are answered');
+    alert('Please answer all required questions before submitting.');
     return;
   }
   
@@ -384,6 +836,16 @@ async function submitMchatrF() {
       question_id: sq.question_id,
       mchatr_id: sq.mchatr_id,
       text: sq.question_text_bi?.substring(0, 30) + "..."
+    })));
+  });
+  
+  // Debug: Show nested sub-questions (tier 2)
+  console.log('📋 Nested sub-questions (tier 2):');
+  Object.entries(nestedSubQuestions.value).forEach(([parentId, nestedQuestions]) => {
+    console.log(`Parent ${parentId}:`, nestedQuestions.map(nq => ({
+      question_id: nq.question_id,
+      mchatr_id: nq.mchatr_id,
+      text: nq.question_text_bi?.substring(0, 30) + "..."
     })));
   });
   
@@ -464,6 +926,90 @@ async function submitMchatrF() {
           });
         });
       }
+      
+      // Process text answers for sub-questions
+      if (textAnswers.value[questionId] && textAnswers.value[questionId].trim().length > 0) {
+        formattedAnswers.push({
+          question_id: parseInt(questionId),
+          option_id: null, // No option ID for text answers
+          option_value: null, // No option value for text answers
+          text_answer: textAnswers.value[questionId],
+          patient_id: props.patientId ? parseInt(props.patientId) : null,
+          parentID: parseInt(parentQuestionId), // Use parent question ID as parentID
+          mchatr_id: parentMchatrId ? parseInt(parentMchatrId) : null // Inherit mchatr_id from parent
+        });
+      }
+    });
+  });
+  
+  console.log('📋 Processing nested sub-questions (tier 2):', nestedSubQuestions.value);
+  // Process nested sub-questions (tier 2)
+  Object.entries(nestedSubQuestions.value).forEach(([parentQuestionId, nestedSubQs]) => {
+    // Find the parent sub-question to get its parentID and mchatr_id
+    let parentSubQuestion = null;
+    let grandParentId = null;
+    let mchatrId = null;
+    
+    // Search for the parent in all conditional sub-questions
+    Object.entries(conditionalSubQuestions.value).forEach(([gpId, subQs]) => {
+      const foundParent = subQs.find(sq => sq.question_id === parseInt(parentQuestionId));
+      if (foundParent) {
+        parentSubQuestion = foundParent;
+        grandParentId = gpId;
+        
+        // Find the grand-parent question to get its mchatr_id
+        const grandParentQuestion = mchatrFQuestions.value.find(q => q.question_id === parseInt(gpId));
+        mchatrId = grandParentQuestion ? grandParentQuestion.mchatr_id : null;
+      }
+    });
+    
+    nestedSubQs.forEach(nestedQuestion => {
+      const questionId = nestedQuestion.question_id;
+      
+      // Process radio answers for nested sub-questions
+      if (answers.value[questionId]) {
+        const selectedOption = nestedQuestion.options.find(opt => opt.option_id === answers.value[questionId]);
+        formattedAnswers.push({
+          question_id: parseInt(questionId),
+          option_id: parseInt(answers.value[questionId]),
+          option_value: selectedOption ? parseInt(selectedOption.option_value) : 0,
+          patient_id: props.patientId ? parseInt(props.patientId) : null,
+          parentID: parseInt(parentQuestionId), // Use immediate parent ID
+          mchatr_id: mchatrId ? parseInt(mchatrId) : null, // Inherit mchatr_id from grand-parent
+          nested_level: 2 // Mark as nested level 2
+        });
+      }
+      
+      // Process checkbox answers for nested sub-questions
+      if (multipleAnswers.value[questionId] && multipleAnswers.value[questionId].length > 0) {
+        const selectedOptions = multipleAnswers.value[questionId];
+        selectedOptions.forEach(optionId => {
+          const selectedOption = nestedQuestion.options.find(opt => opt.option_id === optionId);
+          formattedAnswers.push({
+            question_id: parseInt(questionId),
+            option_id: parseInt(optionId),
+            option_value: selectedOption ? parseInt(selectedOption.option_value) : 0,
+            patient_id: props.patientId ? parseInt(props.patientId) : null,
+            parentID: parseInt(parentQuestionId), // Use immediate parent ID
+            mchatr_id: mchatrId ? parseInt(mchatrId) : null, // Inherit mchatr_id from grand-parent
+            nested_level: 2 // Mark as nested level 2
+          });
+        });
+      }
+      
+      // Process text answers for nested sub-questions
+      if (textAnswers.value[questionId] && textAnswers.value[questionId].trim().length > 0) {
+        formattedAnswers.push({
+          question_id: parseInt(questionId),
+          option_id: null, // No option ID for text answers
+          option_value: null, // No option value for text answers
+          text_answer: textAnswers.value[questionId],
+          patient_id: props.patientId ? parseInt(props.patientId) : null,
+          parentID: parseInt(parentQuestionId), // Use immediate parent ID
+          mchatr_id: mchatrId ? parseInt(mchatrId) : null, // Inherit mchatr_id from grand-parent
+          nested_level: 2 // Mark as nested level 2
+        });
+      }
     });
   });
   
@@ -487,8 +1033,15 @@ async function submitMchatrF() {
     
     if (response.ok) {
       // Store submission result and show it
+      console.log('✅ API response successful, setting showSubmissionResult to true');
       submissionResult.value = result.data;
       showSubmissionResult.value = true;
+      console.log('📊 submissionResult.value:', submissionResult.value);
+      console.log('📊 showSubmissionResult.value:', showSubmissionResult.value);
+      
+      // Force a small delay to ensure reactivity
+      await new Promise(resolve => setTimeout(resolve, 100));
+      console.log('📊 After delay - showSubmissionResult.value:', showSubmissionResult.value);
       
       emit('submit', {
         questionnaireId: 2,
@@ -636,6 +1189,7 @@ async function submitMchatrF() {
               <span class="text-sm text-gray-500">Loading additional questions...</span>
             </div>
           </div>
+          
 
           <!-- Conditional Sub-Questions -->
           <template v-if="conditionalSubQuestions[question.question_id] && conditionalSubQuestions[question.question_id].length > 0 && shouldShowSubQuestions(question.question_id)">
@@ -650,9 +1204,25 @@ async function submitMchatrF() {
                   Additional Question
                 </div>
                 
-                <h3 class="text-lg font-medium">
-                  {{ conditionalQuestion.question_text_bi || conditionalQuestion.question_text }}
-                  <span v-if="conditionalQuestion.is_required" class="text-red-500">*</span>
+                <h3 class="text-lg font-medium flex items-center">
+                  <!-- Toggle button for nested sub-questions -->
+                  <button 
+                    v-if="conditionalQuestion.has_sub_questions && conditionalQuestion.sub_questions_count > 0" 
+                    @click="toggleNestedSubQuestions(conditionalQuestion.question_id)"
+                    class="mr-2 text-green-600 hover:text-green-800 flex items-center"
+                    :class="{'rotate-90': showingNestedSubQuestions[conditionalQuestion.question_id]}"
+                  >
+                    <Icon name="material-symbols:chevron-right" size="20" />
+                    <span class="text-xs ml-1 bg-green-200 px-1.5 py-0.5 rounded-full">
+                      {{ conditionalQuestion.sub_questions_count }}
+                    </span>
+                  </button>
+                  
+                  
+                  <span>
+                    {{ conditionalQuestion.question_text_bi || conditionalQuestion.question_text }}
+                    <span v-if="conditionalQuestion.is_required" class="text-red-500">*</span>
+                  </span>
                 </h3>
                 <p v-if="conditionalQuestion.question_text_bm" class="text-sm text-gray-500 mt-1">
                   {{ conditionalQuestion.question_text_bm }}
@@ -765,6 +1335,91 @@ async function submitMchatrF() {
                   </div>
                 </div>
               </div>
+              
+              <!-- Loading indicator for nested sub-questions -->
+              <div v-if="loadingNestedSubQuestions[conditionalQuestion.question_id]" class="mt-4 p-3 bg-green-100 border border-green-200 rounded">
+                <div class="flex items-center justify-center">
+                  <div class="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-green-500 mr-2"></div>
+                  <span class="text-sm text-green-700">Loading nested questions...</span>
+                </div>
+              </div>
+              
+              
+              
+              <!-- Nested Sub-Questions (Tier 2) -->
+              <div 
+                v-if="shouldShowNestedSubQuestions(conditionalQuestion.question_id)"
+                class="mt-4 pl-4 border-l-2 border-green-300"
+              >
+                <div 
+                  v-for="(nestedQuestion, nestedIndex) in nestedSubQuestions[conditionalQuestion.question_id]" 
+                  :key="nestedQuestion.question_id" 
+                  class="card p-4 mb-3 border-l-4 border-l-teal-300 bg-teal-50"
+                >
+                  <div class="mb-3">
+                    <div class="text-xs text-teal-600 mb-2 flex items-center">
+                      <Icon name="ic:outline-subdirectory-arrow-right" class="mr-1" />
+                      <span>Nested Question {{ nestedIndex + 1 }}</span>
+                    </div>
+                    
+                    <h4 class="text-base font-medium">
+                      {{ nestedQuestion.question_text_bi || nestedQuestion.question_text }}
+                      <span v-if="nestedQuestion.is_required" class="text-red-500">*</span>
+                    </h4>
+                    <p v-if="nestedQuestion.question_text_bm" class="text-sm text-gray-500 mt-1">
+                      {{ nestedQuestion.question_text_bm }}
+                    </p>
+                  </div>
+                  
+                  <!-- Nested Question Answer Input -->
+                  <div class="mt-3">
+                    <!-- Radio Button Options for Nested Questions -->
+                    <div v-if="nestedQuestion.options && nestedQuestion.options.length > 0" class="space-y-2">
+                      <div 
+                        v-for="option in nestedQuestion.options" 
+                        :key="option.option_id"
+                        class="flex items-center p-3 border rounded cursor-pointer transition-colors"
+                        :class="{
+                          'bg-teal-50 border-teal-300': answers[nestedQuestion.question_id] === option.option_id,
+                          'hover:bg-gray-50': !props.readOnly,
+                          'opacity-60 cursor-not-allowed': props.readOnly
+                        }"
+                        @click="handleOptionSelect(nestedQuestion.question_id, option.option_id)"
+                      >
+                        <div class="w-6 h-6 flex items-center justify-center mr-3">
+                          <div 
+                            class="w-4 h-4 rounded-full border-2"
+                            :class="{
+                              'border-teal-500': answers[nestedQuestion.question_id] === option.option_id,
+                              'border-gray-300': answers[nestedQuestion.question_id] !== option.option_id
+                            }"
+                          >
+                            <div 
+                              v-if="answers[nestedQuestion.question_id] === option.option_id" 
+                              class="w-2 h-2 rounded-full bg-teal-500 m-auto"
+                            ></div>
+                          </div>
+                        </div>
+                        <div>{{ option.option_title }}</div>
+                      </div>
+                    </div>
+                    
+                    <!-- Text Input Type for Nested Questions -->
+                    <div v-else-if="nestedQuestion.answer_type === 33" class="space-y-2">
+                      <textarea
+                        v-model="textAnswers[nestedQuestion.question_id]"
+                        :placeholder="`Enter your answer for: ${nestedQuestion.question_text_bi}`"
+                        :disabled="props.readOnly"
+                        class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                        rows="2"
+                        @input="handleTextAnswerChange(nestedQuestion.question_id, $event.target.value)"
+                      ></textarea>
+                    </div>
+                    
+                    <div v-else class="text-gray-500 italic text-sm">No options available for this question</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </template>
         </div>
@@ -773,14 +1428,16 @@ async function submitMchatrF() {
       <!-- Submit Button -->
       <div class="mt-8 flex justify-end gap-3">
         <rs-button 
-          @click="submitMchatrF"
+          @click="handleSubmitClick"
           :disabled="!requiredQuestionsAnswered || props.readOnly"
           :loading="false"
         >
           Submit MCHATR-F
         </rs-button>
+        
       </div>
     </div>
+    
     
     <!-- Submission Result -->
     <div v-if="showSubmissionResult && submissionResult" class="mt-8">
@@ -932,13 +1589,13 @@ async function submitMchatrF() {
       </div> -->
     </div>
     
-    <div v-else class="text-center py-12">
+    <!-- <div v-else class="text-center py-12">
       <div class="flex flex-col items-center">
         <Icon name="ic:outline-quiz" size="64" class="text-gray-400 mb-4" />
         <h3 class="text-xl font-medium text-gray-600 mb-2">No MCHATR-F Questions Available</h3>
         <p class="text-gray-500">No follow-up questions are available for this patient.</p>
       </div>
-    </div>
+    </div> -->
   </div>
 </template>
 

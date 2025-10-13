@@ -790,6 +790,13 @@
           ],
           "format": "date-time"
         },
+        "updated_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
         "questionnaires_questions_answers": {
           "type": "array",
           "items": {

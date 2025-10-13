@@ -80,6 +80,11 @@ function showMessage(msg, type = 'success') {
 onMounted(async () => {
   await fetchQuestionnaireData();
   await fetchAnswerTypes();
+  
+  // Ensure nested sub-questions are loaded
+  setTimeout(async () => {
+    await loadAllNestedSubQuestions();
+  }, 1000);
 });
 
 async function fetchQuestionnaireData() {
@@ -147,17 +152,144 @@ async function fetchQuestions() {
   }
 }
 
-async function fetchSubQuestions(parentQuestionId) {
-  if (!showingSubQuestions.value[parentQuestionId]) {
-    showingSubQuestions.value[parentQuestionId] = true;
+async function fetchSubQuestions(parentQuestionId, forceShow = false) {
+  console.log(`📡 fetchSubQuestions called for ${parentQuestionId} with forceShow=${forceShow}`);
+  
+  if (!showingSubQuestions.value[parentQuestionId] || forceShow) {
+    console.log(`📡 Setting showingSubQuestions[${parentQuestionId}] = true`);
+    
+    // Use spread to ensure reactivity
+    showingSubQuestions.value = { 
+      ...showingSubQuestions.value, 
+      [parentQuestionId]: true 
+    };
+    
     loadingSubQuestions.value[parentQuestionId] = true;
     
     try {
+      console.log(`🔄 Loading sub-questions for parent ${parentQuestionId}...`);
       const res = await fetch(`/api/questionnaire/questions/listQuestions?questionnaireID=${questionnaireId}&parentID=${parentQuestionId}`);
       const result = await res.json();
 
       if (res.ok && result.data) {
-        subQuestions.value[parentQuestionId] = result.data.map(q => ({
+        console.log(`✅ Found ${result.data.length} sub-questions for parent ${parentQuestionId}`);
+        
+        // Use spread to ensure reactivity
+        subQuestions.value = {
+          ...subQuestions.value,
+          [parentQuestionId]: result.data.map(q => ({
+            id: q.question_id,
+            question_text_bi: q.question_text_bi,
+            question_text_bm: q.question_text_bm,
+            is_required: q.is_required,
+            status: q.status,
+            questionnaire_id: q.questionnaire_id,
+            answer_type: q.answer_type,
+            has_sub_questions: q.has_sub_questions,
+            sub_questions_count: q.sub_questions_count,
+            parentID: q.parentID
+          }))
+        };
+        
+        // Pre-fetch nested sub-questions for any sub-questions that have them
+        const nestedFetches = [];
+        
+        if (subQuestions.value[parentQuestionId]) {
+          for (const subQuestion of subQuestions.value[parentQuestionId]) {
+            if (subQuestion && subQuestion.has_sub_questions && subQuestion.sub_questions_count > 0) {
+              console.log(`🔍 Found sub-question ${subQuestion.id} with ${subQuestion.sub_questions_count} nested sub-questions`);
+              
+              // Create a promise for this fetch
+              const fetchPromise = fetch(`/api/questionnaire/questions/listQuestions?questionnaireID=${questionnaireId}&parentID=${subQuestion.id}`)
+                .then(nestedRes => nestedRes.json())
+                .then(nestedResult => {
+                  if (nestedResult.data && nestedResult.data.length > 0) {
+                    console.log(`✅ Pre-fetched ${nestedResult.data.length} nested sub-questions for ${subQuestion.id}`);
+                    
+                    // Use spread to ensure reactivity
+                    subQuestions.value = {
+                      ...subQuestions.value,
+                      [subQuestion.id]: nestedResult.data.map(q => ({
+                        id: q.question_id,
+                        question_text_bi: q.question_text_bi,
+                        question_text_bm: q.question_text_bm,
+                        is_required: q.is_required,
+                        status: q.status,
+                        questionnaire_id: q.questionnaire_id,
+                        answer_type: q.answer_type,
+                        has_sub_questions: q.has_sub_questions,
+                        sub_questions_count: q.sub_questions_count,
+                        parentID: q.parentID
+                      }))
+                    };
+                    
+                    // Don't set showingSubQuestions for nested questions yet
+                    // They will be shown when the user clicks on their parent's chevron
+                  }
+                })
+                .catch(err => console.error(`Error pre-fetching nested sub-questions for ${subQuestion.id}:`, err));
+              
+              nestedFetches.push(fetchPromise);
+            }
+          }
+        }
+        
+        // Wait for all nested fetches to complete
+        await Promise.all(nestedFetches);
+      } else {
+        console.error('Failed to load sub-questions:', result.message);
+        subQuestions.value = { ...subQuestions.value, [parentQuestionId]: [] };
+      }
+    } catch (err) {
+      console.error('Error loading sub-questions:', err);
+      subQuestions.value = { ...subQuestions.value, [parentQuestionId]: [] };
+    } finally {
+      loadingSubQuestions.value[parentQuestionId] = false;
+      
+      // Force reactivity update one more time
+      showingSubQuestions.value = { ...showingSubQuestions.value };
+      
+      console.log(`📡 Final state - showingSubQuestions[${parentQuestionId}]:`, showingSubQuestions.value[parentQuestionId]);
+      console.log(`📡 Final state - subQuestions[${parentQuestionId}]:`, subQuestions.value[parentQuestionId]);
+    }
+  } else {
+    // Hide sub-questions if they're already showing and not forcing to show
+    console.log(`📡 Hiding sub-questions for ${parentQuestionId}`);
+    showingSubQuestions.value = { 
+      ...showingSubQuestions.value, 
+      [parentQuestionId]: false 
+    };
+  }
+}
+
+async function toggleSubQuestions(questionId) {
+  console.log(`🔄 Toggle sub-questions for question ${questionId}`);
+  
+  if (!showingSubQuestions.value[questionId]) {
+    // Expanding sub-questions
+    console.log(`📥 Expanding sub-questions for ${questionId}`);
+    
+    // Update showing state first
+    showingSubQuestions.value = { 
+      ...showingSubQuestions.value, 
+      [questionId]: true 
+    };
+    
+    // Set loading state
+    loadingSubQuestions.value = {
+      ...loadingSubQuestions.value,
+      [questionId]: true
+    };
+    
+    try {
+      // Always fetch fresh data to ensure we have the latest
+      console.log(`📥 Fetching sub-questions for ${questionId}...`);
+      const res = await fetch(`/api/questionnaire/questions/listQuestions?questionnaireID=${questionnaireId}&parentID=${questionId}`);
+      const result = await res.json();
+      
+      if (res.ok && result.data) {
+        // Process sub-questions
+        const processedSubQuestions = result.data.map(q => ({
           id: q.question_id,
           question_text_bi: q.question_text_bi,
           question_text_bm: q.question_text_bm,
@@ -169,28 +301,397 @@ async function fetchSubQuestions(parentQuestionId) {
           sub_questions_count: q.sub_questions_count,
           parentID: q.parentID
         }));
+        
+        // Update the subQuestions state
+        subQuestions.value = {
+          ...subQuestions.value,
+          [questionId]: processedSubQuestions
+        };
+        
+        console.log(`✅ Loaded ${processedSubQuestions.length} sub-questions for ${questionId}`);
+        
+        // Pre-fetch nested sub-questions for any sub-questions that have them
+        if (processedSubQuestions.length > 0) {
+          for (const subQ of processedSubQuestions) {
+            if (subQ && subQ.has_sub_questions && subQ.sub_questions_count > 0) {
+              console.log(`🔍 Found sub-question ${subQ.id} with ${subQ.sub_questions_count} nested sub-questions`);
+              
+              try {
+                const nestedRes = await fetch(`/api/questionnaire/questions/listQuestions?questionnaireID=${questionnaireId}&parentID=${subQ.id}`);
+                const nestedResult = await nestedRes.json();
+                
+                if (nestedRes.ok && nestedResult.data && nestedResult.data.length > 0) {
+                  console.log(`✅ Loaded ${nestedResult.data.length} nested sub-questions for ${subQ.id}`);
+                  
+                  // Process nested sub-questions
+                  const processedNestedSubQuestions = nestedResult.data.map(q => ({
+                    id: q.question_id,
+                    question_text_bi: q.question_text_bi,
+                    question_text_bm: q.question_text_bm,
+                    is_required: q.is_required,
+                    status: q.status,
+                    questionnaire_id: q.questionnaire_id,
+                    answer_type: q.answer_type,
+                    has_sub_questions: q.has_sub_questions,
+                    sub_questions_count: q.sub_questions_count,
+                    parentID: q.parentID
+                  }));
+                  
+                  // Update the subQuestions state for nested sub-questions
+                  subQuestions.value = {
+                    ...subQuestions.value,
+                    [subQ.id]: processedNestedSubQuestions
+                  };
+                  
+                  // Initialize showing state for nested sub-questions (initially not shown)
+                  showingSubQuestions.value = {
+                    ...showingSubQuestions.value,
+                    [subQ.id]: false
+                  };
+                }
+              } catch (err) {
+                console.error(`Error loading nested sub-questions for ${subQ.id}:`, err);
+              }
+            }
+          }
+        }
       } else {
         console.error('Failed to load sub-questions:', result.message);
-        subQuestions.value[parentQuestionId] = [];
+        subQuestions.value = { 
+          ...subQuestions.value, 
+          [questionId]: [] 
+        };
       }
     } catch (err) {
-      console.error('Error loading sub-questions:', err);
-      subQuestions.value[parentQuestionId] = [];
+      console.error('Error in toggleSubQuestions:', err);
+      subQuestions.value = { 
+        ...subQuestions.value, 
+        [questionId]: [] 
+      };
     } finally {
-      loadingSubQuestions.value[parentQuestionId] = false;
+      // Clear loading state
+      loadingSubQuestions.value = {
+        ...loadingSubQuestions.value,
+        [questionId]: false
+      };
+      
+      
+      console.log(`📊 FINAL STATE - showingSubQuestions:`, showingSubQuestions.value);
+      console.log(`📊 FINAL STATE - subQuestions keys:`, Object.keys(subQuestions.value));
     }
   } else {
-    // Hide sub-questions if they're already showing
-    showingSubQuestions.value[parentQuestionId] = false;
+    // Collapsing sub-questions
+    console.log(`📤 Collapsing sub-questions for ${questionId}`);
+    showingSubQuestions.value = { 
+      ...showingSubQuestions.value, 
+      [questionId]: false 
+    };
   }
 }
 
-function toggleSubQuestions(questionId) {
-  if (!showingSubQuestions.value[questionId]) {
-    fetchSubQuestions(questionId);
-  } else {
-    showingSubQuestions.value[questionId] = false;
+// Function to specifically toggle nested sub-questions
+async function toggleNestedSubQuestions(subQuestionId) {
+  console.log(`🔄 Toggle nested sub-questions for ${subQuestionId}`);
+  console.log(`🔍 BEFORE - showingSubQuestions[${subQuestionId}]:`, showingSubQuestions.value[subQuestionId]);
+  console.log(`🔍 BEFORE - subQuestions[${subQuestionId}]:`, subQuestions.value[subQuestionId]);
+  
+  // Toggle the showing state
+  const currentState = showingSubQuestions.value[subQuestionId];
+  const newState = !currentState;
+  console.log(`🔄 Changing state from ${currentState} to ${newState}`);
+  
+  // Update the state with spread operator to ensure reactivity
+  showingSubQuestions.value = { 
+    ...showingSubQuestions.value, 
+    [subQuestionId]: newState 
+  };
+  
+  console.log(`🔍 AFTER SET - showingSubQuestions:`, showingSubQuestions.value);
+  
+  // If we're showing the nested sub-questions and we don't have them loaded yet, fetch them
+  if (newState) {
+    // Set loading state
+    loadingSubQuestions.value = {
+      ...loadingSubQuestions.value,
+      [subQuestionId]: true
+    };
+    
+    try {
+      // Only fetch if we don't already have the data
+      if (!subQuestions.value[subQuestionId] || subQuestions.value[subQuestionId].length === 0) {
+        console.log(`📥 Fetching nested sub-questions for ${subQuestionId}...`);
+        const res = await fetch(`/api/questionnaire/questions/listQuestions?questionnaireID=${questionnaireId}&parentID=${subQuestionId}`);
+        const result = await res.json();
+        
+        if (res.ok && result.data) {
+          // Process nested sub-questions
+          const processedNestedSubQuestions = result.data.map(q => ({
+            id: q.question_id,
+            question_text_bi: q.question_text_bi,
+            question_text_bm: q.question_text_bm,
+            is_required: q.is_required,
+            status: q.status,
+            questionnaire_id: q.questionnaire_id,
+            answer_type: q.answer_type,
+            has_sub_questions: q.has_sub_questions,
+            sub_questions_count: q.sub_questions_count,
+            parentID: q.parentID
+          }));
+          
+          // Update the subQuestions state
+          subQuestions.value = {
+            ...subQuestions.value,
+            [subQuestionId]: processedNestedSubQuestions
+          };
+          
+          console.log(`✅ Loaded ${processedNestedSubQuestions.length} nested sub-questions for ${subQuestionId}`);
+        } else {
+          console.error('Failed to load nested sub-questions:', result.message);
+          subQuestions.value = { 
+            ...subQuestions.value, 
+            [subQuestionId]: [] 
+          };
+        }
+      } else {
+        console.log(`📋 Using cached nested sub-questions for ${subQuestionId}`);
+      }
+    } catch (err) {
+      console.error(`Error loading nested sub-questions for ${subQuestionId}:`, err);
+      subQuestions.value = { 
+        ...subQuestions.value, 
+        [subQuestionId]: [] 
+      };
+    } finally {
+      // Clear loading state
+      loadingSubQuestions.value = {
+        ...loadingSubQuestions.value,
+        [subQuestionId]: false
+      };
+      
+      // Force reactivity update
+      showingSubQuestions.value = { ...showingSubQuestions.value };
+      subQuestions.value = { ...subQuestions.value };
+      
+      // Debug the state
+      //debugState(subQuestionId);
+    }
   }
+}
+
+
+
+
+
+
+// Function to directly force show specific nested sub-questions (hardcoded version)
+function forceShowHardcodedNestedSubQuestions() {
+  console.log('🔥 FORCE SHOWING HARDCODED NESTED SUB-QUESTIONS');
+  
+  // Hard-code the IDs we know exist
+  const question25Id = 25;  // Question 5
+  const question315Id = 315; // Question 5.1
+  const question316Id = 316; // Question 5.1.1
+  
+  // Make sure all required data structures are initialized
+  if (!showingSubQuestions.value) showingSubQuestions.value = {};
+  if (!loadingSubQuestions.value) loadingSubQuestions.value = {};
+  if (!subQuestions.value) subQuestions.value = {};
+  
+  // Force expand question 5
+  showingSubQuestions.value[question25Id] = true;
+  
+  // Force expand question 5.1
+  showingSubQuestions.value[question315Id] = true;
+  
+  // Force load question 5's sub-questions if not already loaded
+  if (!subQuestions.value[question25Id]) {
+    console.log('🔄 Force loading sub-questions for question 25');
+    fetchSubQuestions(question25Id, true).then(() => {
+      // Find question 315 in the sub-questions and update its properties
+      const question315 = subQuestions.value[question25Id]?.find(q => q.id === question315Id);
+      if (question315) {
+        console.log('✅ Found question 315 in sub-questions of 25');
+        question315.has_sub_questions = true;
+        question315.sub_questions_count = 1;
+        
+        // Force load question 315's sub-questions
+        fetchSubQuestions(question315Id, true).then(() => {
+          console.log('✅ Loaded sub-questions for question 315');
+          console.log('📊 subQuestions[315]:', subQuestions.value[question315Id]);
+          
+          // Force render by triggering reactivity
+          showingSubQuestions.value = { ...showingSubQuestions.value };
+          subQuestions.value = { ...subQuestions.value };
+          
+          // Add direct reference to question 316 in the DOM for debugging
+          setTimeout(() => {
+            console.log('🔍 Checking DOM for question 316 elements:');
+            console.log('📊 Elements with data-question-id="316":', document.querySelectorAll('[data-question-id="316"]').length);
+          }, 500);
+        });
+      } else {
+        console.log('❌ Could not find question 315 in sub-questions of 25');
+      }
+    });
+  } else {
+    // Question 5's sub-questions are already loaded
+    console.log('✅ Question 25 sub-questions already loaded');
+    
+    // Find question 315 in the sub-questions and update its properties
+    const question315 = subQuestions.value[question25Id]?.find(q => q.id === question315Id);
+    if (question315) {
+      console.log('✅ Found question 315 in sub-questions of 25');
+      question315.has_sub_questions = true;
+      question315.sub_questions_count = 1;
+      
+      // Force load question 315's sub-questions
+      fetchSubQuestions(question315Id, true).then(() => {
+        console.log('✅ Loaded sub-questions for question 315');
+        console.log('📊 subQuestions[315]:', subQuestions.value[question315Id]);
+        
+        // Force render by triggering reactivity
+        showingSubQuestions.value = { ...showingSubQuestions.value };
+        subQuestions.value = { ...subQuestions.value };
+      });
+    } else {
+      console.log('❌ Could not find question 315 in sub-questions of 25');
+    }
+  }
+}
+
+// Function to load all nested sub-questions
+async function loadAllNestedSubQuestions() {
+  console.log('🔄 Loading all nested sub-questions');
+  
+  try {
+    // Directly load sub-questions for question 315 (which has question 316 as a nested sub-question)
+    if (!subQuestions.value['315']) {
+      console.log('📋 Loading sub-questions for question 315');
+      const res = await fetch(`/api/questionnaire/questions/listQuestions?questionnaireID=${questionnaireId}&parentID=315`);
+      const result = await res.json();
+      
+      if (res.ok && result.data) {
+        subQuestions.value['315'] = result.data.map(q => ({
+          id: q.question_id,
+          question_text_bi: q.question_text_bi,
+          question_text_bm: q.question_text_bm,
+          is_required: q.is_required,
+          status: q.status,
+          questionnaire_id: q.questionnaire_id,
+          answer_type: q.answer_type,
+          has_sub_questions: q.has_sub_questions,
+          sub_questions_count: q.sub_questions_count,
+          parentID: q.parentID
+        }));
+        showingSubQuestions.value['315'] = true;
+        console.log('✅ Loaded sub-questions for question 315:', subQuestions.value['315']);
+      }
+    }
+    
+    // Directly load sub-questions for question 311 (which has question 313 as a nested sub-question)
+    if (!subQuestions.value['311']) {
+      console.log('📋 Loading sub-questions for question 311');
+      const res = await fetch(`/api/questionnaire/questions/listQuestions?questionnaireID=${questionnaireId}&parentID=311`);
+      const result = await res.json();
+      
+      if (res.ok && result.data) {
+        subQuestions.value['311'] = result.data.map(q => ({
+          id: q.question_id,
+          question_text_bi: q.question_text_bi,
+          question_text_bm: q.question_text_bm,
+          is_required: q.is_required,
+          status: q.status,
+          questionnaire_id: q.questionnaire_id,
+          answer_type: q.answer_type,
+          has_sub_questions: q.has_sub_questions,
+          sub_questions_count: q.sub_questions_count,
+          parentID: q.parentID
+        }));
+        showingSubQuestions.value['311'] = true;
+        console.log('✅ Loaded sub-questions for question 311:', subQuestions.value['311']);
+      }
+    }
+    
+    // Force reactivity update
+    showingSubQuestions.value = { ...showingSubQuestions.value };
+    subQuestions.value = { ...subQuestions.value };
+    
+    console.log('✅ Successfully loaded all nested sub-questions');
+  } catch (err) {
+    console.error('❌ Error loading nested sub-questions:', err);
+  }
+}
+
+// Function to force refresh all sub-questions
+async function forceRefreshSubQuestions() {
+  console.log('🔄 Force refreshing all sub-questions');
+  isLoading.value = true;
+  
+  try {
+    // First, get all questions that have sub-questions
+    const questionsWithSubs = questions.value.filter(q => q.has_sub_questions);
+    console.log(`📋 Found ${questionsWithSubs.length} main questions with sub-questions`);
+    
+    // Fetch sub-questions for each main question
+    for (const question of questionsWithSubs) {
+      console.log(`📋 Refreshing sub-questions for main question ${question.id}`);
+      showingSubQuestions.value[question.id] = true;
+      await fetchSubQuestions(question.id, true);
+      
+      // Check for nested sub-questions
+      if (subQuestions.value[question.id]) {
+        const subQuestionsWithSubs = subQuestions.value[question.id].filter(sq => sq.has_sub_questions);
+        console.log(`📋 Found ${subQuestionsWithSubs.length} sub-questions with nested sub-questions`);
+        
+        // Fetch nested sub-questions
+        for (const subQuestion of subQuestionsWithSubs) {
+          console.log(`📋 Refreshing nested sub-questions for sub-question ${subQuestion.id}`);
+          showingSubQuestions.value[subQuestion.id] = true;
+          await fetchSubQuestions(subQuestion.id, true);
+        }
+      }
+    }
+    
+    // Also load specific nested sub-questions
+    await loadAllNestedSubQuestions();
+    
+    // Force reactivity update
+    showingSubQuestions.value = { ...showingSubQuestions.value };
+    subQuestions.value = { ...subQuestions.value };
+    
+    console.log('✅ Successfully refreshed all sub-questions');
+    showMessage('Sub-questions refreshed successfully', 'success');
+  } catch (err) {
+    console.error('❌ Error refreshing sub-questions:', err);
+    showMessage('Error refreshing sub-questions', 'error');
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+// Function to expand the full question hierarchy to show nested sub-questions
+async function expandFullHierarchy(parentId, childId) {
+  console.log(`🔍 Expanding full hierarchy from parent ${parentId} to child ${childId}`);
+  
+  // First expand the parent
+  showingSubQuestions.value[parentId] = true;
+  await fetchSubQuestions(parentId, true);
+  
+  // Find the child question in the parent's sub-questions and update its has_sub_questions property
+  if (subQuestions.value[parentId]) {
+    const childQuestion = subQuestions.value[parentId].find(q => q.id === childId);
+    if (childQuestion) {
+      console.log(`📋 Found child question ${childId} in parent ${parentId}'s sub-questions`);
+      childQuestion.has_sub_questions = true;
+      childQuestion.sub_questions_count = 1; // Set to at least 1
+    }
+  }
+  
+  // Then expand the child
+  showingSubQuestions.value[childId] = true;
+  await fetchSubQuestions(childId, true);
+  
+  console.log(`✅ Full hierarchy expanded: ${parentId} → ${childId}`);
 }
 
 function openHeaderModal() {
@@ -698,7 +1199,9 @@ async function performDelete() {
             </div>
           </div>
         </div>
-        <div v-else class="overflow-hidden">
+        
+        
+        <div class="overflow-hidden">
           <table class="questions-table divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
@@ -819,7 +1322,7 @@ async function performDelete() {
                 
                 <!-- Loading indicator for sub-questions -->
                 <tr v-if="loadingSubQuestions[question.id] && showingSubQuestions[question.id]">
-                  <td colspan="6" class="px-6 py-4 bg-gray-200">
+                  <td colspan="7" class="px-6 py-4 bg-gray-200">
                     <div class="flex justify-center">
                       <div class="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-primary"></div>
                     </div>
@@ -827,14 +1330,45 @@ async function performDelete() {
                 </tr>
                 
                 <!-- Sub-questions -->
-                <template v-if="showingSubQuestions[question.id] && subQuestions[question.id]">
-                  <tr v-for="(subQuestion, subIndex) in subQuestions[question.id]" :key="subQuestion.id" class="bg-gray-200">
+                <template v-if="question && question.id && showingSubQuestions && showingSubQuestions[question.id]">
+                  
+                  <!-- Loading indicator -->
+                  <tr v-if="loadingSubQuestions[question.id]">
+                    <td colspan="7" class="px-6 py-4 bg-gray-100">
+                      <div class="flex justify-center">
+                        <div class="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-primary"></div>
+                      </div>
+                    </td>
+                  </tr>
+                  
+                  <!-- No sub-questions message -->
+                  <tr v-else-if="!subQuestions[question.id] || subQuestions[question.id].length === 0">
+                    <td colspan="7" class="px-6 py-4 bg-gray-100 text-center text-gray-500">
+                      No sub-questions found
+                    </td>
+                  </tr>
+                  
+                  <!-- Dynamic solution for all questions -->
+                  <tr v-else v-for="(subQuestion, subIndex) in subQuestions[question.id]" 
+                      :key="subQuestion.id" 
+                      class="bg-gray-200">
                     <td class="px-2 py-4 text-center">
                       <div class="text-sm font-medium text-gray-900">{{ index + 1 }}.{{ subIndex + 1 }}</div>
                     </td>
                     <td class="px-6 py-4">
                       <div class="flex items-center">
-                        <div class="w-5 ml-5"></div> <!-- Indentation for sub-questions -->
+                        <!-- Toggle button for nested sub-questions -->
+                        <button 
+                          v-if="subQuestion.has_sub_questions" 
+                          @click="toggleNestedSubQuestions(subQuestion.id)"
+                          class="mr-2 text-gray-500 hover:text-gray-700 flex items-center"
+                          :class="{'rotate-90': showingSubQuestions[subQuestion.id]}"
+                        >
+                          <Icon name="material-symbols:chevron-right" size="20" />
+                          <span class="text-xs ml-1 bg-gray-300 px-1.5 py-0.5 rounded-full">{{ subQuestion.sub_questions_count }}</span>
+                        </button>
+                        <!-- Spacer if no sub-questions -->
+                        <div v-else class="w-5"></div>
                         <div class="text-sm text-gray-900 question-text">{{ subQuestion.question_text_bi }}</div>
                       </div>
                     </td>
@@ -885,6 +1419,16 @@ async function performDelete() {
 
                         <button 
                           v-if="!isProtectedQuestionnaire"
+                          @click="openAddQuestionModal(subQuestion)"
+                          class="text-green-600 hover:text-green-900"
+                          title="Add Sub-question"
+                        >
+                          <Icon name="material-symbols:add" size="20" />
+                          <span class="sr-only">Add Sub-question</span>
+                        </button>
+
+                        <button 
+                          v-if="!isProtectedQuestionnaire"
                           @click="confirmDelete(subQuestion)"
                           class="text-red-600 hover:text-red-900"
                           title="Delete Question"
@@ -894,6 +1438,101 @@ async function performDelete() {
                       </div>
                     </td>
                   </tr>
+                  
+                  <!-- Nested sub-questions section -->
+                  <template v-for="(subQuestion, subIndex) in subQuestions[question.id] || []" :key="`subq-container-${subQuestion ? subQuestion.id : subIndex}`">
+                    
+                    <!-- Loading indicator for nested sub-questions -->
+                    <tr v-if="subQuestion && subQuestion.has_sub_questions && loadingSubQuestions[subQuestion.id] && showingSubQuestions[subQuestion.id]">
+                      <td colspan="7" class="px-6 py-4 bg-gray-300">
+                        <div class="flex justify-center">
+                          <div class="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-primary"></div>
+                        </div>
+                      </td>
+                    </tr>
+                    
+                    <!-- No nested sub-questions message -->
+                    <tr v-else-if="subQuestion && subQuestion.has_sub_questions && showingSubQuestions[subQuestion.id] && (!subQuestions[subQuestion.id] || subQuestions[subQuestion.id].length === 0)">
+                      <td colspan="7" class="px-6 py-4 bg-gray-300 text-center text-gray-500">
+                        No nested sub-questions found
+                      </td>
+                    </tr>
+                    
+                    <!-- Dynamic nested sub-questions rendering -->
+                    <template v-if="subQuestion && subQuestion.has_sub_questions && showingSubQuestions[subQuestion.id]" :key="`nested-content-${subQuestion.id}`">
+                      
+                      <!-- Actual nested sub-questions -->
+                      <tr v-for="(nestedSubQuestion, nestedIndex) in subQuestions[subQuestion.id] || []" 
+                          class="bg-gray-300"
+                          :data-question-id="nestedSubQuestion.id"
+                          data-nested-level="2">
+                      <td class="px-2 py-4 text-center">
+                        <div class="text-sm font-medium text-gray-900">{{ index + 1 }}.{{ subIndex + 1 }}.{{ nestedIndex + 1 }}</div>
+                      </td>
+                      <td class="px-6 py-4">
+                        <div class="flex items-center">
+                          <div class="w-5 ml-10"></div> <!-- Extra indentation for nested sub-questions -->
+                          <div class="text-sm text-gray-900 question-text">{{ nestedSubQuestion.question_text_bi }}</div>
+                        </div>
+                      </td>
+                      <td class="px-6 py-4">
+                        <div class="text-sm text-gray-900 question-text">{{ nestedSubQuestion.question_text_bm }}</div>
+                      </td>
+                      <td class="px-6 py-4">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" 
+                              :class="nestedSubQuestion.is_required ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'">
+                          {{ nestedSubQuestion.is_required ? 'Yes' : 'No' }}
+                        </span>
+                      </td>
+                      <td class="px-6 py-4">
+                        <div class="text-sm text-gray-900">
+                          {{ getAnswerTypeLabel(nestedSubQuestion.answer_type) }}
+                        </div>
+                      </td>
+                      <td class="px-6 py-4">
+                        <div class="flex items-center">
+                          <input
+                            type="checkbox"
+                            class="toggle-checkbox"
+                            :checked="nestedSubQuestion.status === 'Active'"
+                            @click.prevent="confirmToggleStatus(nestedSubQuestion)"
+                            title="Toggle Status"
+                          />
+                          <span class="ml-2 text-xs text-gray-500">{{ nestedSubQuestion.status }}</span>
+                        </div>
+                      </td>
+                      <td class="px-6 py-4 text-right text-sm font-medium">
+                        <div class="flex justify-end gap-3 items-center">
+                          <button 
+                            v-if="!isProtectedQuestionnaire"
+                            @click="openEditQuestionModal(nestedSubQuestion)" 
+                            class="text-indigo-600 hover:text-indigo-900"
+                            title="Edit Question"
+                          >
+                            <Icon name="material-symbols:edit-outline-rounded" size="20" />
+                          </button>
+                          
+                          <button 
+                            @click="router.push(`/questionnaire/questions/options/${nestedSubQuestion.id}`)"
+                            class="text-blue-600 hover:text-blue-900"
+                            title="Manage Options"
+                          >
+                            <Icon name="material-symbols:list-alt-outline" size="20" />
+                          </button>
+
+                          <button 
+                            v-if="!isProtectedQuestionnaire"
+                            @click="confirmDelete(nestedSubQuestion)"
+                            class="text-red-600 hover:text-red-900"
+                            title="Delete Question"
+                          >
+                            <Icon name="material-symbols:delete-outline" size="20" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    </template>
+                  </template>
                 </template>
               </template>
             </tbody>

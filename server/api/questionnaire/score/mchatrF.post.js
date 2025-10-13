@@ -27,6 +27,8 @@ export default defineEventHandler(async (event) => {
       // Main questions and sub-questions both have mchatr_id pointing to MCHAT-R question
       const parentQuestionId = answer.mchatr_id || answer.question_id;
       
+      console.log(`📝 Grouping answer: question_id=${answer.question_id}, mchatr_id=${answer.mchatr_id}, parentQuestionId=${parentQuestionId}, option_value=${answer.option_value}`);
+      
       if (!answersByParentQuestion[parentQuestionId]) {
         answersByParentQuestion[parentQuestionId] = [];
       }
@@ -79,54 +81,29 @@ export default defineEventHandler(async (event) => {
 
     console.log(`📋 RESULT: ${resultStatus} (${resultInterpretation})`);
 
-    // Save the response to database - Update existing record or create new one
+    // Save the response to database - Always create new record for history tracking
     let qrRecord = null;
     if (patientId) {
-      // Check if patient already has a response for this questionnaire
-      const existingResponse = await prisma.questionnaires_responds.findFirst({
-        where: {
+      console.log(`\n💾 Creating new response record for patient ${patientId}, questionnaire ${questionnaireId}`);
+      
+      // Always create a new record to maintain submission history
+      qrRecord = await prisma.questionnaires_responds.create({
+        data: {
           questionnaire_id: parseInt(questionnaireId),
-          patient_id: parseInt(patientId)
-        },
-        orderBy: {
-          created_at: 'desc'
+          patient_id: parseInt(patientId),
+          total_score: totalScore,
+          created_at: new Date()
         }
       });
+      
+      console.log(`✅ Created new response record (qr_id: ${qrRecord.qr_id}) - maintaining submission history`);
 
-      if (existingResponse) {
-        // Update existing record
-        qrRecord = await prisma.questionnaires_responds.update({
-          where: {
-            qr_id: existingResponse.qr_id
-          },
-          data: {
-            total_score: totalScore,
-            updated_at: new Date()
-          }
-        });
-
-        // Delete existing answers before inserting new ones
-        await prisma.questionnaires_questions_answers.deleteMany({
-          where: {
-            qr_id: existingResponse.qr_id
-          }
-        });
-      } else {
-        // Create new record
-        qrRecord = await prisma.questionnaires_responds.create({
-          data: {
-            questionnaire_id: parseInt(questionnaireId),
-            patient_id: parseInt(patientId),
-            total_score: totalScore,
-            created_at: new Date()
-          }
-        });
-      }
-
-      // Save individual answers
+      // Save individual answers for this new submission
+      console.log(`💾 Saving ${answers.length} individual answers for new submission qr_id: ${qrRecord.qr_id}`);
+      
       const savedAnswers = await Promise.all(
         answers.map(async (answer) => {
-          return prisma.questionnaires_questions_answers.create({
+          const savedAnswer = await prisma.questionnaires_questions_answers.create({
             data: {
               qr_id: qrRecord.qr_id,
               question_id: parseInt(answer.question_id),
@@ -136,13 +113,18 @@ export default defineEventHandler(async (event) => {
               created_at: new Date()
             }
           });
+          
+          console.log(`  ✅ Saved answer: question_id=${answer.question_id}, option_id=${answer.option_id}, score=${answer.score || 0}`);
+          return savedAnswer;
         })
       );
+      
+      console.log(`✅ Successfully saved ${savedAnswers.length} answers for submission history`);
     }
 
     return {
       statusCode: 200,
-      message: "MCHATR-F scoring completed successfully",
+      message: "MCHATR-F scoring completed successfully - new submission saved to history",
       data: {
         questionnaire_id: parseInt(questionnaireId),
         patient_id: patientId ? parseInt(patientId) : null,
@@ -220,6 +202,8 @@ function calculateMchatrFQuestionScore(parentQuestionId, subQuestionAnswers) {
   } else if (hasZeroValue && hasOneValue) {
     console.log(`\n✅ DECISION: Case 3 - Yes to both 0 and 1 example(s)`);
     console.log(`   Comparing: ${oneValueAnswers.length} one-value vs ${zeroValueAnswers.length} zero-value`);
+    console.log(`   Detailed comparison: oneValueAnswers.length=${oneValueAnswers.length}, zeroValueAnswers.length=${zeroValueAnswers.length}`);
+    console.log(`   Comparison result: oneValueAnswers.length > zeroValueAnswers.length = ${oneValueAnswers.length > zeroValueAnswers.length}`);
     
     if (oneValueAnswers.length > zeroValueAnswers.length) {
       console.log(`   → More 1-value answers (${oneValueAnswers.length} > ${zeroValueAnswers.length})`);
@@ -257,7 +241,8 @@ function getScoringLogicExplanation(questionId, answers, finalScore) {
   } else if (!hasZeroValue && hasOneValue) {
     logic = "Yes only to 1 example(s) → Score = 1";
   } else if (hasZeroValue && hasOneValue) {
-    logic = `Yes to both 0 and 1 example(s) → More frequent: ${oneValueAnswers.length >= zeroValueAnswers.length ? '1-value' : '0-value'} → Score = ${finalScore}`;
+    const moreFrequent = oneValueAnswers.length > zeroValueAnswers.length ? '1-value' : '0-value';
+    logic = `Yes to both 0 and 1 example(s) → More frequent: ${moreFrequent} → Score = ${finalScore}`;
   } else {
     logic = "No answers selected → Score = 0";
   }
