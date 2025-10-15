@@ -45,6 +45,11 @@ const loadingSubQuestions = ref({});
 const subQuestions = ref({});
 const addingSubQuestionFor = ref(null);
 
+// Add these new refs for deep nested sub-questions handling (4th level)
+const showingDeepNestedSubQuestions = ref({});
+const loadingDeepNestedSubQuestions = ref({});
+const deepNestedSubQuestions = ref({});
+
 // Add refs for delete functionality
 const showDeleteModal = ref(false);
 const pendingDeleteQuestion = ref(null);
@@ -478,8 +483,81 @@ async function toggleNestedSubQuestions(subQuestionId) {
   }
 }
 
-
-
+// Function to toggle deep nested sub-questions (4th level)
+async function toggleDeepNestedSubQuestions(nestedSubQuestionId) {
+  console.log(`🔄 Toggle deep nested sub-questions for ${nestedSubQuestionId}`);
+  
+  // Toggle the showing state using the separate deep nested state
+  const currentState = showingDeepNestedSubQuestions.value[nestedSubQuestionId];
+  const newState = !currentState;
+  
+  // Create a new object to ensure Vue detects the change
+  const newShowingDeepNestedSubQuestions = { ...showingDeepNestedSubQuestions.value };
+  newShowingDeepNestedSubQuestions[nestedSubQuestionId] = newState;
+  showingDeepNestedSubQuestions.value = newShowingDeepNestedSubQuestions;
+  
+  if (newState) {
+    // Set loading state using the separate deep nested state
+    const newLoadingDeepNestedSubQuestions = { ...loadingDeepNestedSubQuestions.value };
+    newLoadingDeepNestedSubQuestions[nestedSubQuestionId] = true;
+    loadingDeepNestedSubQuestions.value = newLoadingDeepNestedSubQuestions;
+    
+    try {
+      // Only fetch if we don't already have the data
+      if (!deepNestedSubQuestions.value[nestedSubQuestionId] || deepNestedSubQuestions.value[nestedSubQuestionId].length === 0) {
+        console.log(`📥 Fetching deep nested sub-questions for ${nestedSubQuestionId}...`);
+        const res = await fetch(`/api/questionnaire/questions/listQuestions?questionnaireID=${questionnaireId}&parentID=${nestedSubQuestionId}`);
+        const result = await res.json();
+        
+        if (res.ok && result.data) {
+          // Process deep nested sub-questions
+          const processedDeepNestedSubQuestions = result.data.map(q => ({
+            id: q.question_id,
+            question_text_bi: q.question_text_bi,
+            question_text_bm: q.question_text_bm,
+            is_required: q.is_required,
+            status: q.status,
+            questionnaire_id: q.questionnaire_id,
+            answer_type: q.answer_type,
+            has_sub_questions: q.has_sub_questions,
+            sub_questions_count: q.sub_questions_count,
+            parentID: q.parentID
+          }));
+          
+          console.log('🔍 processedDeepNestedSubQuestions:', processedDeepNestedSubQuestions);
+          
+          // Create a new object to ensure Vue detects the change
+          const newDeepNestedSubQuestions = { ...deepNestedSubQuestions.value };
+          newDeepNestedSubQuestions[nestedSubQuestionId] = processedDeepNestedSubQuestions;
+          deepNestedSubQuestions.value = newDeepNestedSubQuestions;
+          
+          console.log(`✅ Loaded ${processedDeepNestedSubQuestions.length} deep nested sub-questions for ${nestedSubQuestionId}`);
+        } else {
+          console.error('Failed to load deep nested sub-questions:', result.message);
+          
+          // Create a new object to ensure Vue detects the change
+          const newDeepNestedSubQuestions = { ...deepNestedSubQuestions.value };
+          newDeepNestedSubQuestions[nestedSubQuestionId] = [];
+          deepNestedSubQuestions.value = newDeepNestedSubQuestions;
+        }
+      } else {
+        console.log(`📋 Using cached deep nested sub-questions for ${nestedSubQuestionId}`);
+      }
+    } catch (err) {
+      console.error(`Error loading deep nested sub-questions for ${nestedSubQuestionId}:`, err);
+      
+      // Create a new object to ensure Vue detects the change
+      const newDeepNestedSubQuestions = { ...deepNestedSubQuestions.value };
+      newDeepNestedSubQuestions[nestedSubQuestionId] = [];
+      deepNestedSubQuestions.value = newDeepNestedSubQuestions;
+    } finally {
+      // Clear loading state using the separate deep nested state
+      const finalLoadingDeepNestedSubQuestions = { ...loadingDeepNestedSubQuestions.value };
+      finalLoadingDeepNestedSubQuestions[nestedSubQuestionId] = false;
+      loadingDeepNestedSubQuestions.value = finalLoadingDeepNestedSubQuestions;
+    }
+  }
+}
 
 
 
@@ -1205,7 +1283,7 @@ async function performDelete() {
           <table class="questions-table divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
-                <th scope="col" class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider col-no" style="min-width: 40px; width: 40px;">
+                <th scope="col" class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider col-no" style="min-width: 80px; width: 80px;">
                   No
                 </th>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider col-question-bm">
@@ -1458,83 +1536,205 @@ async function performDelete() {
                       </td>
                     </tr>
                     
-                    <!-- Dynamic nested sub-questions rendering -->
-                    <template v-if="subQuestion && subQuestion.has_sub_questions && showingSubQuestions[subQuestion.id]" :key="`nested-content-${subQuestion.id}`">
+                  <!-- Dynamic nested sub-questions rendering -->
+                  <template v-if="subQuestion && subQuestion.has_sub_questions && showingSubQuestions[subQuestion.id]" :key="`nested-content-${subQuestion.id}`">
                       
-                      <!-- Actual nested sub-questions -->
-                      <tr v-for="(nestedSubQuestion, nestedIndex) in subQuestions[subQuestion.id] || []" 
-                          class="bg-gray-300"
+                    <!-- Actual nested sub-questions -->
+                    <template v-for="(nestedSubQuestion, nestedIndex) in subQuestions[subQuestion.id] || []" :key="`nested-${nestedSubQuestion.id}`">
+                      <!-- Nested sub-question row -->
+                      <tr class="bg-gray-300"
                           :data-question-id="nestedSubQuestion.id"
                           data-nested-level="2">
-                      <td class="px-2 py-4 text-center">
-                        <div class="text-sm font-medium text-gray-900">{{ index + 1 }}.{{ subIndex + 1 }}.{{ nestedIndex + 1 }}</div>
-                      </td>
-                      <td class="px-6 py-4">
-                        <div class="flex items-center">
-                          <div class="w-5 ml-10"></div> <!-- Extra indentation for nested sub-questions -->
-                          <div class="text-sm text-gray-900 question-text">{{ nestedSubQuestion.question_text_bi }}</div>
-                        </div>
-                      </td>
-                      <td class="px-6 py-4">
-                        <div class="text-sm text-gray-900 question-text">{{ nestedSubQuestion.question_text_bm }}</div>
-                      </td>
-                      <td class="px-6 py-4">
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" 
-                              :class="nestedSubQuestion.is_required ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'">
-                          {{ nestedSubQuestion.is_required ? 'Yes' : 'No' }}
-                        </span>
-                      </td>
-                      <td class="px-6 py-4">
-                        <div class="text-sm text-gray-900">
-                          {{ getAnswerTypeLabel(nestedSubQuestion.answer_type) }}
-                        </div>
-                      </td>
-                      <td class="px-6 py-4">
-                        <div class="flex items-center">
-                          <input
-                            type="checkbox"
-                            class="toggle-checkbox"
-                            :checked="nestedSubQuestion.status === 'Active'"
-                            @click.prevent="confirmToggleStatus(nestedSubQuestion)"
-                            title="Toggle Status"
-                          />
-                          <span class="ml-2 text-xs text-gray-500">{{ nestedSubQuestion.status }}</span>
-                        </div>
-                      </td>
-                      <td class="px-6 py-4 text-right text-sm font-medium">
-                        <div class="flex justify-end gap-3 items-center">
-                          <button 
-                            v-if="!isProtectedQuestionnaire"
-                            @click="openEditQuestionModal(nestedSubQuestion)" 
-                            class="text-indigo-600 hover:text-indigo-900"
-                            title="Edit Question"
-                          >
-                            <Icon name="material-symbols:edit-outline-rounded" size="20" />
-                          </button>
-                          
-                          <button 
-                            @click="router.push(`/questionnaire/questions/options/${nestedSubQuestion.id}`)"
-                            class="text-blue-600 hover:text-blue-900"
-                            title="Manage Options"
-                          >
-                            <Icon name="material-symbols:list-alt-outline" size="20" />
-                          </button>
+                        <td class="px-2 py-4 text-center">
+                          <div class="text-sm font-medium text-gray-900">{{ index + 1 }}.{{ subIndex + 1 }}.{{ nestedIndex + 1 }}</div>
+                        </td>
+                        <td class="px-6 py-4">
+                          <div class="flex items-center">
+                            <div class="w-5 ml-10"></div> <!-- Extra indentation for nested sub-questions -->
+                            <!-- Toggle button for deep nested sub-questions -->
+                            <button 
+                              v-if="nestedSubQuestion.has_sub_questions" 
+                              @click="toggleDeepNestedSubQuestions(nestedSubQuestion.id)"
+                              class="mr-2 text-gray-500 hover:text-gray-700 flex items-center"
+                              :class="{'rotate-90': showingDeepNestedSubQuestions[nestedSubQuestion.id]}"
+                            >
+                              <Icon name="material-symbols:chevron-right" size="20" />
+                              <span class="text-xs ml-1 bg-gray-400 px-1.5 py-0.5 rounded-full">{{ nestedSubQuestion.sub_questions_count }}</span>
+                            </button>
+                            <!-- Spacer if no sub-questions -->
+                            <div v-else class="w-5"></div>
+                            <div class="text-sm text-gray-900 question-text">{{ nestedSubQuestion.question_text_bi }}</div>
+                          </div>
+                        </td>
+                        <td class="px-6 py-4">
+                          <div class="text-sm text-gray-900 question-text">{{ nestedSubQuestion.question_text_bm }}</div>
+                        </td>
+                        <td class="px-6 py-4">
+                          <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" 
+                                :class="nestedSubQuestion.is_required ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'">
+                            {{ nestedSubQuestion.is_required ? 'Yes' : 'No' }}
+                          </span>
+                        </td>
+                        <td class="px-6 py-4">
+                          <div class="text-sm text-gray-900">
+                            {{ getAnswerTypeLabel(nestedSubQuestion.answer_type) }}
+                          </div>
+                        </td>
+                        <td class="px-6 py-4">
+                          <div class="flex items-center">
+                            <input
+                              type="checkbox"
+                              class="toggle-checkbox"
+                              :checked="nestedSubQuestion.status === 'Active'"
+                              @click.prevent="confirmToggleStatus(nestedSubQuestion)"
+                              title="Toggle Status"
+                            />
+                            <span class="ml-2 text-xs text-gray-500">{{ nestedSubQuestion.status }}</span>
+                          </div>
+                        </td>
+                        <td class="px-6 py-4 text-right text-sm font-medium">
+                          <div class="flex justify-end gap-3 items-center">
+                            <button 
+                              v-if="!isProtectedQuestionnaire"
+                              @click="openEditQuestionModal(nestedSubQuestion)" 
+                              class="text-indigo-600 hover:text-indigo-900"
+                              title="Edit Question"
+                            >
+                              <Icon name="material-symbols:edit-outline-rounded" size="20" />
+                            </button>
+                            
+                            <button 
+                              @click="router.push(`/questionnaire/questions/options/${nestedSubQuestion.id}`)"
+                              class="text-blue-600 hover:text-blue-900"
+                              title="Manage Options"
+                            >
+                              <Icon name="material-symbols:list-alt-outline" size="20" />
+                            </button>
 
-                          <button 
-                            v-if="!isProtectedQuestionnaire"
-                            @click="confirmDelete(nestedSubQuestion)"
-                            class="text-red-600 hover:text-red-900"
-                            title="Delete Question"
-                          >
-                            <Icon name="material-symbols:delete-outline" size="20" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                            <button 
+                              v-if="!isProtectedQuestionnaire"
+                              @click="openAddQuestionModal(nestedSubQuestion)"
+                              class="text-green-600 hover:text-green-900"
+                              title="Add Sub-question"
+                            >
+                              <Icon name="material-symbols:add" size="20" />
+                              <span class="sr-only">Add Sub-question</span>
+                            </button>
+
+                            <button 
+                              v-if="!isProtectedQuestionnaire"
+                              @click="confirmDelete(nestedSubQuestion)"
+                              class="text-red-600 hover:text-red-900"
+                              title="Delete Question"
+                            >
+                              <Icon name="material-symbols:delete-outline" size="20" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      
+                      <!-- Deep nested sub-questions section (4th level) - INSIDE nestedSubQuestion loop but OUTSIDE the tr -->
+                      <template v-if="nestedSubQuestion && nestedSubQuestion.has_sub_questions">
+                        <!-- Only show deep nested when clicked -->
+                        <template v-if="showingDeepNestedSubQuestions[nestedSubQuestion.id]">
+                          
+                          <!-- Loading indicator for deep nested sub-questions -->
+                          <tr v-if="loadingDeepNestedSubQuestions[nestedSubQuestion.id]">
+                            <td colspan="7" class="px-6 py-4 bg-gray-500">
+                              <div class="flex justify-center">
+                                <div class="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-primary"></div>
+                              </div>
+                            </td>
+                          </tr>
+                          
+                          <!-- No deep nested sub-questions message -->
+                          <tr v-else-if="!deepNestedSubQuestions[nestedSubQuestion.id] || !Array.isArray(deepNestedSubQuestions[nestedSubQuestion.id]) || deepNestedSubQuestions[nestedSubQuestion.id].length === 0">
+                            <td colspan="7" class="px-6 py-4 bg-gray-500 text-center text-gray-600">
+                              No sub-questions found
+                            </td>
+                          </tr>
+                          
+                          <!-- Actual deep nested sub-questions -->
+                          <template v-else>
+                            <tr v-for="(deepNestedSubQuestion, deepIndex) in deepNestedSubQuestions[nestedSubQuestion.id]" 
+                                :key="deepNestedSubQuestion.id"
+                                class="bg-gray-400"
+                                :data-question-id="deepNestedSubQuestion.id"
+                                data-nested-level="3">
+                              <td class="px-2 py-4 text-center">
+                                <div class="text-sm font-medium text-gray-900">{{ index + 1 }}.{{ subIndex + 1 }}.{{ nestedIndex + 1 }}.{{ deepIndex + 1 }}</div>
+                              </td>
+                              <td class="px-6 py-4">
+                                <div class="flex items-center">
+                                  <div class="w-5 ml-16"></div> <!-- Extra indentation for deep nested sub-questions -->
+                                  <div class="text-sm text-gray-900 question-text">{{ deepNestedSubQuestion.question_text_bi }}</div>
+                                </div>
+                              </td>
+                              <td class="px-6 py-4">
+                                <div class="text-sm text-gray-900 question-text">{{ deepNestedSubQuestion.question_text_bm }}</div>
+                              </td>
+                              <td class="px-6 py-4">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" 
+                                      :class="deepNestedSubQuestion.is_required ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'">
+                                  {{ deepNestedSubQuestion.is_required ? 'Yes' : 'No' }}
+                                </span>
+                              </td>
+                              <td class="px-6 py-4">
+                                <div class="text-sm text-gray-900">
+                                  {{ getAnswerTypeLabel(deepNestedSubQuestion.answer_type) }}
+                                </div>
+                              </td>
+                              <td class="px-6 py-4">
+                                <div class="flex items-center">
+                                  <input
+                                    type="checkbox"
+                                    class="toggle-checkbox"
+                                    :checked="deepNestedSubQuestion.status === 'Active'"
+                                    @click.prevent="confirmToggleStatus(deepNestedSubQuestion)"
+                                    title="Toggle Status"
+                                  />
+                                  <span class="ml-2 text-xs text-gray-500">{{ deepNestedSubQuestion.status }}</span>
+                                </div>
+                              </td>
+                              <td class="px-6 py-4 text-right text-sm font-medium">
+                                <div class="flex justify-end gap-3 items-center">
+                                  <button 
+                                    v-if="!isProtectedQuestionnaire"
+                                    @click="openEditQuestionModal(deepNestedSubQuestion)" 
+                                    class="text-indigo-600 hover:text-indigo-900"
+                                    title="Edit Question"
+                                  >
+                                    <Icon name="material-symbols:edit-outline-rounded" size="20" />
+                                  </button>
+                                  
+                                  <button 
+                                    @click="router.push(`/questionnaire/questions/options/${deepNestedSubQuestion.id}`)"
+                                    class="text-blue-600 hover:text-blue-900"
+                                    title="Manage Options"
+                                  >
+                                    <Icon name="material-symbols:list-alt-outline" size="20" />
+                                  </button>
+
+                                  <button 
+                                    v-if="!isProtectedQuestionnaire"
+                                    @click="confirmDelete(deepNestedSubQuestion)"
+                                    class="text-red-600 hover:text-red-900"
+                                    title="Delete Question"
+                                  >
+                                    <Icon name="material-symbols:delete-outline" size="20" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          </template>
+                        </template>
+                      </template>
                     </template>
+                   
                   </template>
                 </template>
               </template>
+            </template>
             </tbody>
           </table>
         </div>
