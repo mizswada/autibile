@@ -1109,6 +1109,7 @@ async function submitMchatrF() {
             </div>
             
             <h3 class="text-lg font-medium">
+              <span class="text-orange-600 font-semibold mr-2">{{ question.order || (mchatrFQuestions.indexOf(question) + 1) }}.</span>
               {{ question.question_text_bi || question.question_text }}
               <span v-if="question.is_required" class="text-red-500">*</span>
             </h3>
@@ -1220,6 +1221,7 @@ async function submitMchatrF() {
                   
                   
                   <span>
+                    <span class="text-green-600 font-semibold mr-2">{{ conditionalQuestion.order || (conditionalSubQuestions[question.question_id].indexOf(conditionalQuestion) + 1) }}.</span>
                     {{ conditionalQuestion.question_text_bi || conditionalQuestion.question_text }}
                     <span v-if="conditionalQuestion.is_required" class="text-red-500">*</span>
                   </span>
@@ -1363,6 +1365,7 @@ async function submitMchatrF() {
                     </div>
                     
                     <h4 class="text-base font-medium">
+                      <span class="text-teal-600 font-semibold mr-2">{{ nestedQuestion.order || (nestedSubQuestions[conditionalQuestion.question_id].indexOf(nestedQuestion) + 1) }}.</span>
                       {{ nestedQuestion.question_text_bi || nestedQuestion.question_text }}
                       <span v-if="nestedQuestion.is_required" class="text-red-500">*</span>
                     </h4>

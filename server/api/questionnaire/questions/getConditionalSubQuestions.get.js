@@ -21,9 +21,10 @@ export default defineEventHandler(async (event) => {
           status: 'Active',
           deleted_at: null
         },
-        orderBy: {
-          question_id: 'asc'
-        }
+        orderBy: [
+          { order: 'asc' },
+          { question_id: 'asc' }
+        ]
       });
 
       // Get options for each sub-question
@@ -95,9 +96,10 @@ export default defineEventHandler(async (event) => {
           status: 'Active',
           deleted_at: null
         },
-        orderBy: {
-          question_id: 'asc'
-        }
+        orderBy: [
+          { order: 'asc' },
+          { question_id: 'asc' }
+        ]
       });
 
       // Get options for each sub-question
@@ -129,9 +131,10 @@ export default defineEventHandler(async (event) => {
           status: 'Active',
           deleted_at: null
         },
-        orderBy: {
-          question_id: 'asc'
-        }
+        orderBy: [
+          { order: 'asc' },
+          { question_id: 'asc' }
+        ]
       });
 
       // Get options for each sub-question

@@ -859,6 +859,7 @@ function cancelQuestionnaire() {
             </div>
             
             <h3 class="text-lg font-medium">
+              <span class="text-blue-600 font-semibold mr-2">{{ question.order || (questions.indexOf(question) + 1) }}.</span>
               {{ question.question_text_bi || question.question_text }}
               <span v-if="question.is_required" class="text-red-500">*</span>
             </h3>
@@ -1099,6 +1100,7 @@ function cancelQuestionnaire() {
                 </div>
                 
                 <h3 class="text-lg font-medium">
+                  <span class="text-green-600 font-semibold mr-2">{{ conditionalQuestion.order || (conditionalSubQuestions[question.question_id].indexOf(conditionalQuestion) + 1) }}.</span>
                   {{ conditionalQuestion.question_text_bi || conditionalQuestion.question_text }}
                   <span v-if="conditionalQuestion.is_required" class="text-red-500">*</span>
                 </h3>

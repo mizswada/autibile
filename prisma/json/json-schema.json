@@ -552,6 +552,12 @@
         "question_id": {
           "type": "integer"
         },
+        "order": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "parentID": {
           "type": [
             "integer",

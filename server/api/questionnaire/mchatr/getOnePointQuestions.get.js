@@ -91,6 +91,7 @@ export default defineEventHandler(async (event) => {
         deleted_at: null
       },
       orderBy: [
+        { order: 'asc' }, // Primary ordering by order field
         { mchatr_id: 'asc' }, // Group by parent MCHATR question
         { question_id: 'asc' } // Then by question ID within each group
       ]

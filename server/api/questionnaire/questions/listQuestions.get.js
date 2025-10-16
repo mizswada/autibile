@@ -44,9 +44,14 @@ export default defineEventHandler(async (event) => {
     // Get questions
     const questions = await prisma.questionnaires_questions.findMany({
       where: whereClause,
-      orderBy: {
-        question_id: 'asc'
-      }
+      orderBy: [
+        {
+          order: 'asc'
+        },
+        {
+          question_id: 'asc'
+        }
+      ]
     });
 
     // For each question, check if it has sub-questions
