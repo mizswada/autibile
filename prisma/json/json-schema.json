@@ -594,6 +594,18 @@
             "null"
           ]
         },
+        "scoring_method": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scoring_config": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "status": {
           "type": [
             "string",

@@ -29,9 +29,12 @@ const textAnswers = ref({}); // For text input answers
 const rangeAnswers = ref({}); // For range/scale answers
 const conditionalSubQuestions = ref({});
 const nestedSubQuestions = ref({}); // For nested sub-questions (tier 2)
+const nestedNestedSubQuestions = ref({}); // For nested of nested sub-questions (tier 3)
 const loadingConditionalQuestions = ref({});
 const loadingNestedSubQuestions = ref({});
+const loadingNestedNestedSubQuestions = ref({});
 const showingNestedSubQuestions = ref({}); // Track which nested sub-questions are visible
+const showingNestedNestedSubQuestions = ref({}); // Track which nested of nested sub-questions are visible
 const isLoading = ref(true);
 const submissionResult = ref(null);
 const showSubmissionResult = ref(false);
@@ -210,6 +213,12 @@ function handleOptionSelect(questionId, optionId) {
     if (!question) {
       const allNestedSubQuestions = Object.values(nestedSubQuestions.value).flat();
       question = allNestedSubQuestions.find(q => q.question_id === questionId);
+      
+      // If still not found, look in nested nested sub-questions
+      if (!question) {
+        const allNestedNestedSubQuestions = Object.values(nestedNestedSubQuestions.value).flat();
+        question = allNestedNestedSubQuestions.find(q => q.question_id === questionId);
+      }
     }
   } else {
     console.log('Found in main questions:', question);
@@ -293,6 +302,35 @@ function handleOptionSelect(questionId, optionId) {
         ...conditionalSubQuestions.value,
         [questionId]: []
       };
+    }
+    
+    // Check if this is a nested question and if the option triggers nested nested sub-questions
+    const allNestedSubQuestions = Object.values(nestedSubQuestions.value).flat();
+    const isNestedQuestion = allNestedSubQuestions.some(q => q.question_id === questionId);
+    
+    if (isNestedQuestion) {
+      if (selectedOption && selectedOption.conditional_sub_questions_ids) {
+        const nestedNestedSubQIds = JSON.parse(selectedOption.conditional_sub_questions_ids || '[]');
+        if (nestedNestedSubQIds.length > 0) {
+          console.log('✅ Nested question option has nested nested sub-questions, loading...');
+          loadNestedNestedSubQuestions(questionId);
+          showingNestedNestedSubQuestions.value = {
+            ...showingNestedNestedSubQuestions.value,
+            [questionId]: true
+          };
+        }
+      } else {
+        // Clear nested nested sub-questions if this option doesn't trigger them
+        console.log('❌ Nested question option does not have nested nested sub-questions, clearing...');
+        nestedNestedSubQuestions.value = {
+          ...nestedNestedSubQuestions.value,
+          [questionId]: []
+        };
+        showingNestedNestedSubQuestions.value = {
+          ...showingNestedNestedSubQuestions.value,
+          [questionId]: false
+        };
+      }
     }
   }
   
@@ -629,6 +667,67 @@ function toggleNestedSubQuestions(subQuestionId) {
   }
 }
 
+// Function to toggle nested of nested sub-questions visibility
+function toggleNestedNestedSubQuestions(subQuestionId) {
+  const currentState = !!showingNestedNestedSubQuestions.value[subQuestionId];
+  showingNestedNestedSubQuestions.value = {
+    ...showingNestedNestedSubQuestions.value,
+    [subQuestionId]: !currentState
+  };
+  
+  if (!currentState && (!nestedNestedSubQuestions.value[subQuestionId] || nestedNestedSubQuestions.value[subQuestionId].length === 0)) {
+    loadNestedNestedSubQuestions(subQuestionId);
+  }
+}
+
+// Function to check if nested nested sub-questions should be shown
+function shouldShowNestedNestedSubQuestions(subQuestionId) {
+  if (!nestedNestedSubQuestions.value[subQuestionId] || nestedNestedSubQuestions.value[subQuestionId].length === 0) {
+    return false;
+  }
+  
+  // Find the nested question in all nested sub-questions
+  let nestedQuestion = null;
+  Object.entries(nestedSubQuestions.value).forEach(([parentId, questions]) => {
+    const found = questions.find(q => q.question_id === parseInt(subQuestionId));
+    if (found) {
+      nestedQuestion = found;
+    }
+  });
+  
+  if (!nestedQuestion) {
+    return false;
+  }
+  
+  // Check if the selected option triggers nested nested sub-questions
+  const selectedAnswer = answers.value[subQuestionId];
+  if (selectedAnswer) {
+    const selectedOption = nestedQuestion.options.find(opt => opt.option_id === selectedAnswer);
+    if (selectedOption && selectedOption.conditional_sub_questions_ids) {
+      const nestedNestedSubQIds = JSON.parse(selectedOption.conditional_sub_questions_ids || '[]');
+      if (nestedNestedSubQIds.length > 0) {
+        return true;
+      }
+    }
+  }
+  
+  // Check checkbox answers
+  const multipleSelectedAnswers = multipleAnswers.value[subQuestionId];
+  if (multipleSelectedAnswers && multipleSelectedAnswers.length > 0) {
+    for (const optionId of multipleSelectedAnswers) {
+      const selectedOption = nestedQuestion.options.find(opt => opt.option_id === optionId);
+      if (selectedOption && selectedOption.conditional_sub_questions_ids) {
+        const nestedNestedSubQIds = JSON.parse(selectedOption.conditional_sub_questions_ids || '[]');
+        if (nestedNestedSubQIds.length > 0) {
+          return true;
+        }
+      }
+    }
+  }
+  
+  return false;
+}
+
 async function loadConditionalSubQuestions(parentQuestionId, selectedOption) {
   console.log(`🔄 Loading conditional sub-questions for parent ${parentQuestionId}`);
   loadingConditionalQuestions.value = {
@@ -758,6 +857,8 @@ async function loadNestedSubQuestions(subQuestionId) {
         const questionOptions = batchResult.data && batchResult.data[q.question_id] ? batchResult.data[q.question_id] : [];
         return {
           ...q,
+          has_sub_questions: false,
+          sub_questions_count: 0,
           options: questionOptions.map(option => ({
             ...option,
             option_type: extractOptionType(option.option_title),
@@ -777,6 +878,17 @@ async function loadNestedSubQuestions(subQuestionId) {
       };
       
       console.log(`✅ Processed ${processedNestedSubQuestions.length} nested sub-questions for ${subQuestionId}`);
+      
+      // Check for nested of nested sub-questions
+      for (const question of processedNestedSubQuestions) {
+        const nestedRes = await fetch(`/api/questionnaire/questions/listQuestions?questionnaireID=2&parentID=${question.question_id}`);
+        const nestedResult = await nestedRes.json();
+        
+        if (nestedRes.ok && nestedResult.data && nestedResult.data.length > 0) {
+          question.has_sub_questions = true;
+          question.sub_questions_count = nestedResult.data.length;
+        }
+      }
     } else {
       console.log(`❌ No nested sub-questions found for ${subQuestionId}`);
       nestedSubQuestions.value[subQuestionId] = [];
@@ -787,6 +899,81 @@ async function loadNestedSubQuestions(subQuestionId) {
   } finally {
     loadingNestedSubQuestions.value = {
       ...loadingNestedSubQuestions.value,
+      [subQuestionId]: false
+    };
+  }
+}
+
+// Function to load nested of nested sub-questions (tier 3)
+async function loadNestedNestedSubQuestions(subQuestionId) {
+  console.log(`🔄 Loading nested nested sub-questions for ${subQuestionId}`);
+  loadingNestedNestedSubQuestions.value = {
+    ...loadingNestedNestedSubQuestions.value,
+    [subQuestionId]: true
+  };
+  
+  try {
+    const res = await fetch(`/api/questionnaire/questions/listQuestions?questionnaireID=2&parentID=${subQuestionId}`);
+    const result = await res.json();
+    
+    if (res.ok && result.data && result.data.length > 0) {
+      console.log(`✅ Found ${result.data.length} nested nested sub-questions for ${subQuestionId}`);
+      
+      const nestedSubQuestionIds = result.data.map(q => q.question_id);
+      const batchRes = await fetch(`/api/questionnaire/questions/options/batch?questionIDs=${nestedSubQuestionIds.join(',')}`);
+      const batchResult = await batchRes.json();
+      
+      const processedNestedNestedSubQuestions = result.data.map(q => {
+        const questionOptions = batchResult.data && batchResult.data[q.question_id] ? batchResult.data[q.question_id] : [];
+        
+        // Find the mchatr_id by tracing up the hierarchy
+        let mchatrId = null;
+        
+        // Find this nested nested question's parent (which is the nested question)
+        const parentNestedQ = Object.values(nestedSubQuestions.value).flat().find(nq => nq.question_id === parseInt(subQuestionId));
+        if (parentNestedQ) {
+          // Find which conditional sub-question contains this nested question
+          Object.entries(conditionalSubQuestions.value).forEach(([mainQId, condQs]) => {
+            condQs.forEach(cq => {
+              if (nestedSubQuestions.value[cq.question_id] && nestedSubQuestions.value[cq.question_id].find(q => q.question_id === parseInt(subQuestionId))) {
+                const mainQuestion = mchatrFQuestions.value.find(q => q.question_id === parseInt(mainQId));
+                mchatrId = mainQuestion ? mainQuestion.mchatr_id : null;
+              }
+            });
+          });
+        }
+        
+        return {
+          ...q,
+          mchatr_id: mchatrId, // Set the mchatr_id from the parent hierarchy
+          options: questionOptions.map(option => ({
+            ...option,
+            option_type: extractOptionType(option.option_title),
+            original_title: option.option_title,
+            option_title: cleanOptionTitle(option.option_title),
+            conditional_sub_questions_ids: option.conditional_sub_questions_ids
+          })),
+          optionsLoading: false,
+          optionsError: false
+        };
+      });
+      
+      nestedNestedSubQuestions.value = {
+        ...nestedNestedSubQuestions.value,
+        [subQuestionId]: processedNestedNestedSubQuestions
+      };
+      
+      console.log(`✅ Processed ${processedNestedNestedSubQuestions.length} nested nested sub-questions for ${subQuestionId}`);
+    } else {
+      console.log(`❌ No nested nested sub-questions found for ${subQuestionId}`);
+      nestedNestedSubQuestions.value[subQuestionId] = [];
+    }
+  } catch (err) {
+    console.error(`Error loading nested nested sub-questions for ${subQuestionId}:`, err);
+    nestedNestedSubQuestions.value[subQuestionId] = [];
+  } finally {
+    loadingNestedNestedSubQuestions.value = {
+      ...loadingNestedNestedSubQuestions.value,
       [subQuestionId]: false
     };
   }
@@ -851,9 +1038,12 @@ async function submitMchatrF() {
   
   const formattedAnswers = [];
   
-  // Process main MCHATR-F questions - Single answers (radio)
+  // Process ONLY main MCHATR-F questions (NOT sub-questions, nested, or nested nested)
+  // Each main question should contribute only ONE score
   mchatrFQuestions.value.forEach(question => {
     const questionId = question.question_id;
+    
+    // Check if there's a single answer (radio)
     if (answers.value[questionId]) {
       const selectedOption = question.options.find(opt => opt.option_id === answers.value[questionId]);
       formattedAnswers.push({
@@ -865,31 +1055,42 @@ async function submitMchatrF() {
         mchatr_id: question.mchatr_id ? parseInt(question.mchatr_id) : null
       });
     }
-  });
-  
-  // Process main MCHATR-F questions - Multiple answers (checkbox)
-  Object.keys(multipleAnswers.value).forEach(questionId => {
-    const selectedOptions = multipleAnswers.value[questionId];
-    if (selectedOptions && selectedOptions.length > 0) {
-      // Find the question to get option details
-      const question = mchatrFQuestions.value.find(q => q.question_id === parseInt(questionId));
-      if (question) {
-        selectedOptions.forEach(optionId => {
-          const selectedOption = question.options.find(opt => opt.option_id === optionId);
-          formattedAnswers.push({
-            question_id: parseInt(questionId),
-            option_id: parseInt(optionId),
-            option_value: selectedOption ? parseInt(selectedOption.option_value) : 0,
-            patient_id: props.patientId ? parseInt(props.patientId) : null,
-            parentID: null, // MCHATR-F questions have parentID = null
-            mchatr_id: question.mchatr_id ? parseInt(question.mchatr_id) : null
-          });
+    
+    // Check if there are multiple answers (checkbox)
+    if (multipleAnswers.value[questionId] && multipleAnswers.value[questionId].length > 0) {
+      const selectedOptions = multipleAnswers.value[questionId];
+      // For main questions with checkboxes, send all selected options
+      selectedOptions.forEach(optionId => {
+        const selectedOption = question.options.find(opt => opt.option_id === optionId);
+        formattedAnswers.push({
+          question_id: parseInt(questionId),
+          option_id: parseInt(optionId),
+          option_value: selectedOption ? parseInt(selectedOption.option_value) : 0,
+          patient_id: props.patientId ? parseInt(props.patientId) : null,
+          parentID: null, // MCHATR-F questions have parentID = null
+          mchatr_id: question.mchatr_id ? parseInt(question.mchatr_id) : null
         });
-      }
+      });
+    }
+    
+    // Check if there are text answers
+    if (textAnswers.value[questionId] && textAnswers.value[questionId].trim().length > 0) {
+      formattedAnswers.push({
+        question_id: parseInt(questionId),
+        option_id: null,
+        option_value: null,
+        text_answer: textAnswers.value[questionId],
+        patient_id: props.patientId ? parseInt(props.patientId) : null,
+        parentID: null,
+        mchatr_id: question.mchatr_id ? parseInt(question.mchatr_id) : null
+      });
     }
   });
   
-  // Process conditional sub-questions
+  console.log('📊 Sending ONLY main question answers:', formattedAnswers);
+  
+  // Process conditional sub-questions 
+  // These are needed to calculate the final score for each main question
   Object.entries(conditionalSubQuestions.value).forEach(([parentQuestionId, subQuestions]) => {
     // Find the parent question to get its mchatr_id
     const parentQuestion = mchatrFQuestions.value.find(q => q.question_id === parseInt(parentQuestionId));
@@ -942,6 +1143,7 @@ async function submitMchatrF() {
     });
   });
   
+  // Processing nested sub-questions (tier 2)
   console.log('📋 Processing nested sub-questions (tier 2):', nestedSubQuestions.value);
   // Process nested sub-questions (tier 2)
   Object.entries(nestedSubQuestions.value).forEach(([parentQuestionId, nestedSubQs]) => {
@@ -1008,6 +1210,66 @@ async function submitMchatrF() {
           parentID: parseInt(parentQuestionId), // Use immediate parent ID
           mchatr_id: mchatrId ? parseInt(mchatrId) : null, // Inherit mchatr_id from grand-parent
           nested_level: 2 // Mark as nested level 2
+        });
+      }
+    });
+  });
+  
+  // Processing nested nested sub-questions (tier 3)
+  console.log('📋 Processing nested nested sub-questions (tier 3):', nestedNestedSubQuestions.value);
+  // Process nested nested sub-questions (tier 3)
+  Object.entries(nestedNestedSubQuestions.value).forEach(([nestedParentQuestionId, nestedNestedSubQs]) => {
+    nestedNestedSubQs.forEach(nestedNestedQuestion => {
+      const questionId = nestedNestedQuestion.question_id;
+      
+      // Get the correct parent ID from the question itself
+      const actualParentID = nestedNestedQuestion.parentID ? parseInt(nestedNestedQuestion.parentID) : parseInt(nestedParentQuestionId);
+      
+      // Use the mchatr_id that was set when loading (we set it in loadNestedNestedSubQuestions)
+      const mchatrId = nestedNestedQuestion.mchatr_id ? parseInt(nestedNestedQuestion.mchatr_id) : null;
+      
+      // Process radio answers for nested nested sub-questions
+      if (answers.value[questionId]) {
+        const selectedOption = nestedNestedQuestion.options.find(opt => opt.option_id === answers.value[questionId]);
+        formattedAnswers.push({
+          question_id: parseInt(questionId),
+          option_id: parseInt(answers.value[questionId]),
+          option_value: selectedOption ? parseInt(selectedOption.option_value) : 0,
+          patient_id: props.patientId ? parseInt(props.patientId) : null,
+          parentID: actualParentID, // Use the actual parent ID
+          mchatr_id: mchatrId, // Use the pre-loaded mchatr_id
+          nested_level: 3 // Mark as nested level 3
+        });
+      }
+      
+      // Process checkbox answers for nested nested sub-questions
+      if (multipleAnswers.value[questionId] && multipleAnswers.value[questionId].length > 0) {
+        const selectedOptions = multipleAnswers.value[questionId];
+        selectedOptions.forEach(optionId => {
+          const selectedOption = nestedNestedQuestion.options.find(opt => opt.option_id === optionId);
+          formattedAnswers.push({
+            question_id: parseInt(questionId),
+            option_id: parseInt(optionId),
+            option_value: selectedOption ? parseInt(selectedOption.option_value) : 0,
+            patient_id: props.patientId ? parseInt(props.patientId) : null,
+            parentID: actualParentID, // Use the actual parent ID
+            mchatr_id: mchatrId, // Use the pre-loaded mchatr_id
+            nested_level: 3 // Mark as nested level 3
+          });
+        });
+      }
+      
+      // Process text answers for nested nested sub-questions
+      if (textAnswers.value[questionId] && textAnswers.value[questionId].trim().length > 0) {
+        formattedAnswers.push({
+          question_id: parseInt(questionId),
+          option_id: null,
+          option_value: null,
+          text_answer: textAnswers.value[questionId],
+          patient_id: props.patientId ? parseInt(props.patientId) : null,
+          parentID: actualParentID, // Use the actual parent ID
+          mchatr_id: mchatrId, // Use the pre-loaded mchatr_id
+          nested_level: 3 // Mark as nested level 3
         });
       }
     });
@@ -1421,6 +1683,88 @@ async function submitMchatrF() {
                     
                     <div v-else class="text-gray-500 italic text-sm">No options available for this question</div>
                   </div>
+                  
+                  <!-- Loading indicator for nested nested sub-questions -->
+                  <div v-if="loadingNestedNestedSubQuestions[nestedQuestion.question_id]" class="mt-3 p-2 bg-teal-100 border border-teal-200 rounded">
+                    <div class="flex items-center justify-center">
+                      <div class="inline-block animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-teal-500 mr-2"></div>
+                      <span class="text-xs text-teal-700">Loading nested nested questions...</span>
+                    </div>
+                  </div>
+                  
+                  <!-- Nested Nested Sub-Questions (Tier 3) -->
+                  <div 
+                    v-if="shouldShowNestedNestedSubQuestions(nestedQuestion.question_id) && nestedNestedSubQuestions[nestedQuestion.question_id]"
+                    class="mt-3 pl-4 border-l-2 border-teal-300"
+                  >
+                    <div 
+                      v-for="(nestedNestedQuestion, nestedNestedIndex) in nestedNestedSubQuestions[nestedQuestion.question_id]" 
+                      :key="nestedNestedQuestion.question_id" 
+                      class="card p-3 mb-2 border-l-4 border-l-purple-300 bg-purple-50"
+                    >
+                      <div class="mb-2">
+                        <div class="text-xs text-purple-600 mb-1 flex items-center">
+                          <Icon name="ic:outline-subdirectory-arrow-right" class="mr-1" />
+                          <span>Deep Nested Question {{ nestedNestedIndex + 1 }}</span>
+                        </div>
+                        
+                        <h5 class="text-sm font-medium">
+                          <span class="text-purple-600 font-semibold mr-1">{{ nestedNestedIndex + 1 }}.</span>
+                          {{ nestedNestedQuestion.question_text_bi || nestedNestedQuestion.question_text }}
+                          <span v-if="nestedNestedQuestion.is_required" class="text-red-500">*</span>
+                        </h5>
+                        <p v-if="nestedNestedQuestion.question_text_bm" class="text-xs text-gray-500 mt-1">
+                          {{ nestedNestedQuestion.question_text_bm }}
+                        </p>
+                      </div>
+                      
+                      <!-- Nested Nested Question Answer Input -->
+                      <div class="mt-2">
+                        <div v-if="nestedNestedQuestion.options && nestedNestedQuestion.options.length > 0" class="space-y-1">
+                          <div 
+                            v-for="option in nestedNestedQuestion.options" 
+                            :key="option.option_id"
+                            class="flex items-center p-2 border rounded cursor-pointer transition-colors"
+                            :class="{
+                              'bg-purple-50 border-purple-300': answers[nestedNestedQuestion.question_id] === option.option_id,
+                              'hover:bg-gray-50': !props.readOnly,
+                              'opacity-60 cursor-not-allowed': props.readOnly
+                            }"
+                            @click="handleOptionSelect(nestedNestedQuestion.question_id, option.option_id)"
+                          >
+                            <div class="w-4 h-4 flex items-center justify-center mr-2">
+                              <div 
+                                class="w-3 h-3 rounded-full border-2"
+                                :class="{
+                                  'border-purple-500': answers[nestedNestedQuestion.question_id] === option.option_id,
+                                  'border-gray-300': answers[nestedNestedQuestion.question_id] !== option.option_id
+                                }"
+                              >
+                                <div 
+                                  v-if="answers[nestedNestedQuestion.question_id] === option.option_id" 
+                                  class="w-1 h-1 rounded-full bg-purple-500 m-auto"
+                                ></div>
+                              </div>
+                            </div>
+                            <div class="text-sm">{{ option.option_title }}</div>
+                          </div>
+                        </div>
+                        
+                        <div v-else-if="nestedNestedQuestion.answer_type === 33" class="space-y-1">
+                          <textarea
+                            v-model="textAnswers[nestedNestedQuestion.question_id]"
+                            :placeholder="`Enter your answer`"
+                            :disabled="props.readOnly"
+                            class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                            rows="2"
+                            @input="handleTextAnswerChange(nestedNestedQuestion.question_id, $event.target.value)"
+                          ></textarea>
+                        </div>
+                        
+                        <div v-else class="text-gray-500 italic text-xs">No options available</div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1442,12 +1786,17 @@ async function submitMchatrF() {
     </div>
     
     
-    <!-- Submission Result -->
-    <div v-if="showSubmissionResult && submissionResult" class="mt-8">
-      <div class="card p-6 bg-green-50 border border-green-200">
-        <div class="flex items-center mb-4">
-          <Icon name="ic:outline-check-circle" size="32" class="text-green-600 mr-3" />
-          <h3 class="text-xl font-semibold text-green-800">MCHATR-F Submitted Successfully!</h3>
+    <!-- Submission Result Modal -->
+    <div v-if="showSubmissionResult && submissionResult" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg p-6 max-w-2xl mx-4 w-full max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-6">
+          <div class="flex items-center">
+            <Icon name="ic:outline-check-circle" size="32" class="text-green-600 mr-3" />
+            <h3 class="text-xl font-semibold text-green-800">MCHATR-F Results</h3>
+          </div>
+          <button @click="showSubmissionResult = false" class="text-gray-500 hover:text-gray-700">
+            <Icon name="ic:outline-close" size="24" />
+          </button>
         </div>
         
         <!-- Total Score Display -->
@@ -1518,69 +1867,56 @@ async function submitMchatrF() {
           </p>
         </div>
         
-        <!-- Score Breakdown -->
-        <div class="mb-4">
-          <h4 class="font-semibold text-green-800 mb-2">Score Breakdown:</h4>
-          <div class="grid grid-cols-2 gap-4 text-sm">
-            <div class="flex justify-between">
-              <span>Questions Scored 0:</span>
-              <span class="font-medium">{{ submissionResult.summary.questions_scored_0 }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span>Questions Scored 1:</span>
-              <span class="font-medium">{{ submissionResult.summary.questions_scored_1 }}</span>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Detailed Question Scores -->
-        <div class="mb-4">
-          <h4 class="font-semibold text-green-800 mb-2">Question Details:</h4>
-          <div class="space-y-2 max-h-40 overflow-y-auto">
+        <!-- Final Scores for Each Main Question -->
+        <div class="mb-6">
+          <h4 class="font-semibold text-green-800 mb-3">Question Scores:</h4>
+          <div class="space-y-2">
             <div 
-              v-for="questionScore in submissionResult.question_scores" 
-              :key="questionScore.question_id"
-              class="flex justify-between items-center p-2 bg-white rounded border"
+              v-for="(questionScore, index) in submissionResult.question_scores" 
+              :key="questionScore.mchatr_id || index"
+              class="flex items-center justify-between p-3 bg-white rounded border-2"
+              :class="questionScore.score === 1 ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'"
             >
-              <span class="text-sm">Question {{ questionScore.question_id }}:</span>
-              <div class="flex items-center gap-2">
-                <span class="text-sm">{{ questionScore.scoring_logic.logic }}</span>
+              <div class="flex items-center gap-3">
                 <span 
-                  class="px-2 py-1 rounded text-xs font-medium"
-                  :class="questionScore.score === 1 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'"
+                  class="px-3 py-1 rounded-full text-sm font-semibold"
+                  :class="questionScore.score === 1 ? 'bg-red-500 text-white' : 'bg-green-500 text-white'"
                 >
-                  {{ questionScore.score }}
+                  Q{{ questionScore.question_number }}
+                </span>
+                <span class="text-sm font-medium text-gray-700">
+                  {{ questionScore.question_text || `Question ${questionScore.question_number}` }}
                 </span>
               </div>
+              <span 
+                class="px-3 py-1 rounded-full text-lg font-bold"
+                :class="questionScore.score === 1 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'"
+              >
+                {{ questionScore.score }}
+              </span>
             </div>
           </div>
         </div>
         
-            <!-- Action Buttons -->
-            <div class="flex justify-between gap-2">
-              <rs-button 
-                @click="goBackToQuestionnaire"
-                variant="outline"
-                size="sm"
-              >
-                ← Back to Questionnaire List
-              </rs-button>
-              <div class="flex gap-2">
-                <rs-button 
-                  @click="showSubmissionResult = false"
-                  variant="outline"
-                  size="sm"
-                >
-                  Close Results
-                </rs-button>
-                <rs-button 
-                  @click="window.print()"
-                  size="sm"
-                >
-                  Print Results
-                </rs-button>
-              </div>
-            </div>
+        <!-- Action Buttons -->
+        <div class="flex justify-end gap-3">
+          <rs-button 
+            @click="showSubmissionResult = false"
+            variant="outline"
+          >
+            Close
+          </rs-button>
+          <rs-button 
+            @click="goBackToQuestionnaire"
+          >
+            Back to Questionnaire List
+          </rs-button>
+          <rs-button 
+            @click="window.print()"
+          >
+            Print Results
+          </rs-button>
+        </div>
       </div>
     </div>
     

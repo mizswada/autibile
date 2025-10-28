@@ -154,6 +154,8 @@ model questionnaires_questions {
   question_text_bi                 String?                            @db.VarChar(255)
   is_required                      Boolean?
   answer_type                      Int?
+  scoring_method                   String?                            @db.VarChar(100)
+  scoring_config                   String?                            @db.Text
   status                           String?                            @db.VarChar(50)
   created_at                       DateTime?                          @db.Timestamp(0)
   updated_at                       DateTime?                          @default(now()) @db.Timestamp(0)
