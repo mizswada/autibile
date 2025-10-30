@@ -29,7 +29,6 @@ async function fetchResponseDetails() {
       response.value = result.data[0];
       console.log('Response details:', response.value);
       
-      // After getting the response, fetch the score thresholds for this questionnaire
       await fetchScoreThresholds(response.value.questionnaire_id);
     } else {
       error.value = result.message || 'Response not found';
