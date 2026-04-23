@@ -246,6 +246,10 @@ function getStatusColor(status) {
               <span class="text-gray-500">Treatment Type:</span>
               <span class="font-medium">{{ patient.treatmentType || 'N/A' }}</span>
             </div>
+            <div class="flex justify-between">
+              <span class="text-gray-500">Area (City):</span>
+              <span class="font-medium">{{ patient.parentCity || 'N/A' }}</span>
+            </div>
           </div>
 
           <div class="mt-4 pt-4 border-t border-gray-100">

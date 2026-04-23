@@ -15,7 +15,7 @@ const adminNavigation = [
     // description: "Wonderful apps",
     child: [
       {
-        title: "Autism Screening",
+        title: "Screening",
         icon: "material-symbols:quiz-outline",
         path: "/questionnaire",
         children: [

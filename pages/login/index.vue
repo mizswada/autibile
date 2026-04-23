@@ -83,7 +83,7 @@ const login = async () => {
           class="absolute -bottom-3 left-3 img-container flex justify-start items-center mb-5"
         >
           <img
-            src="@/assets/img/logo/logo-word-black.svg"
+            src="@/assets/img/logo/logo-word-black.png"
             class="max-w-[90px]"
           />
         </div>

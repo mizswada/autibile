@@ -60,6 +60,11 @@ async function fetchQuestionnaires() {
           action: 'edit',
         }))
       }))
+      .sort((a, b) => {
+        if (a.id === 1) return -1;
+        if (b.id === 1) return 1;
+        return 0;
+      })
 
     } else {
       console.error('Failed to load autism screenings:', result.message)
