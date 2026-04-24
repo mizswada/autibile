@@ -840,6 +840,16 @@
               "type": "null"
             }
           ]
+        },
+        "ai_analysis_results": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ai_analysis_results"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -1973,6 +1983,61 @@
           "$ref": "#/definitions/questionnaires"
         }
       }
+    },
+    "app_settings": {
+      "type": "object",
+      "properties": {
+        "setting_id": {
+          "type": "integer"
+        },
+        "setting_key": {
+          "type": "string"
+        },
+        "setting_value": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "ai_analysis_results": {
+      "type": "object",
+      "properties": {
+        "analysis_id": {
+          "type": "integer"
+        },
+        "questionnaire_id": {
+          "type": "integer"
+        },
+        "patient_id": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "ai_result": {
+          "type": "string"
+        },
+        "ai_explanation": {
+          "type": "string"
+        },
+        "provider_used": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "questionnaires_responds": {
+          "$ref": "#/definitions/questionnaires_responds"
+        }
+      }
     }
   },
   "type": "object",
@@ -2066,6 +2131,12 @@
     },
     "questionnaires_questions_followups": {
       "$ref": "#/definitions/questionnaires_questions_followups"
+    },
+    "app_settings": {
+      "$ref": "#/definitions/app_settings"
+    },
+    "ai_analysis_results": {
+      "$ref": "#/definitions/ai_analysis_results"
     }
   }
 }

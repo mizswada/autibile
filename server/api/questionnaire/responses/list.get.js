@@ -45,7 +45,8 @@ export default defineEventHandler(async (event) => {
             questionnaires_questions: true,
             questionnaires_questions_action: true
           }
-        }
+        },
+        ai_analysis_results: true
       },
       orderBy: {
         created_at: 'desc'
@@ -61,6 +62,9 @@ export default defineEventHandler(async (event) => {
       patient_name: response.patient_id ? (response.user_patients?.fullname || 'Patient Not Found') : 'No Patient Selected',
       total_score: response.total_score || 0,
       created_at: response.created_at,
+      ai_analysis: response.ai_analysis_results
+        ? { result: response.ai_analysis_results.ai_result, explanation: response.ai_analysis_results.ai_explanation }
+        : null,
       answers: response.questionnaires_questions_answers.map(answer => ({
         answer_id: answer.answer_id,
         question_id: answer.question_id,

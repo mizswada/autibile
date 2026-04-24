@@ -119,6 +119,61 @@ export default defineEventHandler(async (event) => {
         }
       }
 
+      // AI analysis call
+      let aiAnalysis = null;
+      try {
+        const answerSummary = await Promise.all(
+          savedAnswers.map(async (a) => {
+            const question = await prisma.questionnaires_questions.findUnique({
+              where: { question_id: a.question_id },
+              select: { question_text_bi: true }
+            });
+            let answerText = a.text_answer ?? '';
+            if (a.option_id) {
+              const option = await prisma.questionnaires_questions_action.findUnique({
+                where: { option_id: a.option_id },
+                select: { option_title: true }
+              });
+              answerText = option?.option_title?.replace(/^\[(radio|checkbox|scale|text|textarea)\]/, '').trim() ?? answerText;
+            }
+            return { question: question?.question_text_bi ?? String(a.question_id), answer: answerText };
+          })
+        );
+
+        const aiResponse = await getAIAnalysis({
+          questionnaireName: `Questionnaire ${questionnaireId}`,
+          totalScore,
+          scoreMin: threshold?.scoring_min ?? 0,
+          scoreMax: threshold?.scoring_max ?? 999,
+          thresholdInterpretation: threshold?.scoring_interpretation ?? null,
+          answers: answerSummary,
+          isMchatr: parseInt(questionnaireId) === 1
+        });
+
+        if (aiResponse) {
+          await prisma.ai_analysis_results.upsert({
+            where: { qr_id: qrRecord.qr_id },
+            create: {
+              qr_id: qrRecord.qr_id,
+              questionnaire_id: parseInt(questionnaireId),
+              patient_id: patientId ? parseInt(patientId) : null,
+              ai_result: aiResponse.result,
+              ai_explanation: aiResponse.explanation,
+              provider_used: 'ai',
+              created_at: new Date()
+            },
+            update: {
+              ai_result: aiResponse.result,
+              ai_explanation: aiResponse.explanation,
+              updated_at: new Date()
+            }
+          });
+          aiAnalysis = aiResponse;
+        }
+      } catch (aiError) {
+        console.error('AI analysis failed (non-fatal):', aiError instanceof Error ? aiError.message : String(aiError));
+      }
+
       return {
         statusCode: 200,
         message: "Questionnaire submitted successfully",
@@ -131,7 +186,8 @@ export default defineEventHandler(async (event) => {
           } : null,
           redirect_to_questionnaire_2: redirectToQuestionnaire2,
           score_interpretation: scoreInterpretation,
-          questionnaire_id: parseInt(questionnaireId)
+          questionnaire_id: parseInt(questionnaireId),
+          ai_analysis: aiAnalysis
         }
       };
   

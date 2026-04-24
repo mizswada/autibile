@@ -125,6 +125,11 @@ const adminNavigation = [
         icon: "ic:outline-headset-mic",
         path: "/techSupport",
       },
+      {
+        title: "AI Settings",
+        icon: "ic:outline-psychology",
+        path: "/apps/aiSettings",
+      },
     ],
   },
 ];

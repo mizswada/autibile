@@ -1,6 +1,6 @@
 html[data-theme="default"] {
-  --color-primary: 13, 27, 42;
-  --color-secondary: 97, 176, 183;
+  --color-primary: 10, 131, 200;
+  --color-secondary: 245, 91, 45;
   --color-accent: 243, 244, 246;
   --color-success: 79, 192, 103;
   --color-info: 65, 133, 242;
@@ -28,7 +28,7 @@ html[data-theme="default"] {
   --border-btn: 1px;
   --tab-border: 1px;
   --tab-radius: 0.5rem;
-  --tw-shadow: #e5eaf2;
+  --tw-shadow: #d6eef8;
 }
 
 html[data-theme="dark"] {

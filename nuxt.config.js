@@ -5,6 +5,7 @@ export default defineNuxtConfig({
       secretAccess: process.env.NUXT_ACCESS_TOKEN_SECRET,
       secretRefresh: process.env.NUXT_REFRESH_TOKEN_SECRET,
     },
+    settingsEncryptionKey: process.env.SETTINGS_ENCRYPTION_KEY,
   },
   modules: [
     "@nuxtjs/tailwindcss",
@@ -545,6 +546,12 @@ export default defineNuxtConfig({
       security: {
         xssValidator: false,
         requestSizeLimiter: false,
+      },
+    },
+    // Prompt templates and config JSON may contain < > (e.g. JSON examples); nuxt-security XSS would return 400
+    "/api/apps/settings/**": {
+      security: {
+        xssValidator: false,
       },
     },
   },
