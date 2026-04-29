@@ -144,7 +144,7 @@ function generateAccessToken(user) {
   return jwt.sign(user, ENV.auth.secretAccess, { expiresIn: "1d" });
 }
 
-function generateRefreshToken(user, rememberMe = true) {
+function generateRefreshToken(user, rememberMe = false) {
   const expiresIn = rememberMe ? "30d" : "1d";
   return jwt.sign(user, ENV.auth.secretRefresh, { expiresIn: expiresIn });
 }

@@ -5,7 +5,7 @@ const ENV = useRuntimeConfig();
 
 export default defineEventHandler(async (event) => {
   try {
-    const { username, password } = await readBody(event);
+    const { username, password, rememberMe } = await readBody(event);
 
     if (!username || !password) {
       return {
@@ -90,7 +90,7 @@ export default defineEventHandler(async (event) => {
     const refreshToken = generateRefreshToken({
       username: user.userUsername,
       roles: roleNames,
-    });
+    }, rememberMe);
 
     // Set HttpOnly cookies
     event.res.setHeader("Set-Cookie", [
@@ -124,6 +124,7 @@ function generateAccessToken(user) {
   return jwt.sign(user, ENV.auth.secretAccess, { expiresIn: "1d" });
 }
 
-function generateRefreshToken(user) {
-  return jwt.sign(user, ENV.auth.secretRefresh, { expiresIn: "30d" });
+function generateRefreshToken(user, rememberMe = false) {
+  const expiresIn = rememberMe ? "30d" : "1d";
+  return jwt.sign(user, ENV.auth.secretRefresh, { expiresIn: expiresIn });
 }
