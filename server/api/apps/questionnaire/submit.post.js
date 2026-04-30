@@ -171,7 +171,7 @@ export default defineEventHandler(async (event) => {
             update: {
               ai_result: aiResponse.result,
               ai_explanation: aiResponse.explanation,
-              updated_at: new Date()
+              provider_used: 'ai'
             }
           });
           aiAnalysis = aiResponse;
