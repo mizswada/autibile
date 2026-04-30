@@ -25,17 +25,21 @@ interface AIConfig {
   timeoutMs: number
 }
 
-const DEFAULT_PROMPT_TEMPLATE = `You are a clinical screening assistant for autism spectrum disorder evaluations. Analyze the following questionnaire results and provide a brief clinical interpretation.
+const DEFAULT_PROMPT_TEMPLATE = `You are a clinical screening assistant for developmental and behavioral assessments. Analyze the following questionnaire results and provide an AI-generated prediction and recommendation.
 
 Questionnaire: {{questionnaireName}}
 Total Score: {{totalScore}} (Range: {{scoreMin}}-{{scoreMax}})
-Rule-Based Interpretation: {{threshold}}
+Rule-Based Clinical Threshold: {{threshold}}
 
-Answers Summary:
+Patient Answers Summary:
 {{answers}}
 
-Provide a concise clinical interpretation. Respond ONLY with valid JSON in this exact format:
-{"result": "<brief clinical label: e.g. 'Low Risk', 'Moderate Risk', 'High Risk', 'Requires Evaluation'>", "explanation": "<2-3 sentence explanation covering the scoring pattern, notable responses, and clinical implications>"}
+Based on the answers and scoring pattern, generate:
+1. A clinical PREDICTION (result): A brief assessment label indicating the clinical significance (e.g., 'Good', 'Needs More Attention', 'Requires Evaluation', 'High Priority')
+2. A clinical RECOMMENDATION (explanation): A 2-3 sentence explanation of key contributing factors, patterns in responses, and the clinical implications
+
+Respond ONLY with valid JSON in this exact format:
+{"result": "<clinical prediction/assessment label>", "explanation": "<clinical recommendation explaining contributing factors and next steps>"}
 `
 
 type LoadConfigOutcome =
