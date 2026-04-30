@@ -499,13 +499,6 @@
             "null"
           ]
         },
-        "hidden": {
-          "type": [
-            "boolean",
-            "null"
-          ],
-          "default": false
-        },
         "created_at": {
           "type": [
             "string",
@@ -526,6 +519,10 @@
             "null"
           ],
           "format": "date-time"
+        },
+        "hidden": {
+          "type": "boolean",
+          "default": false
         },
         "questionnaire_scoring": {
           "type": "array",
@@ -822,6 +819,16 @@
           ],
           "format": "date-time"
         },
+        "ai_analysis_results": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ai_analysis_results"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "questionnaires_questions_answers": {
           "type": "array",
           "items": {
@@ -842,16 +849,6 @@
           "anyOf": [
             {
               "$ref": "#/definitions/user_patients"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "ai_analysis_results": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/ai_analysis_results"
             },
             {
               "type": "null"
