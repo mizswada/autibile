@@ -8,9 +8,10 @@ export default defineEventHandler(async (event) => {
       
       // Build where clause
       const whereClause = {
-        deleted_at: null // Filter out soft-deleted records
+        deleted_at: null, // Filter out soft-deleted records
+        hidden: { not: true } // Filter out hidden questionnaires
       };
-      
+
       if (questionnaireID) {
         whereClause.questionnaire_id = parseInt(questionnaireID);
       }

@@ -499,6 +499,13 @@
             "null"
           ]
         },
+        "hidden": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": false
+        },
         "created_at": {
           "type": [
             "string",

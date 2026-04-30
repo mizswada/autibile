@@ -25,7 +25,7 @@ interface AIConfig {
   timeoutMs: number
 }
 
-const DEFAULT_PROMPT_TEMPLATE = `You are a clinical screening assistant for autism spectrum disorder evaluations. Analyze the following questionnaire results and provide a brief interpretation.
+const DEFAULT_PROMPT_TEMPLATE = `You are a clinical screening assistant for autism spectrum disorder evaluations. Analyze the following questionnaire results and provide a brief clinical interpretation.
 
 Questionnaire: {{questionnaireName}}
 Total Score: {{totalScore}} (Range: {{scoreMin}}-{{scoreMax}})
@@ -34,8 +34,8 @@ Rule-Based Interpretation: {{threshold}}
 Answers Summary:
 {{answers}}
 
-Respond ONLY with valid JSON in this exact format:
-{"result": "<short label like Good, Needs More Attention, Requires Evaluation>", "explanation": "<2-3 sentence explanation of contributing factors>"}
+Provide a concise clinical interpretation. Respond ONLY with valid JSON in this exact format:
+{"result": "<brief clinical label: e.g. 'Low Risk', 'Moderate Risk', 'High Risk', 'Requires Evaluation'>", "explanation": "<2-3 sentence explanation covering the scoring pattern, notable responses, and clinical implications>"}
 `
 
 type LoadConfigOutcome =
@@ -206,13 +206,16 @@ function buildPrompt(template: string, request: AIRequest): string {
     .map(a => `Q: ${a.question}\nA: ${a.answer}`)
     .join('\n\n')
 
-  return template
-    .replace('{{questionnaireName}}', request.questionnaireName)
-    .replace('{{totalScore}}', String(request.totalScore))
-    .replace('{{scoreMin}}', String(request.scoreMin))
-    .replace('{{scoreMax}}', String(request.scoreMax))
-    .replace('{{threshold}}', request.thresholdInterpretation || 'N/A')
-    .replace('{{answers}}', answersText)
+  const filledPrompt = template
+    .replace(/{{questionnaireName}}/g, request.questionnaireName)
+    .replace(/{{totalScore}}/g, String(request.totalScore))
+    .replace(/{{scoreMin}}/g, String(request.scoreMin))
+    .replace(/{{scoreMax}}/g, String(request.scoreMax))
+    .replace(/{{threshold}}/g, request.thresholdInterpretation || 'N/A')
+    .replace(/{{answers}}/g, answersText)
+
+  console.log('📋 Full prompt with replacements:\n', filledPrompt)
+  return filledPrompt
 }
 
 function isOpenRouterApi (url: string): boolean {
@@ -361,49 +364,62 @@ export type AIAnalysisResult =
 export async function getAIAnalysisResult (request: AIRequest): Promise<AIAnalysisResult> {
   const loaded = await loadAIConfig()
   if (!loaded.ok) {
-    console.warn('AI config:', loaded.message)
+    console.warn('🔴 AI config error:', loaded.message)
     return { ok: false, message: loaded.message }
   }
 
   const { config } = loaded
 
   try {
-    console.log(`AI config loaded. Provider: ${config.provider}`)
+    console.log(`✅ AI config loaded. Provider: ${config.provider}, Model: ${config.model}`)
     const prompt = buildPrompt(config.promptTemplate, request)
-    console.log(`Prompt built. Length: ${prompt.length}`)
+    console.log(`📝 Prompt built. Length: ${prompt.length} chars`)
+    console.log(`📋 Prompt preview:\n${prompt.substring(0, 200)}...`)
 
     let response: AIResponse
     switch (config.provider.toLowerCase()) {
       case 'openai':
       case 'custom':
-        console.log(`Calling ${config.provider} at ${config.apiUrl}`)
+        console.log(`🚀 Calling ${config.provider} at ${config.apiUrl} with model ${config.model}`)
         response = await callOpenAI(config, prompt)
         break
       case 'anthropic':
-        console.log(`Calling Anthropic at ${config.apiUrl}`)
+        console.log(`🚀 Calling Anthropic at ${config.apiUrl} with model ${config.model}`)
         response = await callAnthropic(config, prompt)
         break
       case 'local':
-        console.log(`Calling local AI at ${config.apiUrl}`)
+        console.log(`🚀 Calling local AI at ${config.apiUrl} with model ${config.model}`)
         response = await callLocal(config, prompt)
         break
       default:
         return { ok: false, message: `Unknown AI provider "${config.provider}". Use openai, anthropic, local, or custom.` }
     }
 
-    console.log('AI response received:', { result: response.result.substring(0, 50) })
+    console.log('✅ AI response received:', {
+      result: response.result,
+      explanationLength: response.explanation.length
+    })
     return { ok: true, data: response }
   } catch (error) {
     const msg = messageFromUnknownError(error, 'The AI provider request failed.')
-    console.error('AI analysis failed:', msg, error)
-    if (error instanceof Error && error.stack) console.error('Stack:', error.stack)
+    console.error('❌ AI analysis failed:', msg)
+    if (error instanceof Error) {
+      console.error('Error details:', error.message)
+      console.error('Stack:', error.stack)
+    }
     return { ok: false, message: msg }
   }
 }
 
 export async function getAIAnalysis (request: AIRequest): Promise<AIResponse | null> {
   const r = await getAIAnalysisResult(request)
-  return r.ok ? r.data : null
+  if (r.ok) {
+    return r.data
+  } else {
+    // For debugging: log the error so we know why AI analysis failed
+    console.error('[AI] Analysis failed:', r.message)
+    return null
+  }
 }
 
 export async function initializeDefaultAISettings(): Promise<void> {

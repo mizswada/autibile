@@ -11,10 +11,11 @@ export default defineEventHandler(async (event) => {
     }
 
     // Get questionnaire details
-    const questionnaire = await prisma.questionnaires.findUnique({
+    const questionnaire = await prisma.questionnaires.findFirst({
       where: {
         questionnaire_id: parseInt(questionnaireID),
-        deleted_at: null
+        deleted_at: null,
+        hidden: { not: true }
       },
       select: {
         questionnaire_id: true,

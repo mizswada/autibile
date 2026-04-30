@@ -121,7 +121,9 @@ export default defineEventHandler(async (event) => {
 
       // AI analysis call
       let aiAnalysis = null;
+      let aiErrorMessage = null;
       try {
+        console.log('[SUBMIT] Building answer summary...');
         const answerSummary = await Promise.all(
           savedAnswers.map(async (a) => {
             const question = await prisma.questionnaires_questions.findUnique({
@@ -139,8 +141,10 @@ export default defineEventHandler(async (event) => {
             return { question: question?.question_text_bi ?? String(a.question_id), answer: answerText };
           })
         );
+        console.log(`[SUBMIT] Answer summary ready with ${answerSummary.length} answers`);
 
-        const aiResponse = await getAIAnalysis({
+        console.log('[SUBMIT] Calling AI analysis...');
+        const aiResult = await getAIAnalysisResult({
           questionnaireName: `Questionnaire ${questionnaireId}`,
           totalScore,
           scoreMin: threshold?.scoring_min ?? 0,
@@ -150,7 +154,9 @@ export default defineEventHandler(async (event) => {
           isMchatr: parseInt(questionnaireId) === 1
         });
 
-        if (aiResponse) {
+        if (aiResult.ok) {
+          console.log('[SUBMIT] AI response received, saving to DB...');
+          const aiResponse = aiResult.data;
           await prisma.ai_analysis_results.upsert({
             where: { qr_id: qrRecord.qr_id },
             create: {
@@ -169,9 +175,14 @@ export default defineEventHandler(async (event) => {
             }
           });
           aiAnalysis = aiResponse;
+          console.log('[SUBMIT] AI analysis saved successfully');
+        } else {
+          aiErrorMessage = aiResult.message;
+          console.log('[SUBMIT] AI analysis failed:', aiErrorMessage);
         }
       } catch (aiError) {
-        console.error('AI analysis failed (non-fatal):', aiError instanceof Error ? aiError.message : String(aiError));
+        aiErrorMessage = aiError instanceof Error ? aiError.message : String(aiError);
+        console.error('[SUBMIT] AI analysis exception:', aiErrorMessage, aiError);
       }
 
       return {
@@ -187,7 +198,13 @@ export default defineEventHandler(async (event) => {
           redirect_to_questionnaire_2: redirectToQuestionnaire2,
           score_interpretation: scoreInterpretation,
           questionnaire_id: parseInt(questionnaireId),
-          ai_analysis: aiAnalysis
+          ai_analysis: aiAnalysis,
+          ai_error: aiErrorMessage,
+          debug: {
+            ai_was_attempted: true,
+            threshold_found: !!threshold,
+            ai_enabled: process.env.AI_ENABLED
+          }
         }
       };
   
