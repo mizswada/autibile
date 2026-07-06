@@ -1,3 +1,8 @@
+import {
+  formatTimeSlotLabel,
+  getAppointmentTimes,
+} from "~/server/utils/appointmentTime";
+
 export default defineEventHandler(async (event) => {
   try {
     // Get user from context
@@ -87,16 +92,20 @@ export default defineEventHandler(async (event) => {
     const appointments = await prisma.appointments.findMany(appointmentsQuery);
 
     const formattedAppointments = appointments.map((a) => {
-      // Check if this is an admin appointment (no practitioner assigned)
       const isAdminAppointment = !a.user_practitioners;
-      
+      const { start_time, end_time } = getAppointmentTimes(a);
+
       return {
-        patient: a.user_patients?.fullname || 'Unknown',
-        userType: isAdminAppointment ? 'Admin' : (a.user_practitioners?.type || 'Unknown'),
-        userName: isAdminAppointment ? 'Admin' : (a.user_practitioners?.user?.userFullName || 'Unknown'),
+        patient: a.user_patients?.fullname || "Unknown",
+        userType: isAdminAppointment
+          ? "Admin"
+          : a.user_practitioners?.type || "Unknown",
+        userName: isAdminAppointment
+          ? "Admin"
+          : a.user_practitioners?.user?.userFullName || "Unknown",
         date: a.date.toISOString().slice(0, 10),
-        time: a.lookup?.title || '-',
-        notes: a.therapist_doctor_comment || '',
+        time: formatTimeSlotLabel(start_time, end_time),
+        notes: a.therapist_doctor_comment || "",
       };
     });
 

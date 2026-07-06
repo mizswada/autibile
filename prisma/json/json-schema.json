@@ -325,6 +325,20 @@
           "type": "string",
           "format": "date-time"
         },
+        "start_time": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "end_time": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
         "status": {
           "type": "integer"
         },

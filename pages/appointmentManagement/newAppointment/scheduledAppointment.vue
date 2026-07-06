@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import { useUserStore } from '@/stores/user';
 import { useFetch, useLazyFetch } from '#app';
 // Import core FullCalendar package first
@@ -206,11 +206,13 @@ const isSelectingPatient = ref(false); // Flag to prevent blur conflicts during 
 // Form data
 const appointmentForm = ref({
   date: new Date().toISOString().slice(0, 10),
-  time: "",
+  start_time: "",
+  duration_type: "1hour",
+  custom_end_time: "",
   patient: "",
   serviceId: "",
   therapistDoctor: "",
-  status: 36 // Added status field
+  status: 36
 });
 
 // Patient session checking
@@ -233,7 +235,87 @@ const therapistDoctorOptions = ref([
   { label: "--- Please select ---", value: "" },
   { label: "Admin", value: "admin" } // Add Admin as first option
 ]);
-const timeSlotOptions = ref([{ label: "--- Please select ---", value: "" }]);
+const startTimeOptions = ref([{ label: "--- Please select ---", value: "" }]);
+const customEndOptions = ref([{ label: "--- Please select ---", value: "" }]);
+const durationOptions = [
+  { label: "30 minutes", value: "30min" },
+  { label: "1 hour", value: "1hour" },
+  { label: "Custom end time", value: "custom" },
+];
+
+function formatTime12h(time24) {
+  if (!time24) return "";
+  const [hourPart, minutePart] = time24.split(":").map(Number);
+  const period = hourPart >= 12 ? "PM" : "AM";
+  const hour12 = hourPart % 12 || 12;
+  return `${hour12}:${minutePart.toString().padStart(2, "0")} ${period}`;
+}
+
+function getCustomEndOptions(startTime) {
+  if (!startTime) return [];
+  const [startHour, startMinute] = startTime.split(":").map(Number);
+  let startMinutes = startHour * 60 + startMinute;
+  const options = [];
+
+  for (startMinutes += 30; startMinutes <= 18 * 60; startMinutes += 30) {
+    const hours = Math.floor(startMinutes / 60);
+    const minutes = startMinutes % 60;
+    const value = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+    options.push({ label: formatTime12h(value), value });
+  }
+
+  return options;
+}
+
+function computeEndTimeLocal(startTime, durationType, customEndTime) {
+  if (!startTime) return "";
+  const [startHour, startMinute] = startTime.split(":").map(Number);
+  const startMinutes = startHour * 60 + startMinute;
+
+  if (durationType === "30min") {
+    return getCustomEndOptions(startTime)[0]?.value || "";
+  }
+
+  if (durationType === "1hour") {
+    const endMinutes = startMinutes + 60;
+    const hours = Math.floor(endMinutes / 60);
+    const minutes = endMinutes % 60;
+    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+  }
+
+  return customEndTime || "";
+}
+
+function inferDurationType(startTime, endTime) {
+  if (!startTime || !endTime) return "1hour";
+  const toMinutes = (time) => {
+    const [h, m] = time.split(":").map(Number);
+    return h * 60 + m;
+  };
+  const diff = toMinutes(endTime) - toMinutes(startTime);
+  if (diff === 30) return "30min";
+  if (diff === 60) return "1hour";
+  return "custom";
+}
+
+const computedEndTime = computed(() => {
+  return computeEndTimeLocal(
+    appointmentForm.value.start_time,
+    appointmentForm.value.duration_type,
+    appointmentForm.value.custom_end_time,
+  );
+});
+
+function buildTimePayload() {
+  return {
+    start_time: appointmentForm.value.start_time,
+    duration_type: appointmentForm.value.duration_type,
+    custom_end_time:
+      appointmentForm.value.duration_type === "custom"
+        ? appointmentForm.value.custom_end_time
+        : undefined,
+  };
+}
 
 // Table columns
 const columns = [
@@ -297,6 +379,8 @@ const { data: appointmentsData, pending: appointmentsLoading, refresh: _refreshA
           date: new Date(appt.start).toLocaleDateString(),
           originalDate: appt.start, // Store the original date string
           timeSlot: appt.extendedProps.time_slot || 'Unknown Time',
+          startTime: appt.extendedProps.start_time || '',
+          endTime: appt.extendedProps.end_time || '',
           status: appt.extendedProps.status || 36,
           patientId: appt.extendedProps.patient_id,
           practitionerId: appt.extendedProps.practitioner_id,
@@ -388,98 +472,162 @@ watch(optionsData, (newData) => {
   }
 });
 
-// Update fetchTimeSlots to handle admin slots (5 per day)
+function getSlotFetchParams(date, practitionerId, { forEndTimes = false } = {}) {
+  const params = {
+    date,
+    duration_type: appointmentForm.value.duration_type,
+  };
+
+  if (forEndTimes && appointmentForm.value.start_time) {
+    params.start_time = appointmentForm.value.start_time;
+  }
+
+  if (practitionerId === "admin") {
+    params.is_admin = true;
+  } else {
+    params.practitioner_id = practitionerId;
+  }
+
+  if (isEditing.value && selectedAppointment.value?.id) {
+    params.exclude_appointment_id = selectedAppointment.value.id;
+  }
+
+  return params;
+}
+
+function applyAvailableSlots(slots, targetRef, emptyMessage) {
+  targetRef.value = [
+    { label: "--- Please select ---", value: "" },
+    ...slots
+      .filter((slot) => slot.isAvailable)
+      .map((slot) => ({
+        label: slot.label || formatTime12h(slot.value),
+        value: slot.value,
+      })),
+  ];
+
+  if (targetRef.value.length === 1 && emptyMessage) {
+    errorMessage.value = emptyMessage;
+  }
+}
+
+// Fetch available start times based on date + practitioner
 const fetchTimeSlots = async (date, practitionerId) => {
-  if (!date) {
-    console.error("Missing date parameter for fetching time slots");
-    timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
+  if (!date || !practitionerId) {
+    startTimeOptions.value = [{ label: "--- Please select ---", value: "" }];
+    customEndOptions.value = [{ label: "--- Please select ---", value: "" }];
     return;
   }
-  
+
   isLoadingSlots.value = true;
-  
+
   try {
-    // If practitioner is Admin, fetch admin slots (5 per day)
-    if (practitionerId === 'admin') {
-      const { data, error } = await useFetch('/api/appointments/adminSlots', {
-        method: 'GET',
-        params: { date }
-      });
-      
-      if (error.value) {
-        console.error('Error fetching admin slots:', error.value);
-        timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
-        return;
-      }
-      
-      if (data.value && data.value.success) {
-        const slots = data.value.data || [];
-        timeSlotOptions.value = [
-          { label: "--- Please select ---", value: "" },
-          ...slots
-            .filter(slot => slot.isAvailable)
-            .map(slot => ({
-              label: slot.title || slot.value,
-              value: slot.lookupID.toString()
-            }))
-        ];
-        
-        // If no available slots, show a message
-        if (timeSlotOptions.value.length === 1) {
-          errorMessage.value = "No available admin slots for the selected date (maximum 5 slots per day)";
-        }
+    const { data, error } = await useFetch("/api/appointments/slots", {
+      method: "GET",
+      params: getSlotFetchParams(date, practitionerId),
+    });
+
+    if (error.value) {
+      console.error("Error fetching time slots:", error.value);
+      startTimeOptions.value = [{ label: "--- Please select ---", value: "" }];
+      return;
+    }
+
+    if (data.value && data.value.success) {
+      const emptyMessage =
+        practitionerId === "admin"
+          ? "No available start times for the selected date"
+          : "No available start times for the selected date and practitioner";
+
+      applyAvailableSlots(data.value.data || [], startTimeOptions, emptyMessage);
+
+      if (
+        appointmentForm.value.start_time &&
+        !startTimeOptions.value.some(
+          (option) => option.value === appointmentForm.value.start_time,
+        )
+      ) {
+        appointmentForm.value.start_time = "";
+        appointmentForm.value.custom_end_time = "";
+        customEndOptions.value = [{ label: "--- Please select ---", value: "" }];
+      } else if (
+        appointmentForm.value.duration_type === "custom" &&
+        appointmentForm.value.start_time
+      ) {
+        await fetchCustomEndTimes(date, practitionerId, { manageLoading: false });
       } else {
-        errorMessage.value = data.value?.message || "Failed to load admin slots";
-        timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
+        customEndOptions.value = [{ label: "--- Please select ---", value: "" }];
       }
     } else {
-      // Original logic for regular practitioners
-      if (!practitionerId) {
-        console.error("Missing practitioner ID for fetching time slots");
-        timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
-        return;
-      }
-      
-      const { data, error } = await useFetch('/api/appointments/slots', {
-        method: 'GET',
-        params: {
-          date,
-          practitioner_id: practitionerId
-        }
-      });
-      
-      if (error.value) {
-        console.error('Error fetching time slots:', error.value);
-        timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
-        return;
-      }
-      
-      if (data.value && data.value.success) {
-        const slots = data.value.data || [];
-        timeSlotOptions.value = [
-          { label: "--- Please select ---", value: "" },
-          ...slots
-            .filter(slot => slot.isAvailable)
-            .map(slot => ({
-              label: slot.title || slot.value,
-              value: slot.lookupID.toString()
-            }))
-        ];
-        
-        // If no available slots, show a message
-        if (timeSlotOptions.value.length === 1) {
-          errorMessage.value = "No available time slots for the selected date and practitioner";
-        }
-      } else {
-        errorMessage.value = data.value?.message || "Failed to load time slots";
-        timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
-      }
+      errorMessage.value = data.value?.message || "Failed to load start times";
+      startTimeOptions.value = [{ label: "--- Please select ---", value: "" }];
     }
   } catch (err) {
-    console.error('Error fetching time slots:', err);
-    timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
+    console.error("Error fetching time slots:", err);
+    startTimeOptions.value = [{ label: "--- Please select ---", value: "" }];
   } finally {
     isLoadingSlots.value = false;
+  }
+};
+
+const fetchCustomEndTimes = async (
+  date,
+  practitionerId,
+  { manageLoading = true } = {},
+) => {
+  if (
+    !date ||
+    !practitionerId ||
+    appointmentForm.value.duration_type !== "custom" ||
+    !appointmentForm.value.start_time
+  ) {
+    customEndOptions.value = [{ label: "--- Please select ---", value: "" }];
+    return;
+  }
+
+  if (manageLoading) {
+    isLoadingSlots.value = true;
+  }
+
+  try {
+    const { data, error } = await useFetch("/api/appointments/slots", {
+      method: "GET",
+      params: getSlotFetchParams(date, practitionerId, { forEndTimes: true }),
+    });
+
+    if (error.value) {
+      console.error("Error fetching custom end times:", error.value);
+      customEndOptions.value = [{ label: "--- Please select ---", value: "" }];
+      return;
+    }
+
+    if (data.value && data.value.success && data.value.slotType === "end") {
+      const emptyMessage =
+        practitionerId === "admin"
+          ? "No available end times for the selected start time"
+          : "No available end times for the selected start time and practitioner";
+
+      applyAvailableSlots(data.value.data || [], customEndOptions, emptyMessage);
+
+      if (
+        appointmentForm.value.custom_end_time &&
+        !customEndOptions.value.some(
+          (option) => option.value === appointmentForm.value.custom_end_time,
+        )
+      ) {
+        appointmentForm.value.custom_end_time = "";
+      }
+    } else {
+      errorMessage.value = data.value?.message || "Failed to load end times";
+      customEndOptions.value = [{ label: "--- Please select ---", value: "" }];
+    }
+  } catch (err) {
+    console.error("Error fetching custom end times:", err);
+    customEndOptions.value = [{ label: "--- Please select ---", value: "" }];
+  } finally {
+    if (manageLoading) {
+      isLoadingSlots.value = false;
+    }
   }
 };
 
@@ -539,28 +687,54 @@ watch([
   if (newDate && newPractitioner) {
     console.log("Both date and practitioner selected, fetching time slots");
     fetchTimeSlots(newDate, newPractitioner);
-    
-    // If selecting admin, also check admin slots count
-    if (newPractitioner === 'admin') {
-      console.log("Admin selected, checking admin slots count");
-      checkAdminSlotsCount(newDate);
-    }
   } else {
     console.log("Missing date or practitioner, resetting time slots");
     // Reset time slots if either date or practitioner is not selected
-    timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
-    appointmentForm.value.time = "";
+    startTimeOptions.value = [{ label: "--- Please select ---", value: "" }];
+    appointmentForm.value.start_time = "";
   }
 });
 
-// Add watcher for date changes to check admin slots count
-watch(() => appointmentForm.value.date, (newDate) => {
-  console.log("Date watcher triggered:", newDate, "Current therapistDoctor:", appointmentForm.value.therapistDoctor);
-  if (newDate && appointmentForm.value.therapistDoctor === 'admin') {
-    console.log("Date changed and Admin is selected, checking admin slots count");
-    checkAdminSlotsCount(newDate);
-  }
-});
+watch(
+  () => appointmentForm.value.duration_type,
+  (newDuration) => {
+    if (!appointmentForm.value.date || !appointmentForm.value.therapistDoctor) {
+      return;
+    }
+
+    if (newDuration !== "custom") {
+      appointmentForm.value.custom_end_time = "";
+      customEndOptions.value = [{ label: "--- Please select ---", value: "" }];
+    }
+
+    fetchTimeSlots(
+      appointmentForm.value.date,
+      appointmentForm.value.therapistDoctor,
+    );
+  },
+);
+
+watch(
+  () => appointmentForm.value.start_time,
+  (newStartTime, oldStartTime) => {
+    if (newStartTime === oldStartTime) return;
+
+    appointmentForm.value.custom_end_time = "";
+    customEndOptions.value = [{ label: "--- Please select ---", value: "" }];
+
+    if (
+      appointmentForm.value.duration_type === "custom" &&
+      newStartTime &&
+      appointmentForm.value.date &&
+      appointmentForm.value.therapistDoctor
+    ) {
+      fetchCustomEndTimes(
+        appointmentForm.value.date,
+        appointmentForm.value.therapistDoctor,
+      );
+    }
+  },
+);
 
 // Add watcher for patient selection to check sessions
 watch(() => appointmentForm.value.patient, (newPatientId) => {
@@ -586,23 +760,28 @@ watch(patientSearchText, (newText) => {
 const saveAppointment = async () => {
   try {
     console.log("saveAppointment called with form data:", appointmentForm.value);
-    console.log("adminSlotsCount:", adminSlotsCount.value);
-    console.log("maxAdminSlotsPerDay:", maxAdminSlotsPerDay);
     
     // Validate
     if (!appointmentForm.value.date || 
         !appointmentForm.value.patient || 
         !appointmentForm.value.therapistDoctor || 
-        !appointmentForm.value.serviceId) {
+        !appointmentForm.value.serviceId ||
+        !appointmentForm.value.start_time ||
+        !appointmentForm.value.duration_type) {
       errorMessage.value = "Please fill in all required fields";
       console.log("Validation failed - missing required fields");
       return;
     }
+
+    if (appointmentForm.value.duration_type === 'custom' && !appointmentForm.value.custom_end_time) {
+      errorMessage.value = "Please select a custom end time";
+      return;
+    }
     
     // Only require time slot for non-admin appointments
-    if (appointmentForm.value.therapistDoctor !== 'admin' && !appointmentForm.value.time) {
-      errorMessage.value = "Please select a time slot";
-      console.log("Validation failed - missing time slot for non-admin appointment");
+    if (appointmentForm.value.therapistDoctor !== 'admin' && !appointmentForm.value.start_time) {
+      errorMessage.value = "Please select a start time";
+      console.log("Validation failed - missing start time for non-admin appointment");
       return;
     }
 
@@ -610,13 +789,6 @@ const saveAppointment = async () => {
     if (patientSessionInfo.value && !patientSessionInfo.value.can_book_appointment) {
       errorMessage.value = `Cannot create appointment. Patient ${patientSessionInfo.value.patient_name} has no available sessions (${patientSessionInfo.value.available_sessions}). Please purchase more sessions first.`;
       console.log("Validation failed - patient has no available sessions");
-      return;
-    }
-
-    // Check admin slots limit
-    if (appointmentForm.value.therapistDoctor === 'admin' && adminSlotsCount.value >= maxAdminSlotsPerDay) {
-      errorMessage.value = `Cannot create admin appointment. Maximum of ${maxAdminSlotsPerDay} admin slots per day reached for ${appointmentForm.value.date}. Please select a different date or assign existing admin appointments first.`;
-      console.log("Validation failed - admin slots limit reached");
       return;
     }
 
@@ -632,9 +804,9 @@ const saveAppointment = async () => {
       book_by: currentUserId,
       service_id: appointmentForm.value.serviceId,
       date: appointmentForm.value.date,
-      slot_ID: appointmentForm.value.therapistDoctor === 'admin' ? null : appointmentForm.value.time,
-      status: 36, // Booked status
-      is_admin_appointment: appointmentForm.value.therapistDoctor === 'admin' // Flag for admin appointments
+      status: 36,
+      is_admin_appointment: appointmentForm.value.therapistDoctor === 'admin',
+      ...buildTimePayload(),
     };
 
     console.log("Sending appointment data to API:", appointmentData);
@@ -649,9 +821,7 @@ const saveAppointment = async () => {
     if (data.value && data.value.success) {
       if (appointmentForm.value.therapistDoctor === 'admin') {
         successMessage.value = "Admin appointment created successfully! One session has been deducted from the patient's available sessions. You can assign this to a doctor/therapist on the appointment date.";
-        // Update admin slots count
-        adminSlotsCount.value += 1;
-        console.log("Admin appointment created successfully, updated adminSlotsCount to:", adminSlotsCount.value);
+        console.log("Admin appointment created successfully");
       } else {
         successMessage.value = "Appointment created successfully! One session has been deducted from the patient's available sessions.";
         console.log("Regular appointment created successfully");
@@ -660,17 +830,18 @@ const saveAppointment = async () => {
              // Reset form
        appointmentForm.value = {
          date: new Date().toISOString().slice(0, 10),
-         time: "",
+         start_time: "",
+         duration_type: "1hour",
+         custom_end_time: "",
          patient: "",
          serviceId: "",
          therapistDoctor: "",
          status: 36
        };
-       timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
+       startTimeOptions.value = [{ label: "--- Please select ---", value: "" }];
        
-       // Reset patient session info and admin slots count
+       // Reset patient session info
        patientSessionInfo.value = null;
-       adminSlotsCount.value = 0;
        
        // Reset patient search
        if (blurTimeout.value) {
@@ -704,18 +875,19 @@ const openAddAppointmentModal = () => {
   // Reset form
   appointmentForm.value = {
     date: new Date().toISOString().slice(0, 10),
-    time: "",
+    start_time: "",
+    duration_type: "1hour",
+    custom_end_time: "",
     patient: "",
     serviceId: "",
     therapistDoctor: "",
-    status: "36" // Default to booked status
+    status: "36"
   };
   
   console.log("Form reset to:", appointmentForm.value);
   
-  // Reset patient session info and admin slots count
+  // Reset patient session info
   patientSessionInfo.value = null;
-  adminSlotsCount.value = 0;
   
   // Reset patient search
   if (blurTimeout.value) {
@@ -727,7 +899,10 @@ const openAddAppointmentModal = () => {
   showPatientDropdown.value = false;
   filteredPatients.value = [];
   
-  console.log("Reset patientSessionInfo and adminSlotsCount");
+  startTimeOptions.value = [{ label: "--- Please select ---", value: "" }];
+  customEndOptions.value = [{ label: "--- Please select ---", value: "" }];
+  
+  console.log("Reset patientSessionInfo");
   
   isEditing.value = false;
   showModal.value = true;
@@ -846,12 +1021,18 @@ const editAppointment = (id) => {
     console.log("Original ISO date:", originalDate);
     
     // Set form values
+    const startTime = appointment.startTime || appointment.rawExtendedProps?.start_time || "";
+    const endTime = appointment.endTime || appointment.rawExtendedProps?.end_time || "";
+    const durationType = inferDurationType(startTime, endTime);
+
     appointmentForm.value = {
       date: originalDate,
       patient: appointment.patientId?.toString() || "",
       serviceId: appointment.serviceId?.toString() || "",
       therapistDoctor: appointment.practitionerId?.toString() || (appointment.isAdminAppointment ? "admin" : ""),
-      time: appointment.slotId?.toString() || "",
+      start_time: startTime,
+      duration_type: durationType,
+      custom_end_time: durationType === "custom" ? endTime : "",
       status: appointment.status?.toString() || "36"
     };
     
@@ -887,14 +1068,20 @@ const saveEditedAppointment = async () => {
     if (!appointmentForm.value.date || 
         !appointmentForm.value.patient || 
         !appointmentForm.value.therapistDoctor || 
-        !appointmentForm.value.serviceId) {
+        !appointmentForm.value.serviceId ||
+        !appointmentForm.value.start_time ||
+        !appointmentForm.value.duration_type) {
       errorMessage.value = "Please fill in all required fields";
       return;
     }
+
+    if (appointmentForm.value.duration_type === 'custom' && !appointmentForm.value.custom_end_time) {
+      errorMessage.value = "Please select a custom end time";
+      return;
+    }
     
-    // Only require time slot for non-admin appointments
-    if (appointmentForm.value.therapistDoctor !== 'admin' && !appointmentForm.value.time) {
-      errorMessage.value = "Please select a time slot";
+    if (!appointmentForm.value.start_time) {
+      errorMessage.value = "Please select a start time";
       return;
     }
 
@@ -902,16 +1089,6 @@ const saveEditedAppointment = async () => {
     if (patientSessionInfo.value && !patientSessionInfo.value.can_book_appointment) {
       errorMessage.value = `Cannot update appointment. Patient ${patientSessionInfo.value.patient_name} has no available sessions (${patientSessionInfo.value.available_sessions}). Please purchase more sessions first.`;
       return;
-    }
-
-    // Check admin slots limit for new admin appointments
-    if (appointmentForm.value.therapistDoctor === 'admin') {
-      // If this was previously not an admin appointment, check the limit
-      const wasAdmin = isAdminAppointment(selectedAppointment.value);
-      if (!wasAdmin && adminSlotsCount.value >= maxAdminSlotsPerDay) {
-        errorMessage.value = `Cannot convert to admin appointment. Maximum of ${maxAdminSlotsPerDay} admin slots per day reached for ${appointmentForm.value.date}. Please select a different date or assign existing admin appointments first.`;
-        return;
-      }
     }
 
     isLoading.value = true;
@@ -925,9 +1102,9 @@ const saveEditedAppointment = async () => {
       practitioner_id: appointmentForm.value.therapistDoctor === 'admin' ? null : appointmentForm.value.therapistDoctor,
       service_id: appointmentForm.value.serviceId,
       date: appointmentForm.value.date,
-      slot_ID: appointmentForm.value.therapistDoctor === 'admin' ? null : appointmentForm.value.time,
       status: parseInt(appointmentForm.value.status),
-      is_admin_appointment: appointmentForm.value.therapistDoctor === 'admin'
+      is_admin_appointment: appointmentForm.value.therapistDoctor === 'admin',
+      ...buildTimePayload(),
     };
 
     const { data } = await useFetch('/api/appointments/update', {
@@ -1054,13 +1231,19 @@ function getOriginalData(id) {
 // Function to extract only the time part from the time slot string
 function extractTimeOnly(timeSlot) {
   if (!timeSlot) return 'Unknown Time';
-  
-  // Extract the time part after the colon (e.g., "Slot 2 : 10.00 am - 11.00 am" -> "10.00 am - 11.00 am")
-  const colonIndex = timeSlot.indexOf(':');
-  if (colonIndex !== -1) {
-    return timeSlot.substring(colonIndex + 1).trim();
+
+  // Legacy format: "Slot 2 : 10.00 am - 11.00 am" -> strip the "Slot X : " prefix
+  const labelSeparatorIndex = timeSlot.indexOf(' : ');
+  if (labelSeparatorIndex !== -1) {
+    return timeSlot.substring(labelSeparatorIndex + 3).trim();
   }
-  
+
+  // Admin format: "Admin - 9:00 AM - 10:00 AM" -> strip the leading "Admin - " prefix
+  if (timeSlot.startsWith('Admin - ')) {
+    return timeSlot.substring('Admin - '.length).trim();
+  }
+
+  // New format: "9:00 AM - 10:00 AM" is already time-only
   return timeSlot;
 }
 
@@ -1133,12 +1316,6 @@ const calendarFilter = ref('all'); // Default to show all appointments
 
 // Add state for delete and cancel functionality
 const showDeleteModal = ref(false);
-
-
-
-// Add state for admin slots tracking
-const adminSlotsCount = ref(0);
-const maxAdminSlotsPerDay = 5;
 
 // Watch for activeTab changes to refresh the calendar when switching to calendar view
 watch(() => activeTab.value, (newTab) => {
@@ -1348,42 +1525,6 @@ const applyCalendarFilter = () => {
         session_number: appt.sessionNumber
       },
     }));
-  }
-};
-
-// Function to check admin slots count for a specific date
-const checkAdminSlotsCount = async (date) => {
-  console.log("checkAdminSlotsCount called with date:", date);
-  if (!date) {
-    console.log("No date provided, returning early");
-    return;
-  }
-  
-  try {
-    console.log("Fetching admin slots count for date:", date);
-    const { data, error } = await useFetch('/api/appointments/adminSlotsCount', {
-      method: 'GET',
-      params: { date }
-    });
-    
-    console.log("Admin slots count API response:", { data: data.value, error: error.value });
-    
-    if (error.value) {
-      console.error('Error checking admin slots count:', error.value);
-      adminSlotsCount.value = 0;
-      return;
-    }
-    
-    if (data.value && data.value.success) {
-      adminSlotsCount.value = data.value.data.count || 0;
-      console.log("Admin slots count updated to:", adminSlotsCount.value);
-    } else {
-      adminSlotsCount.value = 0;
-      console.log("Admin slots count API returned no success, setting to 0");
-    }
-  } catch (err) {
-    console.error('Error checking admin slots count:', err);
-    adminSlotsCount.value = 0;
   }
 };
 
@@ -1926,53 +2067,55 @@ const validatePatientData = (patient) => {
                 <div v-if="appointmentForm.therapistDoctor === 'admin' && appointmentForm.date" class="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
                   <div class="flex items-center text-blue-700">
                     <Icon name="material-symbols:info" size="16" class="mr-2" />
-                    <span>Admin appointments: Maximum 5 slots per day. You can assign to available practitioners on the appointment date.</span>
-                  </div>
-                  
-                  <!-- Show current admin slots count -->
-                  <div class="mt-2 p-2 bg-white rounded border border-blue-200">
-                    <div class="flex items-center justify-between">
-                      <span class="text-sm text-gray-600">Current Admin Slots for {{ appointmentForm.date }}:</span>
-                      <span class="font-semibold" :class="adminSlotsCount >= maxAdminSlotsPerDay ? 'text-red-600' : 'text-green-600'">
-                        {{ adminSlotsCount }} / {{ maxAdminSlotsPerDay }}
-                      </span>
-                    </div>
-                    
-                    <!-- Warning when max slots reached -->
-                    <div v-if="adminSlotsCount >= maxAdminSlotsPerDay" class="mt-1 text-xs text-red-600 bg-red-50 p-1 rounded">
-                      <Icon name="material-symbols:warning" class="mr-1" size="14" />
-                      Maximum admin slots reached for this date. Please select a different date or assign existing admin appointments first.
-                    </div>
-                    
-                    <!-- Success when slots available -->
-                    <div v-else class="mt-1 text-xs text-green-600 bg-green-50 p-1 rounded">
-                      <Icon name="material-symbols:check-circle" class="mr-1" size="14" />
-                      {{ maxAdminSlotsPerDay - adminSlotsCount }} admin slot(s) available for this date.
-                    </div>
+                    <span>Admin placeholder booking. Assign a real practitioner on the appointment date. Overlap is checked when assigned.</span>
                   </div>
                 </div>
               </div>
               
               <div class="relative">
-                <FormKit type="select" v-model="appointmentForm.time" name="time" label="Time Slot" :options="timeSlotOptions" :validation="appointmentForm.therapistDoctor === 'admin' ? '' : 'required'" :disabled="!appointmentForm.date || !appointmentForm.therapistDoctor || isLoadingSlots || (patientSessionInfo && !patientSessionInfo.can_book_appointment) || appointmentForm.therapistDoctor === 'admin'" />
+                <FormKit type="select" v-model="appointmentForm.start_time" name="start_time" label="Start Time" :options="startTimeOptions" validation="required" :disabled="!appointmentForm.date || !appointmentForm.therapistDoctor || isLoadingSlots || (patientSessionInfo && !patientSessionInfo.can_book_appointment)" />
                 <div v-if="isLoadingSlots" class="absolute right-2 top-8">
                   <Icon name="line-md:loading-twotone-loop" class="text-primary" />
                 </div>
-                <div v-if="timeSlotOptions.length === 1 && appointmentForm.date && appointmentForm.therapistDoctor" class="text-red-500 text-sm mt-1">
+                <div v-if="startTimeOptions.length === 1 && appointmentForm.date && appointmentForm.therapistDoctor" class="text-red-500 text-sm mt-1">
                   <span v-if="appointmentForm.therapistDoctor === 'admin'">
-                    No available admin slots for the selected date (maximum 5 slots per day)
+                    No available start times for the selected date
                   </span>
                   <span v-else>
-                    No available time slots for the selected date and practitioner
+                    No available start times for the selected date and practitioner
                   </span>
                 </div>
-                
-                <!-- Info message for Admin appointments -->
-                <div v-if="appointmentForm.therapistDoctor === 'admin' && appointmentForm.date" class="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
-                  <div class="flex items-center text-blue-700">
-                    <Icon name="material-symbols:info" size="16" class="mr-2" />
-                    <span>Time slot will be automatically assigned when you assign this appointment to a practitioner on the appointment date.</span>
-                  </div>
+              </div>
+
+              <FormKit type="select" v-model="appointmentForm.duration_type" name="duration_type" label="Duration" :options="durationOptions" validation="required" :disabled="patientSessionInfo && !patientSessionInfo.can_book_appointment" />
+
+              <FormKit
+                v-if="appointmentForm.duration_type === 'custom'"
+                type="select"
+                v-model="appointmentForm.custom_end_time"
+                name="custom_end_time"
+                label="End Time"
+                :options="customEndOptions"
+                validation="required"
+                :disabled="!appointmentForm.start_time || isLoadingSlots || (patientSessionInfo && !patientSessionInfo.can_book_appointment)"
+              />
+
+              <div
+                v-if="appointmentForm.duration_type === 'custom' && appointmentForm.start_time && appointmentForm.therapistDoctor !== 'admin'"
+                class="text-sm text-gray-600"
+              >
+                Only end times that do not overlap with this therapist's existing bookings are shown.
+              </div>
+
+              <div v-if="computedEndTime" class="p-3 bg-gray-50 border border-gray-200 rounded text-sm">
+                <span class="text-gray-600">Calculated end time:</span>
+                <span class="font-medium ml-2">{{ formatTime12h(computedEndTime) }}</span>
+              </div>
+
+              <div v-if="appointmentForm.therapistDoctor === 'admin' && appointmentForm.date" class="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
+                <div class="flex items-center text-blue-700">
+                  <Icon name="material-symbols:info" size="16" class="mr-2" />
+                  <span>Admin placeholder bookings may overlap. Assign a real practitioner later; overlap will be checked at assignment.</span>
                 </div>
               </div>
               
@@ -1982,6 +2125,9 @@ const validatePatientData = (patient) => {
 
           <!-- Fixed Footer with Buttons -->
           <div class="p-6 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+            <div v-if="errorMessage" class="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+              {{ errorMessage }}
+            </div>
             <div class="flex justify-end gap-2">
               <rs-button variant="secondary-outline" @click="showModal = false">Cancel</rs-button>
               <rs-button variant="primary" @click="saveAppointment" :disabled="isLoading || (patientSessionInfo && !patientSessionInfo.can_book_appointment)">
@@ -2205,53 +2351,55 @@ const validatePatientData = (patient) => {
                 <div v-if="appointmentForm.therapistDoctor === 'admin' && appointmentForm.date" class="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
                   <div class="flex items-center text-blue-700">
                     <Icon name="material-symbols:info" size="16" class="mr-2" />
-                    <span>Admin appointments: Maximum 5 slots per day. You can assign to available practitioners on the appointment date.</span>
-                  </div>
-                  
-                  <!-- Show current admin slots count -->
-                  <div class="mt-2 p-2 bg-white rounded border border-blue-200">
-                    <div class="flex items-center justify-between">
-                      <span class="text-sm text-gray-600">Current Admin Slots for {{ appointmentForm.date }}:</span>
-                      <span class="font-semibold" :class="adminSlotsCount >= maxAdminSlotsPerDay ? 'text-red-600' : 'text-green-600'">
-                        {{ adminSlotsCount }} / {{ maxAdminSlotsPerDay }}
-                      </span>
-                    </div>
-                    
-                    <!-- Warning when max slots reached -->
-                    <div v-if="adminSlotsCount >= maxAdminSlotsPerDay" class="mt-1 text-xs text-red-600 bg-red-50 p-1 rounded">
-                      <Icon name="material-symbols:warning" class="mr-1" size="14" />
-                      Maximum admin slots reached for this date. Please select a different date or assign existing admin appointments first.
-                    </div>
-                    
-                    <!-- Success when slots available -->
-                    <div v-else class="mt-1 text-xs text-green-600 bg-green-50 p-1 rounded">
-                      <Icon name="material-symbols:check-circle" class="mr-1" size="14" />
-                      {{ maxAdminSlotsPerDay - adminSlotsCount }} admin slot(s) available for this date.
-                    </div>
+                    <span>Admin placeholder booking. Assign a real practitioner on the appointment date. Overlap is checked when assigned.</span>
                   </div>
                 </div>
               </div>
               
               <div class="relative">
-                <FormKit type="select" v-model="appointmentForm.time" name="time" label="Time Slot" :options="timeSlotOptions" :validation="appointmentForm.therapistDoctor === 'admin' ? '' : 'required'" :disabled="!appointmentForm.date || !appointmentForm.therapistDoctor || isLoadingSlots || (patientSessionInfo && !patientSessionInfo.can_book_appointment) || appointmentForm.therapistDoctor === 'admin'" />
+                <FormKit type="select" v-model="appointmentForm.start_time" name="start_time" label="Start Time" :options="startTimeOptions" validation="required" :disabled="!appointmentForm.date || !appointmentForm.therapistDoctor || isLoadingSlots || (patientSessionInfo && !patientSessionInfo.can_book_appointment)" />
                 <div v-if="isLoadingSlots" class="absolute right-2 top-8">
                   <Icon name="line-md:loading-twotone-loop" class="text-primary" />
                 </div>
-                <div v-if="timeSlotOptions.length === 1 && appointmentForm.date && appointmentForm.therapistDoctor" class="text-red-500 text-sm mt-1">
+                <div v-if="startTimeOptions.length === 1 && appointmentForm.date && appointmentForm.therapistDoctor" class="text-red-500 text-sm mt-1">
                   <span v-if="appointmentForm.therapistDoctor === 'admin'">
-                    No available admin slots for the selected date (maximum 5 slots per day)
+                    No available start times for the selected date
                   </span>
                   <span v-else>
-                    No available time slots for the selected date and practitioner
+                    No available start times for the selected date and practitioner
                   </span>
                 </div>
-                
-                <!-- Info message for Admin appointments -->
-                <div v-if="appointmentForm.therapistDoctor === 'admin' && appointmentForm.date" class="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
-                  <div class="flex items-center text-blue-700">
-                    <Icon name="material-symbols:info" size="16" class="mr-2" />
-                    <span>Time slot will be automatically assigned when you assign this appointment to a practitioner on the appointment date.</span>
-                  </div>
+              </div>
+
+              <FormKit type="select" v-model="appointmentForm.duration_type" name="duration_type" label="Duration" :options="durationOptions" validation="required" :disabled="patientSessionInfo && !patientSessionInfo.can_book_appointment" />
+
+              <FormKit
+                v-if="appointmentForm.duration_type === 'custom'"
+                type="select"
+                v-model="appointmentForm.custom_end_time"
+                name="custom_end_time"
+                label="End Time"
+                :options="customEndOptions"
+                validation="required"
+                :disabled="!appointmentForm.start_time || isLoadingSlots || (patientSessionInfo && !patientSessionInfo.can_book_appointment)"
+              />
+
+              <div
+                v-if="appointmentForm.duration_type === 'custom' && appointmentForm.start_time && appointmentForm.therapistDoctor !== 'admin'"
+                class="text-sm text-gray-600"
+              >
+                Only end times that do not overlap with this therapist's existing bookings are shown.
+              </div>
+
+              <div v-if="computedEndTime" class="p-3 bg-gray-50 border border-gray-200 rounded text-sm">
+                <span class="text-gray-600">Calculated end time:</span>
+                <span class="font-medium ml-2">{{ formatTime12h(computedEndTime) }}</span>
+              </div>
+
+              <div v-if="appointmentForm.therapistDoctor === 'admin' && appointmentForm.date" class="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
+                <div class="flex items-center text-blue-700">
+                  <Icon name="material-symbols:info" size="16" class="mr-2" />
+                  <span>Admin placeholder bookings may overlap. Assign a real practitioner later; overlap will be checked at assignment.</span>
                 </div>
               </div>
               
@@ -2261,6 +2409,9 @@ const validatePatientData = (patient) => {
 
           <!-- Fixed Footer with Buttons -->
           <div class="p-6 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+            <div v-if="errorMessage" class="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+              {{ errorMessage }}
+            </div>
             <div class="flex justify-end gap-2">
               <rs-button variant="secondary-outline" @click="showEditModal = false">Cancel</rs-button>
               <rs-button variant="primary" @click="saveEditedAppointment" :disabled="isLoading || (patientSessionInfo && !patientSessionInfo.can_book_appointment)">

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import { useUserStore } from '@/stores/user';
 import { useLazyFetch } from '#app';
 
@@ -27,11 +27,13 @@ const isEditing = ref(false);
 // Form data
 const appointmentForm = ref({
   date: new Date().toISOString().slice(0, 10),
-  time: "",
+  start_time: "",
+  duration_type: "1hour",
+  custom_end_time: "",
   patient: "",
   serviceId: "",
   therapistDoctor: "",
-  status: 36 // Added status field
+  status: 36
 });
 
 // Rating form
@@ -47,7 +49,79 @@ const serviceOptions = ref([
   { label: "Therapy", value: "2" }
 ]);
 const therapistDoctorOptions = ref([{ label: "--- Please select ---", value: "" }]);
-const timeSlotOptions = ref([{ label: "--- Please select ---", value: "" }]);
+const startTimeOptions = ref([{ label: "--- Please select ---", value: "" }]);
+const customEndOptions = ref([{ label: "--- Please select ---", value: "" }]);
+const durationOptions = [
+  { label: "30 minutes", value: "30min" },
+  { label: "1 hour", value: "1hour" },
+  { label: "Custom end time", value: "custom" },
+];
+
+function formatTime12h(time24) {
+  if (!time24) return "";
+  const [hourPart, minutePart] = time24.split(":").map(Number);
+  const period = hourPart >= 12 ? "PM" : "AM";
+  const hour12 = hourPart % 12 || 12;
+  return `${hour12}:${minutePart.toString().padStart(2, "0")} ${period}`;
+}
+
+function getCustomEndOptions(startTime) {
+  if (!startTime) return [];
+  const [startHour, startMinute] = startTime.split(":").map(Number);
+  let startMinutes = startHour * 60 + startMinute;
+  const options = [];
+  for (startMinutes += 30; startMinutes <= 18 * 60; startMinutes += 30) {
+    const hours = Math.floor(startMinutes / 60);
+    const minutes = startMinutes % 60;
+    const value = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+    options.push({ label: formatTime12h(value), value });
+  }
+  return options;
+}
+
+const computedEndTime = computed(() => {
+  if (!appointmentForm.value.start_time) return "";
+  const [startHour, startMinute] = appointmentForm.value.start_time.split(":").map(Number);
+  const startMinutes = startHour * 60 + startMinute;
+  if (appointmentForm.value.duration_type === "30min") {
+    return getCustomEndOptions(appointmentForm.value.start_time)[0]?.value || "";
+  }
+  if (appointmentForm.value.duration_type === "1hour") {
+    const endMinutes = startMinutes + 60;
+    return `${Math.floor(endMinutes / 60).toString().padStart(2, "0")}:${(endMinutes % 60).toString().padStart(2, "0")}`;
+  }
+  return appointmentForm.value.custom_end_time || "";
+});
+
+function getSlotFetchParams({ forEndTimes = false } = {}) {
+  const params = {
+    date: appointmentForm.value.date,
+    practitioner_id: appointmentForm.value.therapistDoctor,
+    duration_type: appointmentForm.value.duration_type,
+  };
+
+  if (forEndTimes && appointmentForm.value.start_time) {
+    params.start_time = appointmentForm.value.start_time;
+  }
+
+  if (isEditing.value && selectedAppointment.value?.id) {
+    params.exclude_appointment_id = selectedAppointment.value.id;
+  }
+
+  return params;
+}
+
+function applyAvailableSlots(slots, targetRef) {
+  targetRef.value = [
+    { label: "--- Please select ---", value: "" },
+    ...slots
+      .filter((slot) => slot.isAvailable)
+      .map((slot) => ({
+        label: slot.label || formatTime12h(slot.value),
+        value: slot.value,
+      })),
+  ];
+}
 
 // Table columns
 const columns = [
@@ -177,46 +251,105 @@ watch(optionsData, (newData) => {
 const fetchTimeSlots = async () => {
   try {
     if (!appointmentForm.value.date || !appointmentForm.value.therapistDoctor) {
-      timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
+      startTimeOptions.value = [{ label: "--- Please select ---", value: "" }];
+      customEndOptions.value = [{ label: "--- Please select ---", value: "" }];
       return;
     }
 
     isLoadingSlots.value = true;
     errorMessage.value = "";
-    
-    const { data } = await useLazyFetch('/api/appointments/slots', {
-      query: {
-        date: appointmentForm.value.date,
-        practitioner_id: appointmentForm.value.therapistDoctor
-      },
-      server: false
+
+    const { data } = await useLazyFetch("/api/appointments/slots", {
+      query: getSlotFetchParams(),
+      server: false,
     });
 
     if (data.value && data.value.success) {
-      timeSlotOptions.value = [
-        { label: "--- Please select ---", value: "" },
-        ...data.value.data
-          .filter(slot => slot.isAvailable)
-          .map(slot => ({
-            label: slot.title || slot.value,
-            value: slot.lookupID
-          }))
-      ];
-      
-      // If no available slots, show a message
-      if (timeSlotOptions.value.length === 1) {
-        errorMessage.value = "No available time slots for the selected date and practitioner";
+      applyAvailableSlots(data.value.data || [], startTimeOptions);
+
+      if (
+        appointmentForm.value.start_time &&
+        !startTimeOptions.value.some(
+          (option) => option.value === appointmentForm.value.start_time,
+        )
+      ) {
+        appointmentForm.value.start_time = "";
+        appointmentForm.value.custom_end_time = "";
+        customEndOptions.value = [{ label: "--- Please select ---", value: "" }];
+      } else if (
+        appointmentForm.value.duration_type === "custom" &&
+        appointmentForm.value.start_time
+      ) {
+        await fetchCustomEndTimes({ manageLoading: false });
+      } else {
+        customEndOptions.value = [{ label: "--- Please select ---", value: "" }];
+      }
+
+      if (startTimeOptions.value.length === 1) {
+        errorMessage.value =
+          "No available start times for the selected date and practitioner";
       }
     } else {
-      errorMessage.value = data.value?.message || "Failed to load time slots";
-      timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
+      errorMessage.value = data.value?.message || "Failed to load start times";
+      startTimeOptions.value = [{ label: "--- Please select ---", value: "" }];
     }
   } catch (error) {
     console.error("Error fetching time slots:", error);
     errorMessage.value = "Error loading time slots. Please try again.";
-    timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
+    startTimeOptions.value = [{ label: "--- Please select ---", value: "" }];
   } finally {
     isLoadingSlots.value = false;
+  }
+};
+
+const fetchCustomEndTimes = async ({ manageLoading = true } = {}) => {
+  if (
+    !appointmentForm.value.date ||
+    !appointmentForm.value.therapistDoctor ||
+    appointmentForm.value.duration_type !== "custom" ||
+    !appointmentForm.value.start_time
+  ) {
+    customEndOptions.value = [{ label: "--- Please select ---", value: "" }];
+    return;
+  }
+
+  if (manageLoading) {
+    isLoadingSlots.value = true;
+  }
+
+  try {
+    const { data } = await useLazyFetch("/api/appointments/slots", {
+      query: getSlotFetchParams({ forEndTimes: true }),
+      server: false,
+    });
+
+    if (data.value && data.value.success && data.value.slotType === "end") {
+      applyAvailableSlots(data.value.data || [], customEndOptions);
+
+      if (
+        appointmentForm.value.custom_end_time &&
+        !customEndOptions.value.some(
+          (option) => option.value === appointmentForm.value.custom_end_time,
+        )
+      ) {
+        appointmentForm.value.custom_end_time = "";
+      }
+
+      if (customEndOptions.value.length === 1) {
+        errorMessage.value =
+          "No available end times for the selected start time and practitioner";
+      }
+    } else {
+      errorMessage.value = data.value?.message || "Failed to load end times";
+      customEndOptions.value = [{ label: "--- Please select ---", value: "" }];
+    }
+  } catch (error) {
+    console.error("Error fetching custom end times:", error);
+    customEndOptions.value = [{ label: "--- Please select ---", value: "" }];
+  } finally {
+    if (manageLoading) {
+      isLoadingSlots.value = false;
+    }
   }
 };
 
@@ -239,16 +372,57 @@ watch(
   }
 );
 
+watch(
+  () => appointmentForm.value.duration_type,
+  (newDuration) => {
+    if (!appointmentForm.value.date || !appointmentForm.value.therapistDoctor) {
+      return;
+    }
+
+    if (newDuration !== "custom") {
+      appointmentForm.value.custom_end_time = "";
+      customEndOptions.value = [{ label: "--- Please select ---", value: "" }];
+    }
+
+    fetchTimeSlots();
+  },
+);
+
+watch(
+  () => appointmentForm.value.start_time,
+  (newStartTime, oldStartTime) => {
+    if (newStartTime === oldStartTime) return;
+
+    appointmentForm.value.custom_end_time = "";
+    customEndOptions.value = [{ label: "--- Please select ---", value: "" }];
+
+    if (
+      appointmentForm.value.duration_type === "custom" &&
+      newStartTime &&
+      appointmentForm.value.date &&
+      appointmentForm.value.therapistDoctor
+    ) {
+      fetchCustomEndTimes();
+    }
+  },
+);
+
 // Save appointment to API
 const saveAppointment = async () => {
   try {
     // Validate
     if (!appointmentForm.value.date || 
-        !appointmentForm.value.time || 
+        !appointmentForm.value.start_time || 
+        !appointmentForm.value.duration_type ||
         !appointmentForm.value.patient || 
         !appointmentForm.value.therapistDoctor || 
         !appointmentForm.value.serviceId) {
       errorMessage.value = "Please fill in all required fields";
+      return;
+    }
+
+    if (appointmentForm.value.duration_type === "custom" && !appointmentForm.value.custom_end_time) {
+      errorMessage.value = "Please select a custom end time";
       return;
     }
 
@@ -263,8 +437,13 @@ const saveAppointment = async () => {
       book_by: currentUserId,
       service_id: appointmentForm.value.serviceId,
       date: appointmentForm.value.date,
-      slot_ID: appointmentForm.value.time,
-      status: 36 // Booked status
+      start_time: appointmentForm.value.start_time,
+      duration_type: appointmentForm.value.duration_type,
+      custom_end_time:
+        appointmentForm.value.duration_type === "custom"
+          ? appointmentForm.value.custom_end_time
+          : undefined,
+      status: 36,
     };
 
     const { data } = await useFetch('/api/appointments/create', {
@@ -277,13 +456,15 @@ const saveAppointment = async () => {
       // Reset form
       appointmentForm.value = {
         date: new Date().toISOString().slice(0, 10),
-        time: "",
+        start_time: "",
+        duration_type: "1hour",
+        custom_end_time: "",
         patient: "",
         serviceId: "",
         therapistDoctor: "",
         status: 36
       };
-      timeSlotOptions.value = [{ label: "--- Please select ---", value: "" }];
+      startTimeOptions.value = [{ label: "--- Please select ---", value: "" }];
       
       // Close modal and refresh appointments
       showModal.value = false;
@@ -303,7 +484,9 @@ const saveAppointment = async () => {
 const openAddAppointmentModal = () => {
   appointmentForm.value = {
     date: new Date().toISOString().slice(0, 10),
-    time: "",
+    start_time: "",
+    duration_type: "1hour",
+    custom_end_time: "",
     patient: "",
     serviceId: "",
     therapistDoctor: "",
@@ -398,9 +581,24 @@ const editAppointment = (appointment) => {
   selectedAppointment.value = appointment;
   
   // Populate the form with current appointment data
+  const startTime = appointment.rawExtendedProps?.start_time || "";
+  const endTime = appointment.rawExtendedProps?.end_time || "";
+  const toMinutes = (time) => {
+    const [h, m] = time.split(":").map(Number);
+    return h * 60 + m;
+  };
+  let durationType = "1hour";
+  if (startTime && endTime) {
+    const diff = toMinutes(endTime) - toMinutes(startTime);
+    if (diff === 30) durationType = "30min";
+    else if (diff !== 60) durationType = "custom";
+  }
+
   appointmentForm.value = {
     date: new Date(appointment.date).toISOString().slice(0, 10),
-    time: appointment.slotId?.toString() || "",
+    start_time: startTime,
+    duration_type: durationType,
+    custom_end_time: durationType === "custom" ? endTime : "",
     patient: appointment.patientId?.toString() || "",
     serviceId: appointment.serviceId?.toString() || "",
     therapistDoctor: appointment.practitionerId?.toString() || "",
@@ -423,11 +621,17 @@ const saveEditedAppointment = async () => {
   try {
     // Validate
     if (!appointmentForm.value.date || 
-        !appointmentForm.value.time || 
+        !appointmentForm.value.start_time || 
+        !appointmentForm.value.duration_type ||
         !appointmentForm.value.patient || 
         !appointmentForm.value.therapistDoctor || 
         !appointmentForm.value.serviceId) {
       errorMessage.value = "Please fill in all required fields";
+      return;
+    }
+
+    if (appointmentForm.value.duration_type === "custom" && !appointmentForm.value.custom_end_time) {
+      errorMessage.value = "Please select a custom end time";
       return;
     }
 
@@ -442,7 +646,12 @@ const saveEditedAppointment = async () => {
       practitioner_id: appointmentForm.value.therapistDoctor,
       service_id: appointmentForm.value.serviceId,
       date: appointmentForm.value.date,
-      slot_ID: appointmentForm.value.time,
+      start_time: appointmentForm.value.start_time,
+      duration_type: appointmentForm.value.duration_type,
+      custom_end_time:
+        appointmentForm.value.duration_type === "custom"
+          ? appointmentForm.value.custom_end_time
+          : undefined,
       status: parseInt(appointmentForm.value.status)
     };
 
@@ -701,10 +910,28 @@ const saveRating = async () => {
             <FormKit type="select" v-model="appointmentForm.therapistDoctor" name="therapistDoctor" label="Therapist/Doctor" :options="therapistDoctorOptions" validation="required" />
             
             <div class="relative">
-              <FormKit type="select" v-model="appointmentForm.time" name="time" label="Time Slot" :options="timeSlotOptions" validation="required" :disabled="!appointmentForm.date || !appointmentForm.therapistDoctor || isLoadingSlots" />
+              <FormKit type="select" v-model="appointmentForm.start_time" name="start_time" label="Start Time" :options="startTimeOptions" validation="required" :disabled="!appointmentForm.date || !appointmentForm.therapistDoctor || isLoadingSlots" />
               <div v-if="isLoadingSlots" class="absolute right-2 top-8">
                 <Icon name="line-md:loading-twotone-loop" class="text-primary" />
               </div>
+            </div>
+
+            <FormKit type="select" v-model="appointmentForm.duration_type" name="duration_type" label="Duration" :options="durationOptions" validation="required" />
+
+            <FormKit
+              v-if="appointmentForm.duration_type === 'custom'"
+              type="select"
+              v-model="appointmentForm.custom_end_time"
+              name="custom_end_time"
+              label="End Time"
+              :options="customEndOptions"
+              validation="required"
+              :disabled="!appointmentForm.start_time"
+            />
+
+            <div v-if="computedEndTime" class="p-3 bg-gray-50 border border-gray-200 rounded text-sm mb-4">
+              <span class="text-gray-600">Calculated end time:</span>
+              <span class="font-medium ml-2">{{ formatTime12h(computedEndTime) }}</span>
             </div>
             
             <FormKit type="select" v-model="appointmentForm.status" name="status" label="Status" :options="statusOptions" validation="required" />
@@ -853,10 +1080,28 @@ const saveRating = async () => {
             <FormKit type="select" v-model="appointmentForm.therapistDoctor" name="therapistDoctor" label="Therapist/Doctor" :options="therapistDoctorOptions" validation="required" />
             
             <div class="relative">
-              <FormKit type="select" v-model="appointmentForm.time" name="time" label="Time Slot" :options="timeSlotOptions" validation="required" :disabled="!appointmentForm.date || !appointmentForm.therapistDoctor || isLoadingSlots" />
+              <FormKit type="select" v-model="appointmentForm.start_time" name="start_time" label="Start Time" :options="startTimeOptions" validation="required" :disabled="!appointmentForm.date || !appointmentForm.therapistDoctor || isLoadingSlots" />
               <div v-if="isLoadingSlots" class="absolute right-2 top-8">
                 <Icon name="line-md:loading-twotone-loop" class="text-primary" />
               </div>
+            </div>
+
+            <FormKit type="select" v-model="appointmentForm.duration_type" name="duration_type" label="Duration" :options="durationOptions" validation="required" />
+
+            <FormKit
+              v-if="appointmentForm.duration_type === 'custom'"
+              type="select"
+              v-model="appointmentForm.custom_end_time"
+              name="custom_end_time"
+              label="End Time"
+              :options="customEndOptions"
+              validation="required"
+              :disabled="!appointmentForm.start_time"
+            />
+
+            <div v-if="computedEndTime" class="p-3 bg-gray-50 border border-gray-200 rounded text-sm mb-4">
+              <span class="text-gray-600">Calculated end time:</span>
+              <span class="font-medium ml-2">{{ formatTime12h(computedEndTime) }}</span>
             </div>
             
             <FormKit type="select" v-model="appointmentForm.status" name="status" label="Status" :options="statusOptions" validation="required" />
