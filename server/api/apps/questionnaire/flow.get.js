@@ -1,3 +1,5 @@
+import { optionOrderBy, questionOrderBy } from "~/server/utils/questionnaireOrder";
+
 export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
@@ -49,10 +51,7 @@ export default defineEventHandler(async (event) => {
         questionnaire_id: parseInt(questionnaireID),
         deleted_at: null
       },
-      orderBy: [
-        { parentID: 'asc' }, // null parentID first (top-level questions)
-        { question_id: 'asc' }
-      ]
+      orderBy: questionOrderBy,
     });
 
     // Separate top-level questions and sub-questions
@@ -91,7 +90,7 @@ export default defineEventHandler(async (event) => {
             question_id: currentQuestion.question_id,
             deleted_at: null
           },
-          orderBy: { option_id: 'asc' }
+          orderBy: optionOrderBy,
         });
         currentQuestionWithOptions = { ...currentQuestion, options };
       }
@@ -136,7 +135,7 @@ export default defineEventHandler(async (event) => {
                     status: 'Active',
                     deleted_at: null
                   },
-                  orderBy: { question_id: 'asc' }
+                  orderBy: questionOrderBy,
                 });
 
                 // Get options for conditional questions if requested
@@ -149,7 +148,7 @@ export default defineEventHandler(async (event) => {
                           question_id: q.question_id,
                           deleted_at: null
                         },
-                        orderBy: { option_id: 'asc' }
+                        orderBy: optionOrderBy,
                       });
                       return { ...q, options };
                     })

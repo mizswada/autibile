@@ -1,3 +1,8 @@
+import {
+  assertCanSubmit,
+  lockAfterSubmit,
+} from "~/server/utils/questionnaireAccess";
+
 export default defineEventHandler(async (event) => {
     try {
       const body = await readBody(event);
@@ -8,6 +13,19 @@ export default defineEventHandler(async (event) => {
           statusCode: 400,
           message: "Missing required fields",
         };
+      }
+
+      if (patientId) {
+        const accessCheck = await assertCanSubmit(
+          parseInt(patientId),
+          parseInt(questionnaireId),
+        );
+        if (!accessCheck.allowed) {
+          return {
+            statusCode: 400,
+            message: accessCheck.message,
+          };
+        }
       }
   
       // Create a new questionnaire response record
@@ -77,17 +95,9 @@ export default defineEventHandler(async (event) => {
         }
       });
 
-      // If this is questionnaire ID 1 (MCHAT-R), update patient's mchatr_status to 'Disable'
-      if (parseInt(questionnaireId) === 1 && patientId) {
-        await prisma.user_patients.update({
-          where: {
-            patient_id: parseInt(patientId)
-          },
-          data: {
-            mchatr_status: 'Disable',
-            update_at: new Date()
-          }
-        });
+      // Lock questionnaire access after successful submission
+      if (patientId) {
+        await lockAfterSubmit(parseInt(patientId), parseInt(questionnaireId));
       }
 
       // Fetch the appropriate threshold based on the total score
@@ -213,6 +223,7 @@ export default defineEventHandler(async (event) => {
       return {
         statusCode: 500,
         message: "Internal server error",
+        error: process.env.NODE_ENV !== "production" ? error.message : undefined,
       };
     }
   }); 

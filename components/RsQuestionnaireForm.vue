@@ -915,7 +915,10 @@ function cancelQuestionnaire() {
                     ></div>
                   </div>
                 </div>
-                <div>{{ option.option_title }}</div>
+                <div>
+                  <div>{{ option.option_title }}</div>
+                  <div v-if="option.option_title_bm" class="text-sm text-gray-500 mt-1">{{ option.option_title_bm }}</div>
+                </div>
               </div>
             </div>
           </div>
@@ -977,7 +980,10 @@ function cancelQuestionnaire() {
                     </div>
                   </div>
                 </div>
-                <div>{{ option.option_title }}</div>
+                <div>
+                  <div>{{ option.option_title }}</div>
+                  <div v-if="option.option_title_bm" class="text-sm text-gray-500 mt-1">{{ option.option_title_bm }}</div>
+                </div>
               </div>
             </div>
           </div>
@@ -1072,6 +1078,7 @@ function cancelQuestionnaire() {
                   {{ option.option_value }}
                 </button>
                 <span class="text-xs text-gray-500">{{ option.option_title }}</span>
+                <span v-if="option.option_title_bm" class="text-xs text-gray-400 block">{{ option.option_title_bm }}</span>
               </div>
             </div>
           </div>
@@ -1156,7 +1163,10 @@ function cancelQuestionnaire() {
                         ></div>
                       </div>
                     </div>
-                    <div>{{ option.option_title }}</div>
+                    <div>
+                  <div>{{ option.option_title }}</div>
+                  <div v-if="option.option_title_bm" class="text-sm text-gray-500 mt-1">{{ option.option_title_bm }}</div>
+                </div>
                   </div>
                 </div>
               </div>
@@ -1218,7 +1228,10 @@ function cancelQuestionnaire() {
                         </div>
                       </div>
                     </div>
-                    <div>{{ option.option_title }}</div>
+                    <div>
+                  <div>{{ option.option_title }}</div>
+                  <div v-if="option.option_title_bm" class="text-sm text-gray-500 mt-1">{{ option.option_title_bm }}</div>
+                </div>
                   </div>
                 </div>
               </div>

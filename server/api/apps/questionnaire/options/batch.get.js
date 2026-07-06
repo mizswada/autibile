@@ -1,3 +1,5 @@
+import { optionOrderBy } from "~/server/utils/questionnaireOrder";
+
 export default defineEventHandler(async (event) => {
   try {
     // Get question IDs from query params
@@ -27,10 +29,7 @@ export default defineEventHandler(async (event) => {
         question_id: { in: questionIDArray },
         deleted_at: null
       },
-      orderBy: [
-        { question_id: 'asc' },
-        { option_id: 'asc' }
-      ]
+      orderBy: [{ question_id: "asc" }, ...optionOrderBy],
     });
 
     // Group options by question_id

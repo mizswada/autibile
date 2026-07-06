@@ -1,4 +1,5 @@
 // Added by: Assistant - Batch Options API for efficient loading
+import { optionOrderBy } from "~/server/utils/questionnaireOrder";
 import { PrismaClient } from '@prisma/client';
 
 export default defineEventHandler(async (event) => {
@@ -24,10 +25,7 @@ export default defineEventHandler(async (event) => {
         },
         deleted_at: null
       },
-      orderBy: [
-        { question_id: 'asc' },
-        { option_id: 'asc' }
-      ]
+      orderBy: [{ question_id: "asc" }, ...optionOrderBy],
     });
 
     // Group options by question_id

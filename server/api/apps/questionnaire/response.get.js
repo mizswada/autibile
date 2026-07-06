@@ -1,3 +1,5 @@
+import { mapSortedAnswers } from "~/server/utils/questionnaireOrder";
+
 export default defineEventHandler(async (event) => {
     // Helper function to clean option titles
     const cleanOptionTitle = (optionTitle) => {
@@ -127,17 +129,19 @@ export default defineEventHandler(async (event) => {
           ai_analysis: response.ai_analysis_results
             ? { result: response.ai_analysis_results.ai_result, explanation: response.ai_analysis_results.ai_explanation }
             : null,
-          answers: response.questionnaires_questions_answers.map(answer => ({
+          answers: mapSortedAnswers(response.questionnaires_questions_answers, (answer) => ({
             answer_id: answer.answer_id,
             question_id: answer.question_id,
+            question_order: answer.questionnaires_questions?.order ?? null,
             question_text: answer.questionnaires_questions?.question_text_bi || 'Unknown',
             question_text_bm: answer.questionnaires_questions?.question_text_bm || '',
             option_id: answer.option_id,
             option_title: answer.questionnaires_questions_action ? cleanOptionTitle(answer.questionnaires_questions_action.option_title) || '' : '',
+            option_title_bm: answer.questionnaires_questions_action?.option_title_bm || '',
             option_value: answer.questionnaires_questions_action?.option_value || 0,
             text_answer: answer.text_answer || '',
             score: answer.score || 0,
-            parentID: answer.questionnaires_questions?.parentID || null // Include parentID for sub-questions
+            parentID: answer.questionnaires_questions?.parentID || null
           }))
         };
       }));

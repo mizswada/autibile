@@ -15,6 +15,7 @@ export default defineEventHandler(async (event) => {
     const {
       question_id,
       option_title,
+      option_title_bm,
       option_value,
       order_number
     } = body;
@@ -50,6 +51,7 @@ export default defineEventHandler(async (event) => {
           connect: { question_id: parseInt(question_id) }
         },
         option_title: option_title,
+        option_title_bm: option_title_bm?.trim() || null,
         option_value: option_value ? parseInt(option_value) : 0,
         order_number: order_number ? parseInt(order_number) : null,
         created_at: new Date()

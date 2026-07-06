@@ -1,4 +1,4 @@
-import { getMchatrEligibility } from "~/server/utils/questionnaireAccess";
+import { listAccessForPatient } from "~/server/utils/questionnaireAccess";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
 
     const patient = await prisma.user_patients.findUnique({
       where: { patient_id: parseInt(patientId) },
-      select: { patient_id: true },
+      select: { patient_id: true, fullname: true },
     });
 
     if (!patient) {
@@ -32,15 +32,19 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    const eligibility = await getMchatrEligibility(parseInt(patientId));
+    const accessList = await listAccessForPatient(parseInt(patientId));
 
     return {
       statusCode: 200,
-      message: "Eligibility check completed",
-      data: eligibility,
+      message: "Patient questionnaire access retrieved successfully",
+      data: {
+        patient_id: patient.patient_id,
+        patient_name: patient.fullname,
+        questionnaires: accessList,
+      },
     };
   } catch (error) {
-    console.error("Error checking MCHAT-R eligibility:", error);
+    console.error("Error listing patient questionnaire access:", error);
     return {
       statusCode: 500,
       message: "Internal server error",

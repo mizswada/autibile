@@ -142,6 +142,7 @@ model questionnaires {
   questionnaires_questions           questionnaires_questions[]
   questionnaires_questions_followups questionnaires_questions_followups[]
   questionnaires_responds            questionnaires_responds[]
+  patient_questionnaire_access       patient_questionnaire_access[]
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -172,6 +173,7 @@ model questionnaires_questions_action {
   option_id                        Int                                @id @default(autoincrement())
   question_id                      Int?
   option_title                     String?                            @db.VarChar(255)
+  option_title_bm                  String?                            @db.VarChar(255)
   option_value                     Int?
   order_number                     Int?
   conditional_sub_questions_ids    String?                            @db.VarChar(255)
@@ -311,12 +313,27 @@ model user_patients {
   invoice                 invoice[]
   payment                 payment[]
   progress_track          progress_track[]
-  questionnaires_responds questionnaires_responds[]
-  referrals               referrals[]
-  user_parent_patient     user_parent_patient[]
-  user                    user?                     @relation(fields: [user_id], references: [userID], onUpdate: NoAction, map: "user_patients_ibfk_1")
+  questionnaires_responds         questionnaires_responds[]
+  referrals                       referrals[]
+  user_parent_patient             user_parent_patient[]
+  patient_questionnaire_access    patient_questionnaire_access[]
+  user                            user?                     @relation(fields: [user_id], references: [userID], onUpdate: NoAction, map: "user_patients_ibfk_1")
 
   @@index([user_id], map: "user_id")
+}
+
+model patient_questionnaire_access {
+  access_id        Int            @id @default(autoincrement())
+  patient_id       Int
+  questionnaire_id Int
+  access_status    String         @default("Enable") @db.VarChar(50)
+  updated_at       DateTime?      @default(now()) @db.Timestamp(0)
+  user_patients    user_patients  @relation(fields: [patient_id], references: [patient_id], onUpdate: NoAction, map: "pqa_patient_fk")
+  questionnaires   questionnaires @relation(fields: [questionnaire_id], references: [questionnaire_id], onUpdate: NoAction, map: "pqa_questionnaire_fk")
+
+  @@unique([patient_id, questionnaire_id], map: "patient_questionnaire_unique")
+  @@index([patient_id], map: "idx_pqa_patient")
+  @@index([questionnaire_id], map: "idx_pqa_questionnaire")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments

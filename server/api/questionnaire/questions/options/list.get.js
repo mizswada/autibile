@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { optionOrderBy } from "~/server/utils/questionnaireOrder";
 
 // Added by: Firzana Huda 24 June 2025
 export default defineEventHandler(async (event) => {
@@ -16,11 +16,9 @@ export default defineEventHandler(async (event) => {
     const options = await prisma.questionnaires_questions_action.findMany({
       where: {
         question_id: parseInt(questionID),
-        deleted_at: null
+        deleted_at: null,
       },
-      orderBy: {
-        option_id: 'asc'
-      }
+      orderBy: optionOrderBy,
     });
 
     return {
@@ -28,13 +26,12 @@ export default defineEventHandler(async (event) => {
       message: "Options retrieved successfully",
       data: options,
     };
-
   } catch (error) {
     console.error("Error retrieving question options:", error);
     return {
       statusCode: 500,
       message: "Internal server error",
-      error: error.message
+      error: error.message,
     };
   }
-}); 
+});

@@ -547,6 +547,12 @@
           "items": {
             "$ref": "#/definitions/questionnaires_responds"
           }
+        },
+        "patient_questionnaire_access": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/patient_questionnaire_access"
+          }
         }
       }
     },
@@ -668,6 +674,12 @@
           "type": "integer"
         },
         "option_title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "option_title_bm": {
           "type": [
             "string",
             "null"
@@ -1237,6 +1249,12 @@
             "$ref": "#/definitions/user_parent_patient"
           }
         },
+        "patient_questionnaire_access": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/patient_questionnaire_access"
+          }
+        },
         "user": {
           "anyOf": [
             {
@@ -1246,6 +1264,31 @@
               "type": "null"
             }
           ]
+        }
+      }
+    },
+    "patient_questionnaire_access": {
+      "type": "object",
+      "properties": {
+        "access_id": {
+          "type": "integer"
+        },
+        "access_status": {
+          "type": "string",
+          "default": "Enable"
+        },
+        "updated_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "user_patients": {
+          "$ref": "#/definitions/user_patients"
+        },
+        "questionnaires": {
+          "$ref": "#/definitions/questionnaires"
         }
       }
     },
@@ -2096,6 +2139,9 @@
     },
     "user_patients": {
       "$ref": "#/definitions/user_patients"
+    },
+    "patient_questionnaire_access": {
+      "$ref": "#/definitions/patient_questionnaire_access"
     },
     "user_practitioners": {
       "$ref": "#/definitions/user_practitioners"

@@ -20,6 +20,7 @@ const messageType = ref('');
 const selectedPatientId = ref(patientId || '');
 const patients = ref([]);
 const patientMchatrStatus = ref(null);
+const patientQuestionnaireAccess = ref(null);
 const hasCompletedMchatr = ref(false);
 const mchatrScore = ref(null);
 const isEligibleForQuestionnaire2 = ref(false);
@@ -39,9 +40,10 @@ onMounted(async () => {
     fetchPatients()
   ]);
   
-  // If this is questionnaire ID 1, check patient eligibility
-  if (questionnaireId === '1' && patientId) {
+  // If patient is selected, check questionnaire access
+  if (patientId) {
     await checkPatientEligibility(patientId);
+    await checkQuestionnaireAccess(patientId);
   }
   
   // If this is questionnaire ID 2, check if patient is eligible
@@ -52,6 +54,27 @@ onMounted(async () => {
     showMchatrFQuestions.value = true;
   }
 });
+
+async function checkQuestionnaireAccess(patientId) {
+  try {
+    const res = await fetch(
+      `/api/questionnaire/patientAccess/list?patientId=${patientId}`,
+    );
+    const result = await res.json();
+
+    if (res.ok && result.data?.questionnaires) {
+      const current = result.data.questionnaires.find(
+        (q) => String(q.questionnaire_id) === String(questionnaireId),
+      );
+      patientQuestionnaireAccess.value = current || null;
+      if (questionnaireId === '1' && current) {
+        patientMchatrStatus.value = current.access_status;
+      }
+    }
+  } catch (err) {
+    console.error('Error checking questionnaire access:', err);
+  }
+}
 
 async function checkPatientEligibility(patientId) {
   try {
@@ -75,19 +98,19 @@ async function checkPatientEligibility(patientId) {
 
 // Computed property to determine if questionnaire can be shown
 const canShowQuestionnaire = computed(() => {
-  // Always require a patient to be selected
   if (!selectedPatientId.value) return false;
-  
-  if (questionnaireId === '1') {
-    // For MCHAT-R (questionnaire ID 1): Show if status is Enable OR null (treat null as Enable)
-    const canShow = patientMchatrStatus.value === 'Enable' || patientMchatrStatus.value === null;
-    console.log(`Questionnaire 1 (MCHAT-R) - Can show: ${canShow}, Status: ${patientMchatrStatus.value}`);
-    return canShow;
-  } else if (questionnaireId === '2') {
-    // For questionnaire ID 2: Always show the form, but submission will be controlled separately
-    console.log(`Questionnaire 2 - Always showing form, Eligible: ${isEligibleForQuestionnaire2.value}, Score: ${mchatrScore.value}`);
+
+  if (
+    patientQuestionnaireAccess.value &&
+    !patientQuestionnaireAccess.value.can_access
+  ) {
+    return false;
+  }
+
+  if (questionnaireId === '2') {
     return true;
   }
+
   return true;
 });
 
@@ -172,13 +195,17 @@ async function fetchPatients() {
 
 // Watch for patient selection changes
 watch(selectedPatientId, async (newPatientId) => {
-  if (newPatientId && questionnaireId === '1') {
-    await checkPatientEligibility(newPatientId);
-  } else if (newPatientId && questionnaireId === '2') {
-    await checkQuestionnaire2Eligibility(newPatientId);
+  if (newPatientId) {
+    await checkQuestionnaireAccess(newPatientId);
+    if (questionnaireId === '1') {
+      await checkPatientEligibility(newPatientId);
+    } else if (questionnaireId === '2') {
+      await checkQuestionnaire2Eligibility(newPatientId);
+    }
   } else {
     hasCompletedMchatr.value = false;
     patientMchatrStatus.value = null;
+    patientQuestionnaireAccess.value = null;
     mchatrScore.value = null;
     isEligibleForQuestionnaire2.value = false;
   }
@@ -419,7 +446,16 @@ function handleMchatrFNavigateBack() {
       </div>
 
       <!-- Questionnaire Form Component - Show only if eligible -->
-      <div v-if="questionnaireId === '1' && selectedPatientId && patientMchatrStatus === 'Disable'" class="card p-6 text-center">
+      <div v-if="selectedPatientId && patientQuestionnaireAccess && !patientQuestionnaireAccess.can_access" class="card p-6 text-center">
+        <Icon name="ic:outline-block" size="64" class="text-red-400 mb-4 mx-auto" />
+        <h3 class="text-xl font-medium text-gray-600 mb-2">Access Restricted</h3>
+        <p class="text-gray-500">
+          {{ patientQuestionnaireAccess.access_reason || 'This questionnaire is locked for this patient.' }}
+        </p>
+      </div>
+
+      <!-- Legacy MCHAT-R block (fallback) -->
+      <div v-else-if="questionnaireId === '1' && selectedPatientId && patientMchatrStatus === 'Disable'" class="card p-6 text-center">
         <Icon name="ic:outline-block" size="64" class="text-red-400 mb-4 mx-auto" />
         <h3 class="text-xl font-medium text-gray-600 mb-2">Access Restricted</h3>
         <p class="text-gray-500">
@@ -459,7 +495,7 @@ function handleMchatrFNavigateBack() {
       <MchatrFForm
         v-if="questionnaireId === '2'"
         :patient-id="selectedPatientId"
-        :read-only="!isEligibleForQuestionnaire2"
+        :read-only="!isEligibleForQuestionnaire2 || (patientQuestionnaireAccess && !patientQuestionnaireAccess.can_access)"
         @submit="handleMchatrFSubmit"
         @answers-updated="handleMchatrFAnswersUpdated"
         @navigate-back="handleMchatrFNavigateBack"

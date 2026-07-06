@@ -30,6 +30,7 @@ const form = ref({
 const paymentMethods = [
   { value: 'Online Banking', label: 'Online Banking' },
   { value: 'E-Wallet', label: 'E-Wallet' },
+  { value: 'Cash', label: 'Cash' },
 ];
 
 // Bank options from lookup table
@@ -97,8 +98,14 @@ const fetchInvoice = async () => {
 
 // Submit payment
 const submitPayment = async () => {
-  // Validate form
-  if (!form.value.method || !form.value.bank_name || !form.value.reference_code) {
+  const isCash = form.value.method === 'Cash';
+
+  if (!form.value.method) {
+    showMessage('Please select a payment method', 'error');
+    return;
+  }
+
+  if (!isCash && (!form.value.bank_name || !form.value.reference_code)) {
     showMessage('Please fill in all required fields', 'error');
     return;
   }
@@ -112,8 +119,8 @@ const submitPayment = async () => {
         patientID: invoiceData.value.patient_id,
         amount: invoiceData.value.amount,
         method: form.value.method,
-        bank_name: form.value.bank_name,
-        reference_code: form.value.reference_code,
+        bank_name: isCash ? null : form.value.bank_name,
+        reference_code: isCash ? null : form.value.reference_code,
       },
     });
 
@@ -258,6 +265,7 @@ onMounted(() => {
 
             <!-- Reference Code -->
             <FormKit 
+              v-if="form.method !== 'Cash'"
               type="text" 
               v-model="form.reference_code" 
               label="Reference Code / Transaction ID" 
@@ -297,6 +305,7 @@ onMounted(() => {
           <div class="text-sm text-blue-700 space-y-2">
             <p><strong>For Online Banking:</strong> Select your bank from the dropdown and enter the transaction reference number provided by your bank.</p>
             <p><strong>For E-Wallet:</strong> Enter the e-wallet provider name (e.g., Touch n Go, Boost, GrabPay, ShopeePay) and the transaction reference.</p>
+            <p><strong>For Cash:</strong> Select Cash as the payment method and submit — no reference code is required.</p>
             <p class="mt-3"><strong>Note:</strong> Please keep your payment receipt for verification purposes.</p>
           </div>
         </div>

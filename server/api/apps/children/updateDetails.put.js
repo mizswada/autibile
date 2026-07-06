@@ -63,6 +63,17 @@ export default defineEventHandler(async (event) => {
           update_at: new Date(),
         },
       });
+
+      if (mchatrStatus) {
+        const { setAccessStatus, MCHATR_QUESTIONNAIRE_ID } = await import(
+          "~/server/utils/questionnaireAccess"
+        );
+        await setAccessStatus(
+          parseInt(patientID),
+          MCHATR_QUESTIONNAIRE_ID,
+          mchatrStatus,
+        );
+      }
   
       return {
         statusCode: 200,

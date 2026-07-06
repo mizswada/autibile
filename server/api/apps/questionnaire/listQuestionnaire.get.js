@@ -1,10 +1,12 @@
 // Added by: Firzana Huda 24 June 2025
+import { getQuestionnaireAccessInfo } from "~/server/utils/questionnaireAccess";
+
 export default defineEventHandler(async (event) => {
     try {
       
       // Get query parameters
       const query = getQuery(event);
-      const { questionnaireID } = query;
+      const { questionnaireID, patientID } = query;
       
       // Build where clause
       const whereClause = {
@@ -63,12 +65,31 @@ export default defineEventHandler(async (event) => {
         }
         questionsMap[question.questionnaire_id].push(question);
       }
+
+      const parsedPatientId = patientID ? parseInt(patientID) : null;
   
-      // Step 4: Merge questions into each questionnaire
-      const mergedData = questionnaires.map(q => ({
-        ...q,
-        questionnaires_questions: questionsMap[q.questionnaire_id] || [],
-      }));
+      // Step 4: Merge questions and access info into each questionnaire
+      const mergedData = await Promise.all(
+        questionnaires.map(async (q) => {
+          const base = {
+            ...q,
+            questionnaires_questions: questionsMap[q.questionnaire_id] || [],
+          };
+
+          if (parsedPatientId) {
+            const accessInfo = await getQuestionnaireAccessInfo(
+              parsedPatientId,
+              q.questionnaire_id,
+            );
+            return {
+              ...base,
+              questionnaire_access: accessInfo,
+            };
+          }
+
+          return base;
+        }),
+      );
   
       return {
         statusCode: 200,

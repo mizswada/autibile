@@ -1,4 +1,4 @@
-import { setAccessStatus, MCHATR_QUESTIONNAIRE_ID } from "~/server/utils/questionnaireAccess";
+import { setAccessStatus } from "~/server/utils/questionnaireAccess";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -11,19 +11,19 @@ export default defineEventHandler(async (event) => {
     }
 
     const body = await readBody(event);
-    const { patientId, mchatrStatus } = body;
+    const { patientId, questionnaireId, accessStatus } = body;
 
-    if (!patientId || !mchatrStatus) {
+    if (!patientId || !questionnaireId || !accessStatus) {
       return {
         statusCode: 400,
-        message: "Patient ID and MCHAT-R status are required",
+        message: "Patient ID, questionnaire ID, and access status are required",
       };
     }
 
-    if (!["Enable", "Disable"].includes(mchatrStatus)) {
+    if (!["Enable", "Disable"].includes(accessStatus)) {
       return {
         statusCode: 400,
-        message: "MCHAT-R status must be either 'Enable' or 'Disable'",
+        message: "Access status must be either 'Enable' or 'Disable'",
       };
     }
 
@@ -38,24 +38,34 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    const questionnaire = await prisma.questionnaires.findUnique({
+      where: { questionnaire_id: parseInt(questionnaireId) },
+    });
+
+    if (!questionnaire) {
+      return {
+        statusCode: 404,
+        message: "Questionnaire not found",
+      };
+    }
+
     const updated = await setAccessStatus(
       parseInt(patientId),
-      MCHATR_QUESTIONNAIRE_ID,
-      mchatrStatus,
+      parseInt(questionnaireId),
+      accessStatus,
     );
 
     return {
       statusCode: 200,
-      message: `MCHAT-R status updated to ${mchatrStatus}`,
+      message: `Questionnaire access updated to ${accessStatus}`,
       data: {
         patient_id: updated.patient_id,
-        fullname: patient.fullname,
-        mchatr_status: updated.access_status,
+        questionnaire_id: updated.questionnaire_id,
         access_status: updated.access_status,
       },
     };
   } catch (error) {
-    console.error("Error updating MCHAT-R status:", error);
+    console.error("Error updating patient questionnaire access:", error);
     return {
       statusCode: 500,
       message: "Internal server error",

@@ -1,4 +1,5 @@
 // Enhanced Mobile Conditional Sub-Questions API
+import { optionOrderBy, questionOrderBy } from "~/server/utils/questionnaireOrder";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -25,9 +26,7 @@ export default defineEventHandler(async (event) => {
           status: 'Active',
           deleted_at: null
         },
-        orderBy: {
-          question_id: 'asc'
-        }
+        orderBy: questionOrderBy,
       });
 
       console.log('API Debug - Found sub-questions (all):', subQuestions.length);
@@ -42,9 +41,7 @@ export default defineEventHandler(async (event) => {
                 question_id: question.question_id,
                 deleted_at: null
               },
-              orderBy: {
-                option_id: 'asc'
-              }
+              orderBy: optionOrderBy,
             });
             return { ...question, options };
           })
@@ -129,9 +126,7 @@ export default defineEventHandler(async (event) => {
           status: 'Active',
           deleted_at: null
         },
-        orderBy: {
-          question_id: 'asc'
-        }
+        orderBy: questionOrderBy,
       });
 
       console.log('API Debug - Found sub-questions by ID only:', subQuestions.length);
@@ -147,9 +142,7 @@ export default defineEventHandler(async (event) => {
             status: 'Active',
             deleted_at: null
           },
-          orderBy: {
-            question_id: 'asc'
-          }
+          orderBy: questionOrderBy,
         });
         console.log('API Debug - Found sub-questions with parentID constraint:', subQuestions.length);
       }
@@ -163,9 +156,7 @@ export default defineEventHandler(async (event) => {
             questionnaire_id: parseInt(questionnaireID),
             deleted_at: null
           },
-          orderBy: {
-            question_id: 'asc'
-          }
+          orderBy: questionOrderBy,
         });
         console.log('API Debug - Found sub-questions without status constraint:', subQuestions.length);
       }
@@ -180,9 +171,7 @@ export default defineEventHandler(async (event) => {
                 question_id: question.question_id,
                 deleted_at: null
               },
-              orderBy: {
-                option_id: 'asc'
-              }
+              orderBy: optionOrderBy,
             });
             return { ...question, options };
           })
@@ -217,9 +206,7 @@ export default defineEventHandler(async (event) => {
           status: 'Active',
           deleted_at: null
         },
-        orderBy: {
-          question_id: 'asc'
-        }
+        orderBy: questionOrderBy,
       });
 
       console.log('API Debug - Found all sub-questions:', subQuestions.length);
@@ -234,9 +221,7 @@ export default defineEventHandler(async (event) => {
                 question_id: question.question_id,
                 deleted_at: null
               },
-              orderBy: {
-                option_id: 'asc'
-              }
+              orderBy: optionOrderBy,
             });
             return { ...question, options };
           })

@@ -13,6 +13,7 @@ const isLoading = ref(true);
 const showOptionModal = ref(false);
 const newOption = ref({
   option_title: '',
+  option_title_bm: '',
   option_value: 0,
   order_number: null,
   option_type: 'radio' // This is just for UI, not stored directly in DB
@@ -172,6 +173,7 @@ async function fetchOptions() {
       options.value = result.data.map(option => ({
         id: option.option_id,
         title: option.option_title, // Store the full title with prefix
+        title_bm: option.option_title_bm || '',
         value: option.option_value,
         order: option.order_number,
         type: extractOptionType(option.option_title),
@@ -199,6 +201,7 @@ function openAddOptionModal() {
   newOption.value = {
     option_type: 'radio',
     option_title: '',
+    option_title_bm: '',
     option_value: '',
     order_number: options.length + 1
   };
@@ -217,6 +220,7 @@ function openEditOptionModal(option) {
     id: option.id,
     option_type: extractOptionType(option.title),
     option_title: cleanOptionTitle(option.title),
+    option_title_bm: option.title_bm || '',
     option_value: option.value,
     order_number: option.order
   };
@@ -419,6 +423,7 @@ async function saveOption() {
     const payload = {
       question_id: questionId,
       option_title: formattedTitle,
+      option_title_bm: newOption.value.option_title_bm?.trim() || null,
       option_value: newOption.value.option_value,
       order_number: newOption.value.order_number
     };
@@ -905,6 +910,7 @@ watch(() => newOption.value.option_type, (newType, oldType) => {
                 <tr>
                   <th class="px-4 py-2 text-left">Order</th>
                   <th class="px-4 py-2 text-left">Option Title</th>
+                  <th class="px-4 py-2 text-left">Description</th>
                   <th class="px-4 py-2 text-left">Type</th>
                   <th class="px-4 py-2 text-left">Value/Score</th>
                   <th class="px-4 py-2 text-left">Conditional Logic</th>
@@ -919,6 +925,7 @@ watch(() => newOption.value.option_type, (newType, oldType) => {
                     </span>
                   </td>
                                      <td class="px-4 py-2">{{ cleanOptionTitle(option.title) }}</td>
+                  <td class="px-4 py-2 text-gray-600">{{ option.title_bm || '-' }}</td>
                    <td class="px-4 py-2">
                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
                        :class="{
@@ -991,6 +998,11 @@ watch(() => newOption.value.option_type, (newType, oldType) => {
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Option Title</label>
                 <FormKit type="text" v-model="newOption.option_title" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Enter option title" />
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <FormKit type="text" v-model="newOption.option_title_bm" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Enter Malay translation" />
               </div>
 
               <div>

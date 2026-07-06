@@ -20,19 +20,28 @@ export default defineEventHandler(async (event) => {
       reference_code,
     } = body;
 
+    const isCash = method === 'Cash';
+
     // Basic validation
-    if (!invoiceID || !patientID || !amount || !method || !bank_name || !reference_code) {
+    if (!invoiceID || !patientID || !amount || !method) {
       return {
         statusCode: 400,
-        message: "Missing required fields: invoiceID, patientID, amount, method, bank_name, and reference_code are required",
+        message: "Missing required fields: invoiceID, patientID, amount, and method are required",
+      };
+    }
+
+    if (!isCash && (!bank_name || !reference_code)) {
+      return {
+        statusCode: 400,
+        message: "Missing required fields: bank_name and reference_code are required for this payment method",
       };
     }
 
     // Validate method
-    if (!['Online Banking', 'Credit Card', 'E-Wallet'].includes(method)) {
+    if (!['Online Banking', 'Credit Card', 'E-Wallet', 'Cash'].includes(method)) {
       return {
         statusCode: 400,
-        message: "Invalid payment method. Must be 'Online Banking', 'Credit Card', or 'E-Wallet'",
+        message: "Invalid payment method. Must be 'Online Banking', 'Credit Card', 'E-Wallet', or 'Cash'",
       };
     }
 
@@ -107,8 +116,8 @@ export default defineEventHandler(async (event) => {
         invoice_id: invoiceIdValue,
         amount: amountValue,
         method: method,
-        bank_name: bank_name,
-        reference_code: reference_code,
+        bank_name: isCash ? null : bank_name,
+        reference_code: isCash ? null : reference_code,
         created_at: new Date(),
         updated_at: new Date(),
       },

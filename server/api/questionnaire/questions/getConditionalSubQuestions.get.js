@@ -1,3 +1,5 @@
+import { optionOrderBy } from "~/server/utils/questionnaireOrder";
+
 // Added by: Assistant - Conditional Sub-Questions API
 
 export default defineEventHandler(async (event) => {
@@ -35,9 +37,7 @@ export default defineEventHandler(async (event) => {
               question_id: question.question_id,
               deleted_at: null
             },
-            orderBy: {
-              option_id: 'asc'
-            }
+            orderBy: optionOrderBy,
           });
           return { ...question, options };
         })
@@ -110,9 +110,7 @@ export default defineEventHandler(async (event) => {
               question_id: question.question_id,
               deleted_at: null
             },
-            orderBy: {
-              option_id: 'asc'
-            }
+            orderBy: optionOrderBy,
           });
           return { ...question, options };
         })
@@ -145,9 +143,7 @@ export default defineEventHandler(async (event) => {
               question_id: question.question_id,
               deleted_at: null
             },
-            orderBy: {
-              option_id: 'asc'
-            }
+            orderBy: optionOrderBy,
           });
           return { ...question, options };
         })

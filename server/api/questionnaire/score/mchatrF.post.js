@@ -1,4 +1,10 @@
 // MCHATR-F Scoring API - Implements the decision tree logic for questionnaire ID 2
+import {
+  assertCanSubmit,
+  lockAfterSubmit,
+  MCHATR_F_QUESTIONNAIRE_ID,
+} from "~/server/utils/questionnaireAccess";
+
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event);
@@ -11,11 +17,24 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    if (parseInt(questionnaireId) !== 2) {
+    if (parseInt(questionnaireId) !== MCHATR_F_QUESTIONNAIRE_ID) {
       return {
         statusCode: 400,
         message: "This scoring method is only for MCHATR-F (questionnaire ID 2)"
       };
+    }
+
+    if (patientId) {
+      const accessCheck = await assertCanSubmit(
+        parseInt(patientId),
+        MCHATR_F_QUESTIONNAIRE_ID,
+      );
+      if (!accessCheck.allowed) {
+        return {
+          statusCode: 400,
+          message: accessCheck.message,
+        };
+      }
     }
 
     console.log('🧮 Calculating MCHATR-F scores using dynamic scoring methods');
@@ -161,6 +180,8 @@ export default defineEventHandler(async (event) => {
       );
       
       console.log(`✅ Successfully saved ${savedAnswers.length} answers for submission history`);
+
+      await lockAfterSubmit(parseInt(patientId), MCHATR_F_QUESTIONNAIRE_ID);
     }
 
     return {

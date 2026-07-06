@@ -1,3 +1,8 @@
+import {
+  optionOrderBy,
+  questionOrderBy,
+} from "~/server/utils/questionnaireOrder";
+
 export default defineEventHandler(async (event) => {
     try {  
       // Get query parameters
@@ -34,9 +39,7 @@ export default defineEventHandler(async (event) => {
       // Get questions
       const questions = await prisma.questionnaires_questions.findMany({
         where: whereClause,
-        orderBy: {
-          question_id: 'asc'
-        }
+        orderBy: questionOrderBy,
       });
   
       // For each question, check if it has sub-questions and handle conditional logic
@@ -71,9 +74,7 @@ export default defineEventHandler(async (event) => {
               question_id: question.question_id,
               deleted_at: null
             },
-            orderBy: {
-              option_id: 'asc'
-            }
+            orderBy: optionOrderBy,
           });
         }
   
@@ -103,9 +104,7 @@ export default defineEventHandler(async (event) => {
                     status: 'Active',
                     deleted_at: null
                   },
-                  orderBy: {
-                    question_id: 'asc'
-                  }
+                  orderBy: questionOrderBy,
                 });
               }
             } catch (error) {
@@ -123,9 +122,7 @@ export default defineEventHandler(async (event) => {
               status: 'Active',
               deleted_at: null
             },
-            orderBy: {
-              question_id: 'asc'
-            }
+            orderBy: questionOrderBy,
           });
         }
   
@@ -139,9 +136,7 @@ export default defineEventHandler(async (event) => {
                   question_id: subQuestion.question_id,
                   deleted_at: null
                 },
-                orderBy: {
-                  option_id: 'asc'
-                }
+                orderBy: optionOrderBy,
               });
               return { ...subQuestion, options: subOptions };
             })
@@ -164,9 +159,7 @@ export default defineEventHandler(async (event) => {
                       questionnaire_id: parseInt(questionnaireID),
                       deleted_at: null
                     },
-                    orderBy: {
-                      question_id: 'asc'
-                    }
+                    orderBy: questionOrderBy,
                   });
                   
                   // Get options for these conditional questions
@@ -177,9 +170,7 @@ export default defineEventHandler(async (event) => {
                           question_id: q.question_id,
                           deleted_at: null
                         },
-                        orderBy: {
-                          option_id: 'asc'
-                        }
+                        orderBy: optionOrderBy,
                       });
                       return { ...q, options: qOptions };
                     })

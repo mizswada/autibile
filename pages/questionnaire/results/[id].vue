@@ -125,6 +125,7 @@ const groupedAnswers = computed(() => {
     if (!questions[answer.question_id]) {
       questions[answer.question_id] = {
         question_id: answer.question_id,
+        question_order: answer.question_order,
         question_text: answer.question_text,
         question_text_bm: answer.question_text_bm, // Include Bahasa Malaysia text
         answers: [],
@@ -156,11 +157,22 @@ const groupedAnswers = computed(() => {
     const parentID = subQuestion.parentID;
     if (parentQuestions[parentID]) {
       parentQuestions[parentID].subQuestions.push(subQuestion);
+      parentQuestions[parentID].subQuestions.sort((a, b) => {
+        const orderA = a.question_order ?? Number.MAX_SAFE_INTEGER;
+        const orderB = b.question_order ?? Number.MAX_SAFE_INTEGER;
+        if (orderA !== orderB) return orderA - orderB;
+        return a.question_id - b.question_id;
+      });
     }
   });
   
   // Return only parent questions (which now include their sub-questions)
-  return Object.values(parentQuestions);
+  return Object.values(parentQuestions).sort((a, b) => {
+    const orderA = a.question_order ?? Number.MAX_SAFE_INTEGER;
+    const orderB = b.question_order ?? Number.MAX_SAFE_INTEGER;
+    if (orderA !== orderB) return orderA - orderB;
+    return a.question_id - b.question_id;
+  });
 });
 
 // Format answers for the questionnaire form component
@@ -335,7 +347,10 @@ const scoreInterpretation = computed(() => {
                   <div>
                     <!-- Show text answer if available, otherwise show option title -->
                     <template v-if="answer.text_answer">{{ answer.text_answer }}</template>
-                    <template v-else>{{ (answer.option_title || '').replace(/^\[(radio|checkbox|scale|text|textarea)\]/, '') }}</template>
+                    <template v-else>
+                      <div>{{ (answer.option_title || '').replace(/^\[(radio|checkbox|scale|text|textarea)\]/, '') }}</div>
+                      <div v-if="answer.option_title_bm" class="text-sm text-gray-500 mt-1">{{ answer.option_title_bm }}</div>
+                    </template>
                   </div>
                   <div v-if="answer.option_value" class="text-blue-600 font-medium">{{ answer.option_value }} points</div>
                 </div>
@@ -361,7 +376,10 @@ const scoreInterpretation = computed(() => {
                       <div>
                         <!-- Show text answer if available, otherwise show option title -->
                         <template v-if="answer.text_answer">{{ answer.text_answer }}</template>
-                        <template v-else>{{ (answer.option_title || '').replace(/^\[(radio|checkbox|scale|text|textarea)\]/, '') }}</template>
+                        <template v-else>
+                          <div>{{ (answer.option_title || '').replace(/^\[(radio|checkbox|scale|text|textarea)\]/, '') }}</div>
+                          <div v-if="answer.option_title_bm" class="text-sm text-gray-500 mt-1">{{ answer.option_title_bm }}</div>
+                        </template>
                       </div>
                       <div v-if="answer.option_value" class="text-blue-600 font-medium">{{ answer.option_value }} points</div>
                     </div>

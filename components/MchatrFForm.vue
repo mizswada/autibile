@@ -1440,7 +1440,10 @@ async function submitMchatrF() {
                     ></div>
                   </div>
                 </div>
-                <div>{{ option.option_title }}</div>
+                <div>
+                  <div>{{ option.option_title }}</div>
+                  <div v-if="option.option_title_bm" class="text-sm text-gray-500 mt-1">{{ option.option_title_bm }}</div>
+                </div>
               </div>
             </div>
           </div>
@@ -1595,7 +1598,10 @@ async function submitMchatrF() {
                         ></div>
                       </div>
                     </div>
-                    <div>{{ option.option_title }}</div>
+                    <div>
+                  <div>{{ option.option_title }}</div>
+                  <div v-if="option.option_title_bm" class="text-sm text-gray-500 mt-1">{{ option.option_title_bm }}</div>
+                </div>
                   </div>
                 </div>
               </div>
@@ -1665,7 +1671,10 @@ async function submitMchatrF() {
                             ></div>
                           </div>
                         </div>
-                        <div>{{ option.option_title }}</div>
+                        <div>
+                  <div>{{ option.option_title }}</div>
+                  <div v-if="option.option_title_bm" class="text-sm text-gray-500 mt-1">{{ option.option_title_bm }}</div>
+                </div>
                       </div>
                     </div>
                     
@@ -1746,7 +1755,10 @@ async function submitMchatrF() {
                                 ></div>
                               </div>
                             </div>
-                            <div class="text-sm">{{ option.option_title }}</div>
+                            <div>
+                          <div class="text-sm">{{ option.option_title }}</div>
+                          <div v-if="option.option_title_bm" class="text-xs text-gray-500 mt-1">{{ option.option_title_bm }}</div>
+                        </div>
                           </div>
                         </div>
                         

@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
     }
 
     const body = await readBody(event);
-    const { optionID, option_id, option_value, option_title, order_number } = body;
+    const { optionID, option_id, option_value, option_title, option_title_bm, order_number } = body;
     
     // Support both optionID and option_id for compatibility
     const optionId = optionID || option_id;
@@ -35,6 +35,10 @@ export default defineEventHandler(async (event) => {
     // Add option_title if provided
     if (option_title !== undefined) {
       updateData.option_title = option_title;
+    }
+
+    if (option_title_bm !== undefined) {
+      updateData.option_title_bm = option_title_bm?.trim() || null;
     }
 
     // Add order_number if provided
