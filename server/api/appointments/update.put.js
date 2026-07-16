@@ -55,32 +55,6 @@ export default defineEventHandler(async (event) => {
 
     await attachAppointmentTimes(prisma, existingAppointment);
 
-    if (status !== undefined && parseInt(status) === 37 && existingAppointment.status !== 37) {
-      const patient = await prisma.user_patients.findUnique({
-        where: {
-          patient_id: existingAppointment.patient_id,
-        },
-        select: {
-          patient_id: true,
-          fullname: true,
-          available_session: true,
-        },
-      });
-
-      if (patient) {
-        const currentSessions = patient.available_session || 0;
-        await prisma.user_patients.update({
-          where: {
-            patient_id: patient.patient_id,
-          },
-          data: {
-            available_session: currentSessions + 1,
-            update_at: new Date(),
-          },
-        });
-      }
-    }
-
     const updateData = {
       updated_at: new Date(),
     };
@@ -169,38 +143,102 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    const updatedAppointment = await prisma.appointments.update({
-      where: {
-        appointment_id: parseInt(appointment_id),
-      },
-      data: updateData,
-    });
+    // Session balance transitions (a session is "held" while status !== 37).
+    const existingStatus = existingAppointment.status;
+    const newStatus =
+      updateData.status !== undefined ? updateData.status : existingStatus;
+    const existingPatientId = existingAppointment.patient_id;
+    const newPatientId =
+      updateData.patient_id !== undefined
+        ? updateData.patient_id
+        : existingPatientId;
 
-    if (pendingStartTime && pendingEndTime) {
-      await persistAppointmentTimes(
-        prisma,
-        appointment_id,
-        pendingStartTime,
-        pendingEndTime,
-      );
-    }
+    const wasReserved = existingStatus !== 37;
+    const willBeReserved = newStatus !== 37;
+    const patientChanged = newPatientId !== existingPatientId;
 
-    const appointmentWithTimes = pendingStartTime
-      ? await prisma.appointments.findUnique({
+    const releaseOld = wasReserved && (!willBeReserved || patientChanged);
+    const acquireNew = willBeReserved && (!wasReserved || patientChanged);
+
+    const appointmentResult = await prisma.$transaction(async (tx) => {
+      if (acquireNew) {
+        const targetPatient = await tx.user_patients.findUnique({
+          where: { patient_id: newPatientId },
+          select: {
+            patient_id: true,
+            fullname: true,
+            available_session: true,
+          },
+        });
+
+        if (!targetPatient) {
+          throw new Error("Patient not found");
+        }
+
+        const availableSessions = targetPatient.available_session || 0;
+        if (availableSessions <= 0) {
+          throw new Error(
+            `Cannot update appointment. Patient ${targetPatient.fullname} has no available sessions (${availableSessions}). Please purchase more sessions first.`,
+          );
+        }
+
+        await tx.user_patients.update({
+          where: { patient_id: newPatientId },
+          data: {
+            available_session: availableSessions - 1,
+            update_at: new Date(),
+          },
+        });
+      }
+
+      if (releaseOld && existingPatientId != null) {
+        const oldPatient = await tx.user_patients.findUnique({
+          where: { patient_id: existingPatientId },
+          select: { patient_id: true, available_session: true },
+        });
+
+        if (oldPatient) {
+          await tx.user_patients.update({
+            where: { patient_id: existingPatientId },
+            data: {
+              available_session: (oldPatient.available_session || 0) + 1,
+              update_at: new Date(),
+            },
+          });
+        }
+      }
+
+      const updated = await tx.appointments.update({
+        where: { appointment_id: parseInt(appointment_id) },
+        data: updateData,
+      });
+
+      if (pendingStartTime && pendingEndTime) {
+        await persistAppointmentTimes(
+          tx,
+          appointment_id,
+          pendingStartTime,
+          pendingEndTime,
+        );
+
+        return tx.appointments.findUnique({
           where: { appointment_id: parseInt(appointment_id, 10) },
-        })
-      : updatedAppointment;
+        });
+      }
+
+      return updated;
+    });
 
     return {
       success: true,
       message: "Appointment updated successfully",
-      data: appointmentWithTimes,
+      data: appointmentResult,
     };
   } catch (error) {
     console.error("Error updating appointment:", error);
     return {
       success: false,
-      message: "Failed to update appointment",
+      message: error.message || "Failed to update appointment",
       error: error.message,
     };
   }

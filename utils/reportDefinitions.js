@@ -278,8 +278,259 @@ const therapyServices = {
   summable: [],
 };
 
+export const PAYMENT_STATUS = [
+  { value: "Pending", label: "Pending" },
+  { value: "Approved", label: "Approved" },
+  { value: "Rejected", label: "Rejected" },
+];
+
+export const PAYMENT_METHOD = [
+  { value: "Online Banking", label: "Online Banking" },
+  { value: "Credit Card", label: "Credit Card" },
+  { value: "E-Wallet", label: "E-Wallet" },
+];
+
+const payment = {
+  key: "payment",
+  label: "Payments",
+  sheetName: "Payments",
+  columns: [
+    { key: "payment_id", label: "ID", type: "number", width: 8 },
+    { key: "created_at", label: "Payment Date", type: "datetime", width: 18 },
+    { key: "patient_name", label: "Patient", type: "string", width: 24 },
+    { key: "patient_ic", label: "Patient IC", type: "string", width: 18 },
+    { key: "parent_name", label: "Parent", type: "string", width: 24 },
+    { key: "parent_phone", label: "Parent Phone", type: "string", width: 16 },
+    { key: "invoice_id", label: "Invoice #", type: "number", width: 10 },
+    {
+      key: "invoice_description",
+      label: "Invoice Description",
+      type: "string",
+      width: 30,
+    },
+    { key: "invoice_amount", label: "Invoice Amount", type: "currency", width: 16 },
+    { key: "amount", label: "Amount Paid", type: "currency", width: 16 },
+    { key: "method", label: "Method", type: "string", width: 16 },
+    { key: "bank_name", label: "Bank", type: "string", width: 18 },
+    { key: "reference_code", label: "Reference", type: "string", width: 20 },
+    { key: "status", label: "Status", type: "string", width: 14 },
+    { key: "submitted_by", label: "Submitted By", type: "string", width: 16 },
+    { key: "approved_by_name", label: "Approved By", type: "string", width: 20 },
+    { key: "approved_at", label: "Approved At", type: "datetime", width: 18 },
+  ],
+  defaultColumns: [
+    "created_at",
+    "patient_name",
+    "parent_name",
+    "invoice_description",
+    "amount",
+    "method",
+    "status",
+    "reference_code",
+  ],
+  filters: [
+    { key: "dateRange", label: "Payment Date", type: "dateRange", field: "created_at" },
+    { key: "status", label: "Status", type: "select", options: PAYMENT_STATUS },
+    { key: "method", label: "Method", type: "select", options: PAYMENT_METHOD },
+    { key: "patient_id", label: "Patient", type: "select", optionsSource: "patients" },
+    { key: "parent_id", label: "Parent", type: "select", optionsSource: "parents" },
+  ],
+  groupableKeys: [
+    "status",
+    "method",
+    "patient_name",
+    "parent_name",
+    "created_at",
+  ],
+  sortableKeys: [
+    "created_at",
+    "amount",
+    "invoice_amount",
+    "patient_name",
+    "parent_name",
+    "status",
+    "method",
+  ],
+  defaultSort: { key: "created_at", dir: "desc" },
+  summable: [
+    { key: "amount", agg: "sum" },
+    { key: "invoice_amount", agg: "sum" },
+  ],
+};
+
+const INVOICE_STATUS = [
+  { value: "Paid", label: "Paid" },
+  { value: "Unpaid", label: "Unpaid" },
+];
+
+const invoices = {
+  key: "invoices",
+  label: "Invoices (AR Aging)",
+  sheetName: "Invoices",
+  columns: [
+    { key: "invoice_id", label: "Invoice #", type: "number", width: 10 },
+    { key: "date", label: "Invoice Date", type: "date", width: 14 },
+    { key: "patient_name", label: "Patient", type: "string", width: 24 },
+    { key: "patient_ic", label: "Patient IC", type: "string", width: 18 },
+    { key: "parent_name", label: "Parent", type: "string", width: 24 },
+    { key: "invoice_type", label: "Type", type: "string", width: 18 },
+    { key: "description", label: "Description", type: "string", width: 30 },
+    { key: "amount", label: "Amount Billed", type: "currency", width: 16 },
+    { key: "amount_paid", label: "Amount Paid", type: "currency", width: 16 },
+    { key: "balance", label: "Balance", type: "currency", width: 16 },
+    { key: "status", label: "Status", type: "string", width: 12 },
+    { key: "aging_bucket", label: "Aging", type: "string", width: 16 },
+    { key: "created_at", label: "Created At", type: "datetime", width: 18 },
+  ],
+  defaultColumns: [
+    "date",
+    "patient_name",
+    "invoice_type",
+    "amount",
+    "amount_paid",
+    "balance",
+    "status",
+    "aging_bucket",
+  ],
+  filters: [
+    { key: "dateRange", label: "Invoice Date", type: "dateRange", field: "date" },
+    { key: "status", label: "Status", type: "select", options: INVOICE_STATUS },
+    { key: "patient_id", label: "Patient", type: "select", optionsSource: "patients" },
+  ],
+  groupableKeys: [
+    "status",
+    "aging_bucket",
+    "patient_name",
+    "invoice_type",
+    "date",
+  ],
+  sortableKeys: [
+    "date",
+    "amount",
+    "balance",
+    "patient_name",
+    "status",
+    "aging_bucket",
+  ],
+  defaultSort: { key: "date", dir: "desc" },
+  summable: [
+    { key: "amount", agg: "sum" },
+    { key: "amount_paid", agg: "sum" },
+    { key: "balance", agg: "sum" },
+  ],
+};
+
+const screening = {
+  key: "screening",
+  label: "Screening Results",
+  sheetName: "Screening",
+  columns: [
+    { key: "qr_id", label: "Response #", type: "number", width: 10 },
+    { key: "created_at", label: "Date", type: "datetime", width: 18 },
+    { key: "patient_name", label: "Patient", type: "string", width: 24 },
+    { key: "patient_ic", label: "Patient IC", type: "string", width: 18 },
+    { key: "questionnaire_title", label: "Questionnaire", type: "string", width: 28 },
+    { key: "total_score", label: "Total Score", type: "number", width: 12 },
+    { key: "score_s2", label: "Section 2 Score", type: "number", width: 14 },
+    { key: "interpretation", label: "Interpretation", type: "string", width: 28 },
+  ],
+  defaultColumns: [
+    "created_at",
+    "patient_name",
+    "questionnaire_title",
+    "total_score",
+    "interpretation",
+  ],
+  filters: [
+    { key: "dateRange", label: "Date", type: "dateRange", field: "created_at" },
+    {
+      key: "questionnaire_id",
+      label: "Questionnaire",
+      type: "select",
+      optionsSource: "questionnaires",
+    },
+    { key: "patient_id", label: "Patient", type: "select", optionsSource: "patients" },
+  ],
+  groupableKeys: [
+    "questionnaire_title",
+    "interpretation",
+    "patient_name",
+    "created_at",
+  ],
+  sortableKeys: ["created_at", "total_score", "patient_name", "questionnaire_title"],
+  defaultSort: { key: "created_at", dir: "desc" },
+  summable: [{ key: "total_score", agg: "avg" }],
+};
+
+const sessionUtilization = {
+  key: "sessionUtilization",
+  label: "Session Utilization",
+  sheetName: "Session Utilization",
+  columns: [
+    { key: "patient_id", label: "ID", type: "number", width: 8 },
+    { key: "patient_name", label: "Patient", type: "string", width: 24 },
+    { key: "patient_ic", label: "Patient IC", type: "string", width: 18 },
+    { key: "parent_name", label: "Parent", type: "string", width: 24 },
+    { key: "treatment_type", label: "Treatment Type", type: "string", width: 16 },
+    { key: "available_session", label: "Sessions Remaining", type: "number", width: 16 },
+    { key: "sessions_booked", label: "Sessions Booked", type: "number", width: 14 },
+    { key: "sessions_completed", label: "Sessions Completed", type: "number", width: 16 },
+    { key: "last_session_date", label: "Last Session", type: "date", width: 14 },
+    { key: "status", label: "Status", type: "string", width: 12 },
+  ],
+  defaultColumns: [
+    "patient_name",
+    "parent_name",
+    "treatment_type",
+    "available_session",
+    "sessions_booked",
+    "sessions_completed",
+    "last_session_date",
+    "status",
+  ],
+  filters: [
+    {
+      key: "status",
+      label: "Status",
+      type: "select",
+      options: [
+        { value: "ACTIVE", label: "Active" },
+        { value: "INACTIVE", label: "Inactive" },
+      ],
+    },
+    {
+      key: "treatment_type",
+      label: "Treatment Type",
+      type: "select",
+      options: [
+        { value: "Centre", label: "Centre" },
+        { value: "Online", label: "Online" },
+        { value: "In House", label: "In House" },
+      ],
+    },
+  ],
+  groupableKeys: ["treatment_type", "status", "parent_name"],
+  sortableKeys: [
+    "patient_name",
+    "available_session",
+    "sessions_booked",
+    "sessions_completed",
+    "last_session_date",
+  ],
+  defaultSort: { key: "patient_name", dir: "asc" },
+  summable: [
+    { key: "available_session", agg: "sum" },
+    { key: "sessions_booked", agg: "sum" },
+    { key: "sessions_completed", agg: "sum" },
+  ],
+};
+
 export const reportDefinitions = {
   appointments,
+  payment,
+  invoices,
+  screening,
+  sessionUtilization,
   practitioners,
   patients,
   therapyServices,

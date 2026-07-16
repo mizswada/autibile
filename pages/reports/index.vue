@@ -19,6 +19,8 @@ const optionsData = ref({
   practitioners: [],
   services: [],
   centers: [],
+  parents: [],
+  questionnaires: [],
 });
 
 const filterValues = ref({});

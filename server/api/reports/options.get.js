@@ -13,7 +13,8 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const [patients, practitioners, services, centers] = await Promise.all([
+    const [patients, practitioners, services, centers, parents, questionnaires] =
+      await Promise.all([
       prisma.user_patients.findMany({
         where: { deleted_at: null },
         select: { patient_id: true, fullname: true, patient_ic: true },
@@ -34,6 +35,16 @@ export default defineEventHandler(async (event) => {
         select: { center_ID: true, center_name: true },
         orderBy: { center_name: "asc" },
       }),
+      prisma.user_parents.findMany({
+        where: { deleted_at: null },
+        include: { user: { select: { userFullName: true } } },
+        orderBy: { parent_id: "asc" },
+      }),
+      prisma.questionnaires.findMany({
+        where: { deleted_at: null },
+        select: { questionnaire_id: true, title: true },
+        orderBy: { title: "asc" },
+      }),
     ]);
 
     return {
@@ -51,6 +62,14 @@ export default defineEventHandler(async (event) => {
         centers: centers.map((c) => ({
           value: c.center_ID,
           label: c.center_name,
+        })),
+        parents: parents.map((p) => ({
+          value: p.parent_id,
+          label: p.user?.userFullName || `Parent ${p.parent_id}`,
+        })),
+        questionnaires: questionnaires.map((q) => ({
+          value: q.questionnaire_id,
+          label: q.title || `Questionnaire ${q.questionnaire_id}`,
         })),
       },
     };

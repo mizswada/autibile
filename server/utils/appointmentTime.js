@@ -465,13 +465,44 @@ export async function findOverlappingAppointment(
   });
 }
 
-export function formatAppointmentCalendarEvent(appointment, sessionNumber = 1) {
+export async function buildSessionNumberMap(prisma, patientIds) {
+  const ids = [...new Set((patientIds || []).filter((id) => id != null))];
+  if (!ids.length) return {};
+
+  // Build numbering from each patient's full non-deleted, non-cancelled
+  // history so the result is independent of any query filters. Cancelled
+  // (status 37) and soft-deleted appointments never consume a session number.
+  const rows = await prisma.appointments.findMany({
+    where: {
+      patient_id: { in: ids },
+      deleted_at: null,
+      status: { not: 37 },
+    },
+    select: { appointment_id: true, patient_id: true },
+    orderBy: [
+      { date: "asc" },
+      { start_time: "asc" },
+      { appointment_id: "asc" },
+    ],
+  });
+
+  const counters = {};
+  const map = {};
+  for (const row of rows) {
+    counters[row.patient_id] = (counters[row.patient_id] || 0) + 1;
+    map[row.appointment_id] = counters[row.patient_id];
+  }
+  return map;
+}
+
+export function formatAppointmentCalendarEvent(appointment, sessionNumber = null) {
   const isAdminAppointment = appointment.practitioner_id === null;
   const { start_time, end_time } = getAppointmentTimes(appointment);
 
   const patientName = appointment.user_patients?.fullname || "Unknown Patient";
   const serviceName = appointment.service?.name || "Unknown Service";
-  const title = `${patientName} - ${serviceName} (Session ${sessionNumber})`;
+  const sessionLabel = sessionNumber != null ? sessionNumber : "-";
+  const title = `${patientName} - ${serviceName} (Session ${sessionLabel})`;
 
   let practitionerName = "Admin";
   if (appointment.user_practitioners?.user?.userFullName) {

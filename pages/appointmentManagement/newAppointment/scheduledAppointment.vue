@@ -67,7 +67,7 @@ const calendarOptions = ref({
     // Session number
     const sessionEl = document.createElement('div');
     sessionEl.classList.add('text-xs', 'font-semibold');
-    sessionEl.innerHTML = `Session ${arg.event.extendedProps.session_number || 1}`;
+    sessionEl.innerHTML = `Session ${arg.event.extendedProps.session_number ?? '-'}`;
     eventEl.appendChild(sessionEl);
     
     return { domNodes: [eventEl] };
@@ -141,7 +141,7 @@ function handleEventClick(info) {
       parentComment: extendedProps.parent_comment,
       therapistDoctorComment: extendedProps.therapist_doctor_comment,
       parentRate: extendedProps.parent_rate || 0,
-      sessionNumber: extendedProps.session_number || 1,
+      sessionNumber: extendedProps.session_number ?? null,
       rawExtendedProps: extendedProps
     };
     
@@ -342,6 +342,30 @@ const statusMapping = {
 // Selected appointment for viewing/editing
 const selectedAppointment = ref(null);
 
+// Session checks apply only when booking NEW appointments or RE-ACTIVATING
+// a cancelled one. Editing an existing booked appointment (status !== 37)
+// already holds a session — status, practitioner, and time can be changed
+// even when available_session is 0.
+const createBlocksDueToSessions = computed(
+  () => patientSessionInfo.value && !patientSessionInfo.value.can_book_appointment,
+);
+
+const editRequiresSessionDeduction = computed(() => {
+  if (!selectedAppointment.value) return false;
+  const originalStatus = Number(selectedAppointment.value.status);
+  const newStatus = Number(appointmentForm.value.status);
+  return originalStatus === 37 && newStatus !== 37;
+});
+
+const editSessionAlreadyReserved = computed(() => {
+  if (!selectedAppointment.value) return false;
+  return Number(selectedAppointment.value.status) !== 37;
+});
+
+const editBlocksDueToSessions = computed(
+  () => editRequiresSessionDeduction.value && createBlocksDueToSessions.value,
+);
+
 // Comment form
 const commentForm = ref({
   comment: "",
@@ -389,7 +413,7 @@ const { data: appointmentsData, pending: appointmentsLoading, refresh: _refreshA
           parentComment: appt.extendedProps.parent_comment,
           therapistDoctorComment: appt.extendedProps.therapist_doctor_comment,
           parentRate: appt.extendedProps.parent_rate || 0,
-          sessionNumber: appt.extendedProps.session_number || 1,
+          sessionNumber: appt.extendedProps.session_number ?? null,
           rawExtendedProps: appt.extendedProps
         };
       });
@@ -786,7 +810,7 @@ const saveAppointment = async () => {
     }
 
     // Check if patient has available sessions
-    if (patientSessionInfo.value && !patientSessionInfo.value.can_book_appointment) {
+    if (createBlocksDueToSessions.value) {
       errorMessage.value = `Cannot create appointment. Patient ${patientSessionInfo.value.patient_name} has no available sessions (${patientSessionInfo.value.available_sessions}). Please purchase more sessions first.`;
       console.log("Validation failed - patient has no available sessions");
       return;
@@ -1085,9 +1109,9 @@ const saveEditedAppointment = async () => {
       return;
     }
 
-    // Check if patient has available sessions
-    if (patientSessionInfo.value && !patientSessionInfo.value.can_book_appointment) {
-      errorMessage.value = `Cannot update appointment. Patient ${patientSessionInfo.value.patient_name} has no available sessions (${patientSessionInfo.value.available_sessions}). Please purchase more sessions first.`;
+    // Only block when re-activating a cancelled appointment without sessions.
+    if (editBlocksDueToSessions.value) {
+      errorMessage.value = `Cannot re-activate appointment. Patient ${patientSessionInfo.value.patient_name} has no available sessions (${patientSessionInfo.value.available_sessions}). Please purchase more sessions first.`;
       return;
     }
 
@@ -2183,7 +2207,7 @@ const validatePatientData = (patient) => {
               <div>
                 <p class="text-sm text-gray-500">Session Number</p>
                 <p class="font-medium">
-                  {{ selectedAppointment.sessionNumber || 1 }}
+                  {{ selectedAppointment.sessionNumber ?? '-' }}
                   <span class="text-xs text-gray-500">(Sequential appointment number)</span>
                 </p>
               </div>
@@ -2319,33 +2343,34 @@ const validatePatientData = (patient) => {
                 </div>
               </div>
               
-              <!-- Patient Session Information -->
-              <div v-if="patientSessionInfo" class="p-3 rounded-lg border" :class="patientSessionInfo.can_book_appointment ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'">
+              <!-- Patient Session Information (edit: session already held unless cancelled) -->
+              <div v-if="patientSessionInfo" class="p-3 rounded-lg border" :class="editSessionAlreadyReserved ? 'bg-blue-50 border-blue-200' : (patientSessionInfo.can_book_appointment ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200')">
                 <div class="flex items-center">
                   <Icon 
-                    :name="patientSessionInfo.can_book_appointment ? 'material-symbols:check-circle' : 'material-symbols:error'" 
-                    :class="patientSessionInfo.can_book_appointment ? 'text-green-600' : 'text-red-600'"
+                    :name="editSessionAlreadyReserved ? 'material-symbols:info' : (patientSessionInfo.can_book_appointment ? 'material-symbols:check-circle' : 'material-symbols:error')" 
+                    :class="editSessionAlreadyReserved ? 'text-blue-600' : (patientSessionInfo.can_book_appointment ? 'text-green-600' : 'text-red-600')"
                     size="20"
                     class="mr-2"
                   />
                   <div>
-                    <p class="text-sm font-medium" :class="patientSessionInfo.can_book_appointment ? 'text-green-800' : 'text-red-800'">
+                    <p class="text-sm font-medium" :class="editSessionAlreadyReserved ? 'text-blue-800' : (patientSessionInfo.can_book_appointment ? 'text-green-800' : 'text-red-800')">
                       {{ patientSessionInfo.patient_name }}
                     </p>
-                    <p class="text-xs" :class="patientSessionInfo.can_book_appointment ? 'text-green-600' : 'text-red-600'">
+                    <p class="text-xs" :class="editSessionAlreadyReserved ? 'text-blue-600' : (patientSessionInfo.can_book_appointment ? 'text-green-600' : 'text-red-600')">
                       Available Sessions: {{ patientSessionInfo.available_sessions }}
-                      <span v-if="!patientSessionInfo.can_book_appointment" class="font-medium"> - Cannot book appointment</span>
-                      <span v-else class="text-gray-500"> (1 session will be deducted when booking)</span>
+                      <span v-if="editSessionAlreadyReserved" class="font-medium"> — session already reserved for this appointment</span>
+                      <span v-else-if="!patientSessionInfo.can_book_appointment" class="font-medium"> — cannot re-activate without purchasing sessions</span>
+                      <span v-else class="text-gray-500"> (1 session will be used if re-activating)</span>
                     </p>
                   </div>
                 </div>
               </div>
               
-              <FormKit type="select" v-model="appointmentForm.serviceId" name="serviceId" label="Service" :options="serviceOptions" validation="required" :disabled="patientSessionInfo && !patientSessionInfo.can_book_appointment" />
+              <FormKit type="select" v-model="appointmentForm.serviceId" name="serviceId" label="Service" :options="serviceOptions" validation="required" />
               
               <!-- Therapist/Doctor Selection with Admin Option -->
               <div class="relative">
-                <FormKit type="select" v-model="appointmentForm.therapistDoctor" name="therapistDoctor" label="Therapist/Doctor" :options="therapistDoctorOptions" validation="required" :disabled="patientSessionInfo && !patientSessionInfo.can_book_appointment" />
+                <FormKit type="select" v-model="appointmentForm.therapistDoctor" name="therapistDoctor" label="Therapist/Doctor" :options="therapistDoctorOptions" validation="required" />
                 
                 <!-- Show available admin slots info -->
                 <div v-if="appointmentForm.therapistDoctor === 'admin' && appointmentForm.date" class="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
@@ -2357,7 +2382,7 @@ const validatePatientData = (patient) => {
               </div>
               
               <div class="relative">
-                <FormKit type="select" v-model="appointmentForm.start_time" name="start_time" label="Start Time" :options="startTimeOptions" validation="required" :disabled="!appointmentForm.date || !appointmentForm.therapistDoctor || isLoadingSlots || (patientSessionInfo && !patientSessionInfo.can_book_appointment)" />
+                <FormKit type="select" v-model="appointmentForm.start_time" name="start_time" label="Start Time" :options="startTimeOptions" validation="required" :disabled="!appointmentForm.date || !appointmentForm.therapistDoctor || isLoadingSlots" />
                 <div v-if="isLoadingSlots" class="absolute right-2 top-8">
                   <Icon name="line-md:loading-twotone-loop" class="text-primary" />
                 </div>
@@ -2371,7 +2396,7 @@ const validatePatientData = (patient) => {
                 </div>
               </div>
 
-              <FormKit type="select" v-model="appointmentForm.duration_type" name="duration_type" label="Duration" :options="durationOptions" validation="required" :disabled="patientSessionInfo && !patientSessionInfo.can_book_appointment" />
+              <FormKit type="select" v-model="appointmentForm.duration_type" name="duration_type" label="Duration" :options="durationOptions" validation="required" />
 
               <FormKit
                 v-if="appointmentForm.duration_type === 'custom'"
@@ -2381,7 +2406,7 @@ const validatePatientData = (patient) => {
                 label="End Time"
                 :options="customEndOptions"
                 validation="required"
-                :disabled="!appointmentForm.start_time || isLoadingSlots || (patientSessionInfo && !patientSessionInfo.can_book_appointment)"
+                :disabled="!appointmentForm.start_time || isLoadingSlots"
               />
 
               <div
@@ -2403,7 +2428,7 @@ const validatePatientData = (patient) => {
                 </div>
               </div>
               
-              <FormKit type="select" v-model="appointmentForm.status" name="status" label="Status" :options="statusOptions" validation="required" :disabled="patientSessionInfo && !patientSessionInfo.can_book_appointment" />
+              <FormKit type="select" v-model="appointmentForm.status" name="status" label="Status" :options="statusOptions" validation="required" />
             </FormKit>
           </div>
 
@@ -2414,7 +2439,7 @@ const validatePatientData = (patient) => {
             </div>
             <div class="flex justify-end gap-2">
               <rs-button variant="secondary-outline" @click="showEditModal = false">Cancel</rs-button>
-              <rs-button variant="primary" @click="saveEditedAppointment" :disabled="isLoading || (patientSessionInfo && !patientSessionInfo.can_book_appointment)">
+              <rs-button variant="primary" @click="saveEditedAppointment" :disabled="isLoading || editBlocksDueToSessions">
                 <span v-if="isLoading">Saving...</span>
                 <span v-else>Save Appointment</span>
               </rs-button>

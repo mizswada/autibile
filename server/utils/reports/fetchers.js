@@ -1,5 +1,8 @@
 import prisma from "~/server/utils/prisma";
-import { getAppointmentTimes } from "~/server/utils/appointmentTime";
+import {
+  getAppointmentTimes,
+  buildSessionNumberMap,
+} from "~/server/utils/appointmentTime";
 import { getAppointmentStatusLabel } from "~/utils/reportDefinitions";
 
 /**
@@ -73,22 +76,12 @@ async function fetchAppointmentRows(filters = {}) {
     orderBy: { date: "asc" },
   });
 
-  // Compute per-patient session numbers (chronological), mirroring list.get.js.
-  const byPatient = {};
-  for (const appt of appointments) {
-    const pid = appt.patient_id;
-    if (!byPatient[pid]) byPatient[pid] = [];
-    byPatient[pid].push(appt);
-  }
-  const sessionNumberById = {};
-  for (const pid in byPatient) {
-    byPatient[pid]
-      .slice()
-      .sort((a, b) => a.date.getTime() - b.date.getTime())
-      .forEach((appt, index) => {
-        sessionNumberById[appt.appointment_id] = index + 1;
-      });
-  }
+  // Session numbers computed from each patient's full non-deleted,
+  // non-cancelled history so the report matches the app exactly.
+  const sessionNumberById = await buildSessionNumberMap(
+    prisma,
+    appointments.map((appt) => appt.patient_id),
+  );
 
   // Resolve each patient's parent in one query (join user_parent_patient ->
   // user_parents -> user).
@@ -251,8 +244,333 @@ async function fetchTherapyServiceRows(filters = {}) {
   }));
 }
 
+async function fetchPaymentRows(filters = {}) {
+  const where = { deleted_at: null };
+  if (filters.status) where.status = filters.status;
+  if (filters.method) where.method = filters.method;
+  if (filters.patient_id) where.patient_id = parseInt(filters.patient_id);
+  if (filters.parent_id) where.parent_id = parseInt(filters.parent_id);
+
+  const range = filters.dateRange || {};
+  if (range.start) where.created_at = { gte: new Date(range.start) };
+  if (range.end)
+    where.created_at = { ...(where.created_at || {}), lte: new Date(range.end) };
+
+  const payments = await prisma.payment.findMany({
+    where,
+    include: {
+      invoice: {
+        select: {
+          invoice_id: true,
+          description: true,
+          amount: true,
+          date: true,
+          status: true,
+        },
+      },
+      user_patients: {
+        select: { patient_id: true, fullname: true, patient_ic: true },
+      },
+    },
+    orderBy: { created_at: "desc" },
+  });
+
+  // Resolve parents (prefer payment.parent_id, fall back to the patient's
+  // linked parent) and approver names in bulk.
+  const parentIds = [
+    ...new Set(payments.map((p) => p.parent_id).filter((id) => id != null)),
+  ];
+  const patientIds = [
+    ...new Set(payments.map((p) => p.patient_id).filter((id) => id != null)),
+  ];
+  const approverIds = [
+    ...new Set(payments.map((p) => p.approved_by).filter((id) => id != null)),
+  ];
+
+  const [parents, relations, approvers] = await Promise.all([
+    parentIds.length
+      ? prisma.user_parents.findMany({
+          where: { parent_id: { in: parentIds } },
+          include: { user: { select: { userFullName: true } } },
+        })
+      : [],
+    patientIds.length
+      ? prisma.user_parent_patient.findMany({
+          where: { patient_id: { in: patientIds } },
+          include: {
+            user_parents: {
+              include: { user: { select: { userFullName: true } } },
+            },
+          },
+        })
+      : [],
+    approverIds.length
+      ? prisma.user.findMany({
+          where: { userID: { in: approverIds } },
+          select: { userID: true, userFullName: true },
+        })
+      : [],
+  ]);
+
+  const parentById = {};
+  for (const p of parents) {
+    parentById[p.parent_id] = {
+      name: p.user?.userFullName || "",
+      phone: p.parent_phone || "",
+    };
+  }
+  const parentByPatient = {};
+  for (const r of relations) {
+    if (!parentByPatient[r.patient_id]) {
+      parentByPatient[r.patient_id] = {
+        name: r.user_parents?.user?.userFullName || "",
+        phone: r.user_parents?.parent_phone || "",
+      };
+    }
+  }
+  const approverById = {};
+  for (const a of approvers) approverById[a.userID] = a.userFullName || "";
+
+  return payments.map((p) => {
+    const parent =
+      (p.parent_id != null ? parentById[p.parent_id] : null) ||
+      parentByPatient[p.patient_id] ||
+      {};
+    return {
+      payment_id: p.payment_id,
+      created_at: toDate(p.created_at),
+      patient_name: p.user_patients?.fullname || "",
+      patient_ic: p.user_patients?.patient_ic || "",
+      parent_name: parent.name || "",
+      parent_phone: parent.phone || "",
+      invoice_id: p.invoice_id,
+      invoice_description: p.invoice?.description || "",
+      invoice_amount: toNumber(p.invoice?.amount),
+      amount: toNumber(p.amount),
+      method: p.method || "",
+      bank_name: p.bank_name || "",
+      reference_code: p.reference_code || "",
+      status: p.status || "",
+      submitted_by: p.submitted_by || "",
+      approved_by_name: p.approved_by != null ? approverById[p.approved_by] || "" : "",
+      approved_at: toDate(p.approved_at),
+    };
+  });
+}
+
+function computeAgingBucket(date, balance) {
+  if (!(balance > 0)) return "Settled";
+  if (!date) return "Unknown";
+  const days = Math.floor((Date.now() - new Date(date).getTime()) / 86400000);
+  if (days <= 30) return "Current (0-30)";
+  if (days <= 60) return "31-60 days";
+  if (days <= 90) return "61-90 days";
+  return "90+ days";
+}
+
+async function fetchInvoiceRows(filters = {}) {
+  const where = { deleted_at: null };
+  if (filters.status) where.status = filters.status;
+  if (filters.patient_id) where.patient_id = parseInt(filters.patient_id);
+
+  const range = filters.dateRange || {};
+  if (range.start) where.date = { gte: new Date(range.start) };
+  if (range.end) where.date = { ...(where.date || {}), lte: new Date(range.end) };
+
+  const invoices = await prisma.invoice.findMany({
+    where,
+    include: {
+      user_patients: {
+        select: { patient_id: true, fullname: true, patient_ic: true },
+      },
+      payment: { select: { amount: true, status: true, deleted_at: true } },
+    },
+    orderBy: { date: "desc" },
+  });
+
+  const patientIds = [
+    ...new Set(invoices.map((i) => i.patient_id).filter((id) => id != null)),
+  ];
+  const relations = patientIds.length
+    ? await prisma.user_parent_patient.findMany({
+        where: { patient_id: { in: patientIds } },
+        include: {
+          user_parents: { include: { user: { select: { userFullName: true } } } },
+        },
+      })
+    : [];
+  const parentByPatient = {};
+  for (const r of relations) {
+    if (!parentByPatient[r.patient_id]) {
+      parentByPatient[r.patient_id] = r.user_parents?.user?.userFullName || "";
+    }
+  }
+
+  return invoices.map((inv) => {
+    const amount = toNumber(inv.amount) || 0;
+    const amountPaid = (inv.payment || [])
+      .filter((p) => p.deleted_at == null && p.status === "Approved")
+      .reduce((sum, p) => sum + (toNumber(p.amount) || 0), 0);
+    const balance = amount - amountPaid;
+    return {
+      invoice_id: inv.invoice_id,
+      date: toDate(inv.date),
+      patient_name: inv.user_patients?.fullname || "",
+      patient_ic: inv.user_patients?.patient_ic || "",
+      parent_name: parentByPatient[inv.patient_id] || "",
+      invoice_type: inv.invoice_type || "",
+      description: inv.description || "",
+      amount,
+      amount_paid: amountPaid,
+      balance,
+      status: inv.status || "",
+      aging_bucket: computeAgingBucket(inv.date, balance),
+      created_at: toDate(inv.created_at),
+    };
+  });
+}
+
+async function fetchScreeningRows(filters = {}) {
+  const where = {};
+  if (filters.questionnaire_id)
+    where.questionnaire_id = parseInt(filters.questionnaire_id);
+  if (filters.patient_id) where.patient_id = parseInt(filters.patient_id);
+
+  const range = filters.dateRange || {};
+  if (range.start) where.created_at = { gte: new Date(range.start) };
+  if (range.end)
+    where.created_at = { ...(where.created_at || {}), lte: new Date(range.end) };
+
+  const responses = await prisma.questionnaires_responds.findMany({
+    where,
+    include: {
+      questionnaires: { select: { title: true } },
+      user_patients: { select: { fullname: true, patient_ic: true } },
+    },
+    orderBy: { created_at: "desc" },
+  });
+
+  // Build interpretation bands per questionnaire from questionnaire_scoring.
+  const questionnaireIds = [
+    ...new Set(
+      responses.map((r) => r.questionnaire_id).filter((id) => id != null),
+    ),
+  ];
+  const scoringRows = questionnaireIds.length
+    ? await prisma.questionnaire_scoring.findMany({
+        where: {
+          scoring_questionnaires: { in: questionnaireIds },
+          deleted_at: null,
+        },
+      })
+    : [];
+  const scoringByQuestionnaire = {};
+  for (const s of scoringRows) {
+    if (!scoringByQuestionnaire[s.scoring_questionnaires])
+      scoringByQuestionnaire[s.scoring_questionnaires] = [];
+    scoringByQuestionnaire[s.scoring_questionnaires].push(s);
+  }
+
+  const interpret = (questionnaireId, score) => {
+    if (score == null) return "";
+    const bands = scoringByQuestionnaire[questionnaireId] || [];
+    const match = bands.find(
+      (b) => score >= b.scoring_min && score <= b.scoring_max,
+    );
+    return match ? match.scoring_interpretation : "";
+  };
+
+  return responses.map((r) => ({
+    qr_id: r.qr_id,
+    created_at: toDate(r.created_at),
+    patient_name: r.user_patients?.fullname || "",
+    patient_ic: r.user_patients?.patient_ic || "",
+    questionnaire_title: r.questionnaires?.title || "",
+    total_score: toNumber(r.total_score),
+    score_s2: toNumber(r.score_s2),
+    interpretation: interpret(r.questionnaire_id, toNumber(r.total_score)),
+  }));
+}
+
+async function fetchSessionUtilizationRows(filters = {}) {
+  const where = { deleted_at: null };
+  if (filters.status) where.status = filters.status;
+
+  const patients = await prisma.user_patients.findMany({
+    where,
+    orderBy: { patient_id: "asc" },
+  });
+
+  const patientIds = patients.map((p) => p.patient_id);
+
+  const [appointments, relations] = await Promise.all([
+    patientIds.length
+      ? prisma.appointments.findMany({
+          where: { patient_id: { in: patientIds }, deleted_at: null },
+          select: { patient_id: true, status: true, date: true },
+        })
+      : [],
+    patientIds.length
+      ? prisma.user_parent_patient.findMany({
+          where: { patient_id: { in: patientIds } },
+          include: {
+            user_parents: {
+              include: { user: { select: { userFullName: true } } },
+            },
+          },
+        })
+      : [],
+  ]);
+
+  const statsByPatient = {};
+  for (const a of appointments) {
+    if (!statsByPatient[a.patient_id]) {
+      statsByPatient[a.patient_id] = { booked: 0, completed: 0, last: null };
+    }
+    const st = statsByPatient[a.patient_id];
+    if (a.status !== 37) st.booked += 1; // exclude Cancelled
+    if (a.status === 41) st.completed += 1; // Completed
+    if (a.date && (!st.last || a.date.getTime() > st.last.getTime())) {
+      st.last = a.date;
+    }
+  }
+
+  const parentByPatient = {};
+  for (const r of relations) {
+    if (!parentByPatient[r.patient_id]) {
+      parentByPatient[r.patient_id] = r.user_parents?.user?.userFullName || "";
+    }
+  }
+
+  let rows = patients.map((c) => {
+    const st = statsByPatient[c.patient_id] || { booked: 0, completed: 0, last: null };
+    return {
+      patient_id: c.patient_id,
+      patient_name: c.fullname || "",
+      patient_ic: c.patient_ic || "",
+      parent_name: parentByPatient[c.patient_id] || "",
+      treatment_type: mapTreatmentType(c.treatment_type),
+      available_session: toNumber(c.available_session) || 0,
+      sessions_booked: st.booked,
+      sessions_completed: st.completed,
+      last_session_date: st.last ? toDate(st.last) : null,
+      status: c.status || "",
+    };
+  });
+
+  if (filters.treatment_type) {
+    rows = rows.filter((r) => r.treatment_type === filters.treatment_type);
+  }
+
+  return rows;
+}
+
 const FETCHERS = {
   appointments: fetchAppointmentRows,
+  payment: fetchPaymentRows,
+  invoices: fetchInvoiceRows,
+  screening: fetchScreeningRows,
+  sessionUtilization: fetchSessionUtilizationRows,
   practitioners: fetchPractitionerRows,
   patients: fetchPatientRows,
   therapyServices: fetchTherapyServiceRows,

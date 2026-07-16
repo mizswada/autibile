@@ -66,6 +66,10 @@ export async function approvePaymentAndInvoice(paymentId, approvedByUserId) {
     return { ok: true, statusCode: 200, message: "Payment already approved", payment };
   }
 
+  // If the invoice was already marked Paid (e.g. via a manual status toggle),
+  // its package sessions were already credited. Guard against double-crediting.
+  const invoiceAlreadyPaid = payment.invoice.status === "Paid";
+
   const approvedAt = new Date();
   const updatedPayment = await prisma.payment.update({
     where: { payment_id: paymentId },
@@ -86,7 +90,9 @@ export async function approvePaymentAndInvoice(paymentId, approvedByUserId) {
     },
   });
 
-  await creditPackageSessions(payment.invoice, payment.patient_id);
+  if (!invoiceAlreadyPaid) {
+    await creditPackageSessions(payment.invoice, payment.patient_id);
+  }
 
   return { ok: true, statusCode: 200, message: "Payment approved successfully", payment: updatedPayment };
 }

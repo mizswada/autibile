@@ -1,5 +1,8 @@
 import { PrismaClient } from "@prisma/client";
-import { formatAppointmentCalendarEvent } from "~/server/utils/appointmentTime";
+import {
+  formatAppointmentCalendarEvent,
+  buildSessionNumberMap,
+} from "~/server/utils/appointmentTime";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -31,30 +34,15 @@ export default defineEventHandler(async (event) => {
       orderBy: { date: "asc" },
     });
 
-    const patientAppointments = {};
-
-    for (const appointment of appointments) {
-      const patientId = appointment.patient_id;
-      if (!patientAppointments[patientId]) {
-        patientAppointments[patientId] = [];
-      }
-      patientAppointments[patientId].push(appointment);
-    }
-
-    for (const patientId in patientAppointments) {
-      patientAppointments[patientId].sort(
-        (a, b) => a.date.getTime() - b.date.getTime(),
-      );
-
-      patientAppointments[patientId].forEach((appointment, index) => {
-        appointment.sessionNumber = index + 1;
-      });
-    }
+    const sessionNumberMap = await buildSessionNumberMap(
+      prisma,
+      appointments.map((appointment) => appointment.patient_id),
+    );
 
     const formattedAppointments = appointments.map((appointment) =>
       formatAppointmentCalendarEvent(
         appointment,
-        appointment.sessionNumber || 1,
+        sessionNumberMap[appointment.appointment_id] ?? null,
       ),
     );
 
