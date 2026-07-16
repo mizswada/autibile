@@ -6,6 +6,8 @@ definePageMeta({
   title: "Payment Form",
 });
 
+const { $swal } = useNuxtApp();
+
 const router = useRouter();
 const route = useRoute();
 const isLoading = ref(true);
@@ -109,6 +111,33 @@ const submitPayment = async () => {
     showMessage('Please fill in all required fields', 'error');
     return;
   }
+
+  const result = await $swal.fire({
+    title: 'Confirm Payment',
+    html: `
+      <div style="text-align:left; font-size:14px; line-height:1.7;">
+        <p>Please confirm this payment is correct and has been received:</p>
+        <hr style="margin:8px 0;" />
+        <p><strong>Invoice:</strong> ${formatInvoiceId(invoiceData.value.invoice_id)}</p>
+        <p><strong>Patient:</strong> ${invoiceData.value.patient_name || 'N/A'}</p>
+        <p><strong>Description:</strong> ${invoiceData.value.description || 'N/A'}</p>
+        <p><strong>Amount:</strong> RM ${formatPrice(invoiceData.value.amount)}</p>
+        <p><strong>Method:</strong> ${form.value.method}</p>
+        ${!isCash ? `<p><strong>Bank / Provider:</strong> ${form.value.bank_name || '-'}</p>` : ''}
+        ${!isCash ? `<p><strong>Reference:</strong> ${form.value.reference_code || '-'}</p>` : ''}
+        <hr style="margin:8px 0;" />
+        <p style="color:#b45309;">This will record the payment, mark the invoice as <strong>Paid</strong>, issue a receipt, and credit the patient's sessions immediately. Make sure the details are correct before continuing.</p>
+      </div>
+    `,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#2E7D32',
+    cancelButtonColor: '#d33',
+    confirmButtonText: 'Yes, confirm payment',
+    cancelButtonText: 'Cancel',
+  });
+
+  if (!result.isConfirmed) return;
 
   isSubmitting.value = true;
   try {

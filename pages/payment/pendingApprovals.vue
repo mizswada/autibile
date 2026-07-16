@@ -5,6 +5,8 @@ definePageMeta({
   title: "Pending Payment Approvals",
 });
 
+const { $swal } = useNuxtApp();
+
 const loading = ref(true);
 const error = ref("");
 const payments = ref([]);
@@ -28,16 +30,53 @@ const fetchPendingPayments = async () => {
   }
 };
 
-const approvePayment = async (paymentID) => {
-  const response = await $fetch("/api/payment/approvePayment", {
-    method: "PUT",
-    body: { paymentID },
+const approvePayment = async (payment) => {
+  const result = await $swal.fire({
+    title: "Confirm Payment Approval",
+    html: `
+      <div style="text-align:left; font-size:14px; line-height:1.7;">
+        <p>Please verify the payment details carefully before approving:</p>
+        <hr style="margin:8px 0;" />
+        <p><strong>Patient:</strong> ${payment.user_patients?.fullname || "N/A"}</p>
+        <p><strong>Invoice:</strong> INV-${String(payment.invoice_id).padStart(3, "0")}</p>
+        <p><strong>Description:</strong> ${payment.invoice?.description || "N/A"}</p>
+        <p><strong>Amount:</strong> RM ${formatPrice(payment.amount)}</p>
+        <p><strong>Method:</strong> ${payment.method || "N/A"}</p>
+        <p><strong>Bank / Provider:</strong> ${payment.bank_name || "-"}</p>
+        <p><strong>Reference:</strong> ${payment.reference_code || "-"}</p>
+        <hr style="margin:8px 0;" />
+        <p style="color:#b45309;">Approving will mark this invoice as <strong>Paid</strong>, issue a receipt, and credit the package sessions to the patient. Only approve after you have confirmed the payment was actually received.</p>
+      </div>
+    `,
+    icon: "warning",
+    showCancelButton: true,
+    confirmButtonColor: "#2E7D32",
+    cancelButtonColor: "#d33",
+    confirmButtonText: "Yes, approve payment",
+    cancelButtonText: "Cancel",
   });
-  if (response.statusCode !== 200) {
-    alert(response.message || "Failed to approve payment");
-    return;
+
+  if (!result.isConfirmed) return;
+
+  try {
+    const response = await $fetch("/api/payment/approvePayment", {
+      method: "PUT",
+      body: { paymentID: payment.payment_id },
+    });
+    if (response.statusCode !== 200) {
+      await $swal.fire("Error", response.message || "Failed to approve payment", "error");
+      return;
+    }
+    await $swal.fire(
+      "Payment Approved",
+      "The invoice has been marked as paid and the patient's sessions have been credited.",
+      "success"
+    );
+    await fetchPendingPayments();
+  } catch (err) {
+    console.error(err);
+    await $swal.fire("Error", "Failed to approve payment", "error");
   }
-  await fetchPendingPayments();
 };
 
 const rejectPayment = async (paymentID) => {
@@ -103,7 +142,7 @@ onMounted(fetchPendingPayments);
               <td class="py-3 px-4">{{ formatDate(payment.created_at) }}</td>
               <td class="py-3 px-4">
                 <div class="flex gap-2">
-                  <rs-button size="sm" variant="success" @click="approvePayment(payment.payment_id)">Approve</rs-button>
+                  <rs-button size="sm" variant="success" @click="approvePayment(payment)">Approve</rs-button>
                   <rs-button size="sm" variant="danger" @click="rejectPayment(payment.payment_id)">Reject</rs-button>
                 </div>
               </td>
