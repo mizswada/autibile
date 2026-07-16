@@ -61,7 +61,9 @@ async function handleGet(event) {
       threshold_id: threshold.scoring_ID,
       questionnaire_id: threshold.scoring_questionnaires,
       interpretation: threshold.scoring_interpretation,
+      interpretation_bm: threshold.scoring_interpretation_bm,
       recommendation: threshold.scoring_recommendation,
+      recommendation_bm: threshold.scoring_recommendation_bm,
       scoring_min: threshold.scoring_min,
       scoring_max: threshold.scoring_max
     }));
@@ -97,7 +99,9 @@ async function handlePost(event) {
       scoring_min, 
       scoring_max, 
       interpretation, 
+      interpretation_bm,
       recommendation,
+      recommendation_bm,
       threshold_id
     } = body;
 
@@ -132,7 +136,9 @@ async function handlePost(event) {
           scoring_min: min,
           scoring_max: max,
           scoring_interpretation: interpretation,
+          scoring_interpretation_bm: interpretation_bm ?? null,
           scoring_recommendation: recommendation,
+          scoring_recommendation_bm: recommendation_bm ?? null,
           updated_at: now,
         },
       });
@@ -150,7 +156,9 @@ async function handlePost(event) {
           scoring_min: min,
           scoring_max: max,
           scoring_interpretation: interpretation,
+          scoring_interpretation_bm: interpretation_bm ?? null,
           scoring_recommendation: recommendation,
+          scoring_recommendation_bm: recommendation_bm ?? null,
           created_at: now,
           updated_at: now,
         },

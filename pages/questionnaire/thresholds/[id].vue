@@ -20,7 +20,9 @@ const newThreshold = ref({
   scoring_min: '',
   scoring_max: '',
   interpretation: '',
-  recommendation: ''
+  interpretation_bm: '',
+  recommendation: '',
+  recommendation_bm: ''
 });
 
 onMounted(async () => {
@@ -73,7 +75,9 @@ function openAddThresholdModal() {
     scoring_min: '',
     scoring_max: '',
     interpretation: '',
-    recommendation: ''
+    interpretation_bm: '',
+    recommendation: '',
+    recommendation_bm: ''
   };
   isEditingThreshold.value = false;
   editThresholdId.value = null;
@@ -85,7 +89,9 @@ function openEditThresholdModal(threshold) {
     scoring_min: threshold.scoring_min,
     scoring_max: threshold.scoring_max === 999999 ? '' : threshold.scoring_max,
     interpretation: threshold.interpretation,
-    recommendation: threshold.recommendation
+    interpretation_bm: threshold.interpretation_bm || '',
+    recommendation: threshold.recommendation,
+    recommendation_bm: threshold.recommendation_bm || ''
   };
   isEditingThreshold.value = true;
   editThresholdId.value = threshold.threshold_id;
@@ -114,7 +120,9 @@ async function saveThreshold() {
       scoring_min: min,
       scoring_max: max,
       interpretation: newThreshold.value.interpretation,
-      recommendation: newThreshold.value.recommendation
+      interpretation_bm: newThreshold.value.interpretation_bm,
+      recommendation: newThreshold.value.recommendation,
+      recommendation_bm: newThreshold.value.recommendation_bm
     };
 
     if (isEditingThreshold.value && editThresholdId.value) {
@@ -257,7 +265,13 @@ function getScoreRangeDisplay(threshold) {
                   Prediction
                 </th>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Prediction (BM)
+                </th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Recommendation
+                </th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Recommendation (BM)
                 </th>
                 <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
@@ -273,7 +287,13 @@ function getScoreRangeDisplay(threshold) {
                   <div class="text-sm">{{ threshold.interpretation }}</div>
                 </td>
                 <td class="px-6 py-4">
+                  <div class="text-sm">{{ threshold.interpretation_bm || '-' }}</div>
+                </td>
+                <td class="px-6 py-4">
                   <div class="text-sm">{{ threshold.recommendation }}</div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="text-sm">{{ threshold.recommendation_bm || '-' }}</div>
                 </td>
                 <td class="px-6 py-4 text-right text-sm font-medium">
                   <div class="flex justify-end gap-3 items-center">
@@ -359,6 +379,15 @@ function getScoreRangeDisplay(threshold) {
 
         <FormKit
           type="textarea"
+          v-model="newThreshold.interpretation_bm"
+          name="interpretationBm"
+          label="Prediction (BM)"
+          placeholder="Enter Malay prediction for this score range"
+          rows="3"
+        />
+
+        <FormKit
+          type="textarea"
           v-model="newThreshold.recommendation"
           name="recommendation"
           label="Recommendation"
@@ -366,6 +395,15 @@ function getScoreRangeDisplay(threshold) {
           validation="required"
           validation-visibility="dirty"
           :validation-messages="{ required: 'This field is required' }"
+          rows="3"
+        />
+
+        <FormKit
+          type="textarea"
+          v-model="newThreshold.recommendation_bm"
+          name="recommendationBm"
+          label="Recommendation (BM)"
+          placeholder="Enter Malay recommendation for this score range"
           rows="3"
         />
 

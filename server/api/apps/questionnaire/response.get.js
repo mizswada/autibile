@@ -25,7 +25,9 @@ export default defineEventHandler(async (event) => {
         
         return threshold ? {
           interpretation: threshold.scoring_interpretation,
+          interpretation_bm: threshold.scoring_interpretation_bm,
           recommendation: threshold.scoring_recommendation,
+          recommendation_bm: threshold.scoring_recommendation_bm,
           threshold_id: threshold.scoring_ID,
           score_range: {
             min: threshold.scoring_min,

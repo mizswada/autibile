@@ -393,7 +393,9 @@ model questionnaire_scoring {
   scoring_min            Int
   scoring_max            Int
   scoring_interpretation String         @db.VarChar(255)
+  scoring_interpretation_bm String?     @db.VarChar(255)
   scoring_recommendation String         @db.Text
+  scoring_recommendation_bm String?     @db.Text
   created_at             DateTime       @db.Timestamp(0)
   updated_at             DateTime       @db.Timestamp(0)
   deleted_at             DateTime?      @db.Timestamp(0)
@@ -525,13 +527,14 @@ model referrals {
 model diary_report {
   diary_id      Int            @id @default(autoincrement())
   patient_id    Int?
-  description   String?        @db.Text
-  category_1    String?        @db.Text
-  category_2    String?        @db.Text
-  category_3    String?        @db.Text
-  category_4    String?        @db.Text
-  category_5    String?        @db.Text
-  date          DateTime?      @db.Date
+  description                    String?        @db.Text
+  two_way_communication          String?        @db.Text
+  emotional_regulation           String?        @db.Text
+  focus_and_comprehension        String?        @db.Text
+  feeding_and_sensory            String?        @db.Text
+  sleep_and_daily_routines       String?        @db.Text
+  socialisation_self_confidence  String?        @db.Text
+  date                           DateTime?      @db.Date
   created_at    DateTime       @db.Timestamp(0)
   updated_at    DateTime       @db.Timestamp(0)
   deleted_at    DateTime?      @db.Timestamp(0)

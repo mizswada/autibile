@@ -155,17 +155,29 @@ export async function enrichQuestionWithNumberConfig(question) {
   if (!question) return question;
 
   const isNumber = await isNumberAnswerType(question.answer_type);
+
+  // Never expose the raw scoring_config to the client; the app relies on number_config,
+  // which is only attached for genuine number-type questions.
+  const { scoring_config, ...rest } = question;
+
   if (!isNumber) {
-    return question;
+    return rest;
   }
 
-  return attachNumberConfigToQuestion(question);
+  const numberConfig = parseNumberScoringConfig(scoring_config);
+  if (numberConfig.inputType !== "number") {
+    return rest;
+  }
+
+  return { ...rest, number_config: numberConfig };
 }
 
 export async function resolveScoringConfigForSave({ answer_type, number_config }) {
   const isNumber = await isNumberAnswerType(answer_type);
   if (!isNumber) {
-    return { shouldUpdate: false };
+    // Clear any stale number config when switching away from the number answer type,
+    // otherwise the mobile app keeps rendering a number slider instead of options.
+    return { shouldUpdate: true, scoring_config: null };
   }
 
   const validation = validateNumberConfigInput(number_config || {});

@@ -1,9 +1,28 @@
 export const DIARY_CATEGORIES = [
-  { key: 'category_1', label: 'Category 1' },
-  { key: 'category_2', label: 'Category 2' },
-  { key: 'category_3', label: 'Category 3' },
-  { key: 'category_4', label: 'Category 4' },
-  { key: 'category_5', label: 'Category 5' },
+  {
+    key: 'two_way_communication',
+    label: 'Two-way communication (Komunikasi dua hala)',
+  },
+  {
+    key: 'emotional_regulation',
+    label: 'Emotional regulation (Kawalan emosi)',
+  },
+  {
+    key: 'focus_and_comprehension',
+    label: 'Focus and comprehension (Fokus dan kefahaman)',
+  },
+  {
+    key: 'feeding_and_sensory',
+    label: 'Feeding and sensory needs (Pemakanan dan sensori)',
+  },
+  {
+    key: 'sleep_and_daily_routines',
+    label: 'Sleep and daily routines (Tidur dan rutin harian)',
+  },
+  {
+    key: 'socialisation_self_confidence',
+    label: 'Socialisation and self-confidence (Sosialisasi dan keyakinan diri)',
+  },
 ];
 
 export const OPTIONAL_NOTES_LABEL = 'Additional Notes (Optional)';

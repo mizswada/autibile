@@ -248,7 +248,9 @@ export default defineEventHandler(async (event) => {
           total_score: totalScore,
           threshold: threshold ? {
             interpretation: threshold.scoring_interpretation,
-            recommendation: threshold.scoring_recommendation
+            interpretation_bm: threshold.scoring_interpretation_bm,
+            recommendation: threshold.scoring_recommendation,
+            recommendation_bm: threshold.scoring_recommendation_bm
           } : null,
           redirect_to_questionnaire_2: redirectToQuestionnaire2,
           score_interpretation: scoreInterpretation,

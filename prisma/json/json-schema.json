@@ -1496,8 +1496,20 @@
         "scoring_interpretation": {
           "type": "string"
         },
+        "scoring_interpretation_bm": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "scoring_recommendation": {
           "type": "string"
+        },
+        "scoring_recommendation_bm": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "created_at": {
           "type": "string",
@@ -1798,6 +1810,39 @@
             "null"
           ]
         },
+        "status": {
+          "type": "string",
+          "default": "Approved"
+        },
+        "submitted_by": {
+          "type": "string",
+          "default": "admin"
+        },
+        "parent_id": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "approved_by": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "approved_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "rejection_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "updated_at": {
           "type": "string",
           "format": "date-time"
@@ -1971,6 +2016,42 @@
           "type": "integer"
         },
         "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "two_way_communication": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "emotional_regulation": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "focus_and_comprehension": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "feeding_and_sensory": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sleep_and_daily_routines": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "socialisation_self_confidence": {
           "type": [
             "string",
             "null"

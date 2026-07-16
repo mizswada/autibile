@@ -4,11 +4,12 @@ export default defineEventHandler(async (event) => {
     const {
       patientID,
       description,
-      category_1,
-      category_2,
-      category_3,
-      category_4,
-      category_5,
+      two_way_communication,
+      emotional_regulation,
+      focus_and_comprehension,
+      feeding_and_sensory,
+      sleep_and_daily_routines,
+      socialisation_self_confidence,
       date,
     } = body;
 
@@ -19,7 +20,14 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    const categories = [category_1, category_2, category_3, category_4, category_5];
+    const categories = [
+      two_way_communication,
+      emotional_regulation,
+      focus_and_comprehension,
+      feeding_and_sensory,
+      sleep_and_daily_routines,
+      socialisation_self_confidence,
+    ];
     const hasAtLeastOneCategory = categories.some(
       (value) => typeof value === "string" && value.trim().length > 0,
     );
@@ -35,11 +43,13 @@ export default defineEventHandler(async (event) => {
       data: {
         patient_id: parseInt(patientID),
         description: description?.trim() || null,
-        category_1: category_1?.trim() || null,
-        category_2: category_2?.trim() || null,
-        category_3: category_3?.trim() || null,
-        category_4: category_4?.trim() || null,
-        category_5: category_5?.trim() || null,
+        two_way_communication: two_way_communication?.trim() || null,
+        emotional_regulation: emotional_regulation?.trim() || null,
+        focus_and_comprehension: focus_and_comprehension?.trim() || null,
+        feeding_and_sensory: feeding_and_sensory?.trim() || null,
+        sleep_and_daily_routines: sleep_and_daily_routines?.trim() || null,
+        socialisation_self_confidence:
+          socialisation_self_confidence?.trim() || null,
         date: date ? new Date(date) : new Date(),
         created_at: new Date(),
         updated_at: new Date(),

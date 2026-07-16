@@ -173,6 +173,426 @@ const formatPaymentId = (id) => {
   return `PAY-${id.toString().padStart(3, '0')}`;
 };
 
+// Shared theme colours derived from the NeuroSpa Therapy logo
+const DOCUMENT_THEME = {
+  green: '#2E7D32',
+  greenDark: '#1B5E20',
+  greenBright: '#43A047',
+  greenTint: '#E8F5E9',
+  ink: '#1F2937',
+  muted: '#6B7280',
+  border: '#D9E5DB',
+};
+
+const COMPANY_INFO = {
+  name: 'NeuroSpa Therapy',
+  addressLines: [
+    '1 - 4, Prima Bizwalk Business Park',
+    'Jalan Tasik Prima 6/2, Taman Tasik Prima',
+    '47150 Puchong, Selangor.',
+  ],
+};
+
+// Opens a print window and triggers printing once the content (incl. logo) has loaded
+const openPrintWindow = (html) => {
+  const printWindow = window.open('', '', 'height=900,width=800');
+  if (!printWindow) {
+    alert('Please allow pop-ups to print this document.');
+    return;
+  }
+  printWindow.document.write(html);
+  printWindow.document.close();
+
+  let hasPrinted = false;
+  const triggerPrint = () => {
+    if (hasPrinted) return;
+    hasPrinted = true;
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  };
+
+  printWindow.onload = triggerPrint;
+  // Fallback in case the load event has already fired
+  setTimeout(triggerPrint, 800);
+};
+
+// Builds a styled, invoice/receipt-like HTML document shared by print handlers
+const buildDocumentHtml = (opts) => {
+  const {
+    docType,
+    docTitle,
+    accentColor,
+    metaRows = [],
+    statusBadge = null,
+    partyTitle,
+    partyName,
+    partyLines = [],
+    lineItem,
+    summaryRows = [],
+    grandTotal,
+    paymentInfo = null,
+    terms = [],
+    remark = '',
+  } = opts;
+
+  const logoUrl = `${window.location.origin}/img/neurspatherapy_logo.png`;
+  const t = DOCUMENT_THEME;
+
+  const metaHtml = metaRows
+    .map(
+      (row) => `
+        <div class="meta-row">
+          <span class="meta-label">${row.label}</span>
+          <span class="meta-value">${row.value}</span>
+        </div>`
+    )
+    .join('');
+
+  const badgeHtml = statusBadge
+    ? `<span class="status-badge ${statusBadge.paid ? 'is-paid' : 'is-unpaid'}">${statusBadge.text}</span>`
+    : '';
+
+  const partyLinesHtml = partyLines
+    .filter(Boolean)
+    .map((line) => `<div class="party-line">${line}</div>`)
+    .join('');
+
+  const summaryHtml = summaryRows
+    .map(
+      (row) => `
+        <div class="summary-row">
+          <span>${row.label}</span>
+          <span>${row.value}</span>
+        </div>`
+    )
+    .join('');
+
+  const paymentInfoHtml =
+    paymentInfo && paymentInfo.length
+      ? `
+        <div class="info-panel">
+          <div class="info-panel-title">Payment Information</div>
+          <div class="info-grid">
+            ${paymentInfo
+              .map(
+                (row) => `
+              <div class="info-item">
+                <span class="info-label">${row.label}</span>
+                <span class="info-value">${row.value}</span>
+              </div>`
+              )
+              .join('')}
+          </div>
+        </div>`
+      : '';
+
+  const termsHtml = terms
+    .map((term, i) => `<li>${i + 1}. ${term}</li>`)
+    .join('');
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <title>${docTitle}</title>
+      <style>
+        * { box-sizing: border-box; }
+        @page { margin: 16mm; size: A4; }
+        body {
+          font-family: 'Segoe UI', Arial, sans-serif;
+          color: ${t.ink};
+          margin: 0;
+          padding: 0;
+          font-size: 13px;
+          line-height: 1.5;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .doc { max-width: 780px; margin: 0 auto; }
+        .top {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 24px;
+        }
+        .brand { display: flex; align-items: center; gap: 14px; }
+        .brand img { height: 60px; width: auto; }
+        .brand .company-name {
+          font-size: 20px;
+          font-weight: 700;
+          color: ${t.greenDark};
+          margin: 0;
+        }
+        .brand .company-address {
+          font-size: 11px;
+          color: ${t.muted};
+          margin-top: 4px;
+        }
+        .doc-head { text-align: right; }
+        .doc-type {
+          font-size: 34px;
+          font-weight: 800;
+          letter-spacing: 4px;
+          color: ${accentColor};
+          margin: 0;
+          line-height: 1;
+        }
+        .status-badge {
+          display: inline-block;
+          margin-top: 8px;
+          padding: 4px 14px;
+          border-radius: 999px;
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          color: #fff;
+        }
+        .status-badge.is-paid { background: ${t.green}; }
+        .status-badge.is-unpaid { background: #E0A800; }
+        .accent-bar {
+          height: 4px;
+          background: linear-gradient(90deg, ${t.greenDark}, ${t.greenBright});
+          border-radius: 2px;
+          margin: 16px 0 20px;
+        }
+        .meta-strip {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px 40px;
+          background: ${t.greenTint};
+          border: 1px solid ${t.border};
+          border-radius: 8px;
+          padding: 12px 18px;
+          margin-bottom: 22px;
+        }
+        .meta-row { display: flex; flex-direction: column; }
+        .meta-label {
+          font-size: 10px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          color: ${t.muted};
+        }
+        .meta-value { font-size: 13px; font-weight: 600; color: ${t.ink}; }
+        .party { margin-bottom: 18px; }
+        .party-title {
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 1px;
+          color: ${accentColor};
+          text-transform: uppercase;
+          margin-bottom: 4px;
+        }
+        .party-name { font-size: 15px; font-weight: 700; }
+        .party-line { font-size: 12px; color: ${t.muted}; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+        thead th {
+          background: ${accentColor};
+          color: #fff;
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          text-align: left;
+          padding: 10px 12px;
+        }
+        thead th.num, tbody td.num { text-align: right; }
+        tbody td {
+          padding: 12px;
+          border-bottom: 1px solid ${t.border};
+          font-size: 12.5px;
+          vertical-align: top;
+        }
+        .totals { display: flex; justify-content: flex-end; }
+        .summary-box { width: 280px; }
+        .summary-row {
+          display: flex;
+          justify-content: space-between;
+          padding: 6px 12px;
+          font-size: 13px;
+          color: ${t.muted};
+        }
+        .summary-row.grand {
+          background: ${t.greenTint};
+          border: 1px solid ${t.border};
+          border-radius: 8px;
+          margin-top: 6px;
+          padding: 12px;
+          font-size: 15px;
+          font-weight: 700;
+          color: ${t.greenDark};
+        }
+        .info-panel {
+          margin-top: 24px;
+          border: 1px solid ${t.border};
+          border-left: 4px solid ${accentColor};
+          border-radius: 8px;
+          padding: 14px 18px;
+          background: #FBFDFB;
+        }
+        .info-panel-title {
+          font-size: 12px;
+          font-weight: 700;
+          color: ${accentColor};
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          margin-bottom: 10px;
+        }
+        .info-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px 24px;
+        }
+        .info-item { display: flex; flex-direction: column; }
+        .info-label {
+          font-size: 10px;
+          text-transform: uppercase;
+          color: ${t.muted};
+          letter-spacing: 0.5px;
+        }
+        .info-value { font-size: 12.5px; font-weight: 600; }
+        .sign-remark {
+          display: flex;
+          justify-content: space-between;
+          gap: 40px;
+          margin-top: 48px;
+        }
+        .sign-block, .remark-block { flex: 1; }
+        .sign-line {
+          margin-top: 42px;
+          border-top: 1.5px solid ${t.ink};
+          padding-top: 6px;
+          font-size: 12px;
+          font-weight: 600;
+          color: ${t.ink};
+        }
+        .remark-title {
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.5px;
+          color: ${accentColor};
+          text-transform: uppercase;
+          margin-bottom: 6px;
+        }
+        .remark-box {
+          min-height: 60px;
+          border: 1px solid ${t.border};
+          border-radius: 8px;
+          padding: 10px 12px;
+          font-size: 12px;
+          color: ${t.muted};
+        }
+        .terms {
+          margin-top: 34px;
+          border-top: 1px solid ${t.border};
+          padding-top: 14px;
+        }
+        .terms-title {
+          font-size: 11px;
+          font-weight: 700;
+          color: ${accentColor};
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          margin-bottom: 6px;
+        }
+        .terms ul { margin: 0; padding: 0; list-style: none; }
+        .terms li { font-size: 10.5px; color: ${t.muted}; margin: 2px 0; }
+        .footer {
+          text-align: center;
+          margin-top: 22px;
+          padding-top: 12px;
+          border-top: 2px solid ${accentColor};
+          font-size: 11px;
+          color: ${t.muted};
+        }
+        .footer strong { color: ${t.greenDark}; }
+      </style>
+    </head>
+    <body>
+      <div class="doc">
+        <div class="top">
+          <div class="brand">
+            <img src="${logoUrl}" alt="${COMPANY_INFO.name} logo" />
+            <div>
+              <p class="company-name">${COMPANY_INFO.name}</p>
+              <div class="company-address">${COMPANY_INFO.addressLines.join('<br>')}</div>
+            </div>
+          </div>
+          <div class="doc-head">
+            <p class="doc-type">${docType}</p>
+            ${badgeHtml}
+          </div>
+        </div>
+
+        <div class="accent-bar"></div>
+
+        <div class="meta-strip">${metaHtml}</div>
+
+        <div class="party">
+          <div class="party-title">${partyTitle}</div>
+          <div class="party-name">${partyName}</div>
+          ${partyLinesHtml}
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th class="num">Price</th>
+              <th class="num">Discount</th>
+              <th class="num">Qty</th>
+              <th class="num">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>${lineItem.description || 'N/A'}</td>
+              <td class="num">RM ${formatPrice(lineItem.amount)}</td>
+              <td class="num">RM 0.00</td>
+              <td class="num">1</td>
+              <td class="num">RM ${formatPrice(lineItem.amount)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="totals">
+          <div class="summary-box">
+            ${summaryHtml}
+            <div class="summary-row grand">
+              <span>Grand Total</span>
+              <span>${grandTotal}</span>
+            </div>
+          </div>
+        </div>
+
+        ${paymentInfoHtml}
+
+        <div class="sign-remark">
+          <div class="sign-block">
+            <div class="sign-line">Authorised Signature</div>
+          </div>
+          <div class="remark-block">
+            <div class="remark-title">Remark</div>
+            <div class="remark-box">${remark || ''}</div>
+          </div>
+        </div>
+
+        <div class="terms">
+          <div class="terms-title">Terms &amp; Conditions</div>
+          <ul>${termsHtml}</ul>
+        </div>
+
+        <div class="footer">
+          <p>Thank you for choosing <strong>${COMPANY_INFO.name}</strong>.</p>
+          <p>Generated on ${new Date().toLocaleDateString('en-MY')} &middot; This is a computer generated document.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
 const viewInvoiceDetails = (invoice) => {
   selectedInvoice.value = invoice;
   showInvoiceDetails.value = true;
@@ -532,94 +952,40 @@ const printInvoice = (invoice) => {
     return;
   }
 
-  const printContent = `
-    <html>
-    <head>
-      <title>Invoice ${formatInvoiceId(invoice.invoice_id)}</title>
-      <style>
-        body { font-family: Arial, sans-serif; padding: 40px; }
-        .header, .footer { text-align: center; }
-        .company-info { text-align: left; }
-        .invoice-meta { text-align: right; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 8px; }
-        th { background-color: #f2f2f2; }
-        .summary { margin-top: 30px; float: right; width: 300px; }
-        .summary div { display: flex; justify-content: space-between; padding: 4px 0; }
-        .signature { margin-top: 60px; display: flex; justify-content: space-between; }
-        .terms { margin-top: 80px; font-size: 12px; text-align: center; }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <h2>Autibile</h2>
-        <div class="company-info">
-          47150 Puchong, Selangor.<br>
-          1 - 4, Prima Bizwalk Business Park<br>
-          Jalan Tasik Prima 6/2<br>
-          Taman Tasik Prima,
-        </div>
-        <br>
-      </div>
+  const isPaid = invoice.status === 'Paid';
+  const printContent = buildDocumentHtml({
+    docType: 'INVOICE',
+    docTitle: `Invoice ${formatInvoiceId(invoice.invoice_id)}`,
+    accentColor: DOCUMENT_THEME.green,
+    metaRows: [
+      { label: 'Invoice No', value: formatInvoiceId(invoice.invoice_id) },
+      { label: 'Sales Date', value: formatDate(invoice.date) },
+      { label: 'Due Date', value: formatDate(invoice.due_date) },
+      { label: 'Issued Date', value: new Date().toLocaleDateString('en-MY') },
+    ],
+    statusBadge: { text: invoice.status, paid: isPaid },
+    partyTitle: 'BILL TO',
+    partyName: invoice.patient_name,
+    partyLines: [
+      invoice.patient_id ? `Patient ID: ${invoice.patient_id}` : '',
+      invoice.invoice_type ? `Invoice Type: ${invoice.invoice_type}` : '',
+    ],
+    lineItem: { description: invoice.description, amount: invoice.amount },
+    summaryRows: [
+      { label: 'Sub Total', value: `RM ${formatPrice(invoice.amount)}` },
+      { label: 'Tax (0%)', value: 'RM 0.00' },
+    ],
+    grandTotal: `RM ${formatPrice(invoice.amount)}`,
+    paymentInfo: null,
+    terms: [
+      'Payment is due within 30 days of the invoice date.',
+      'Late payments may incur additional charges.',
+      'This is a computer generated invoice.',
+    ],
+    remark: 'This is a computer generated invoice. No signature required.',
+  });
 
-      <div class="invoice-meta">
-        <p>Invoice No ${formatInvoiceId(invoice.invoice_id)}</p>
-        <p>Sales Date ${formatDate(invoice.date)}</p>
-        <p>Issued Date ${new Date().toLocaleDateString()}</p>
-      </div>
-
-      <div>
-        <h4>BILL TO</h4>
-        <p>${invoice.patient_name}</p>
-        <p>${invoice.description}</p>
-      </div>
-
-      <table>
-        <thead>
-          <tr>
-            <th>Description</th>
-            <th>Price</th>
-            <th>Discount</th>
-            <th>Qty</th>
-            <th>Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>${invoice.description}</td>
-            <td>${formatPrice(invoice.amount)}</td>
-            <td>0.00</td>
-            <td>1</td>
-            <td>${formatPrice(invoice.amount)}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div class="summary">
-        <div><span>Sub Total</span><span>${formatPrice(invoice.amount)}</span></div>
-        <div><span>Grand Total</span><span>${formatPrice(invoice.amount)}</span></div>
-        <div><span>Online</span><span>${formatPrice(invoice.amount)}</span></div>
-      </div>
-
-      <div class="signature">
-        <div><strong>Signature:</strong></div>
-        <div><strong>REMARK:</strong></div>
-      </div>
-
-      <div class="terms">
-        <p><strong>Terms and Conditions</strong></p>
-        <p>Thank you.<br>This is computer generated receipt no signature required.</p>
-      </div>
-    </body>
-    </html>
-  `;
-
-  const printWindow = window.open('', '', 'height=800,width=800');
-  printWindow.document.write(printContent);
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
-  printWindow.close();
+  openPrintWindow(printContent);
 };
 
 const downloadReceipt = async (paymentId) => {
@@ -802,94 +1168,51 @@ const printReceipt = (payment) => {
     return;
   }
 
-  const printContent = `
-    <html>
-    <head>
-      <title>Receipt ${formatPaymentId(payment.payment_id)}</title>
-      <style>
-        body { font-family: Arial, sans-serif; padding: 40px; }
-        .header, .footer { text-align: center; }
-        .company-info { text-align: left; }
-        .receipt-meta { text-align: right; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 8px; }
-        th { background-color: #f2f2f2; }
-        .summary { margin-top: 30px; float: right; width: 300px; }
-        .summary div { display: flex; justify-content: space-between; padding: 4px 0; }
-        .signature { margin-top: 60px; display: flex; justify-content: space-between; }
-        .terms { margin-top: 80px; font-size: 12px; text-align: center; }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <h2>Autibile</h2>
-        <div class="company-info">
-          47150 Puchong, Selangor.<br>
-          1 - 4, Prima Bizwalk Business Park<br>
-          Jalan Tasik Prima 6/2<br>
-          Taman Tasik Prima,
-        </div>
-        <br>
-      </div>
+  const paymentInfo = [
+    { label: 'Payment Date', value: formatDate(payment.created_at) },
+    { label: 'Payment Method', value: payment.method || 'N/A' },
+  ];
+  if (payment.bank_name) {
+    paymentInfo.push({ label: 'Bank / Provider', value: payment.bank_name });
+  }
+  if (payment.reference_code) {
+    paymentInfo.push({ label: 'Reference Code', value: payment.reference_code });
+  }
 
-      <div class="receipt-meta">
-        <p>Receipt No ${formatPaymentId(payment.payment_id)}</p>
-        <p>Payment Date ${formatDate(payment.created_at)}</p>
-        <p>Issued Date ${new Date().toLocaleDateString()}</p>
-      </div>
+  const printContent = buildDocumentHtml({
+    docType: 'RECEIPT',
+    docTitle: `Receipt ${formatPaymentId(payment.payment_id)}`,
+    accentColor: DOCUMENT_THEME.greenBright,
+    metaRows: [
+      { label: 'Receipt No', value: formatPaymentId(payment.payment_id) },
+      { label: 'Invoice No', value: formatInvoiceId(payment.invoice_id) },
+      { label: 'Payment Date', value: formatDate(payment.created_at) },
+      { label: 'Issued Date', value: new Date().toLocaleDateString('en-MY') },
+    ],
+    statusBadge: { text: 'Paid', paid: true },
+    partyTitle: 'PAID BY',
+    partyName: payment.patient_name,
+    partyLines: [
+      payment.patient_id ? `Patient ID: ${payment.patient_id}` : '',
+      payment.invoice_type ? `Invoice Type: ${payment.invoice_type}` : '',
+    ],
+    lineItem: { description: payment.invoice_description, amount: payment.amount },
+    summaryRows: [
+      { label: 'Sub Total', value: `RM ${formatPrice(payment.amount)}` },
+      { label: 'Tax (0%)', value: 'RM 0.00' },
+      { label: `Paid (${payment.method || 'N/A'})`, value: `RM ${formatPrice(payment.amount)}` },
+    ],
+    grandTotal: `RM ${formatPrice(payment.amount)}`,
+    paymentInfo,
+    terms: [
+      'This receipt confirms that payment has been received in full.',
+      'Please retain this receipt for your records.',
+      'This is a computer generated receipt.',
+    ],
+    remark: 'Payment received with thanks. No signature required.',
+  });
 
-      <div>
-        <h4>PAID BY</h4>
-        <p>${payment.patient_name}</p>
-        <p>${payment.invoice_description}</p>
-      </div>
-
-      <table>
-        <thead>
-          <tr>
-            <th>Description</th>
-            <th>Price</th>
-            <th>Discount</th>
-            <th>Qty</th>
-            <th>Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>${payment.invoice_description}</td>
-            <td>${formatPrice(payment.amount)}</td>
-            <td>0.00</td>
-            <td>1</td>
-            <td>${formatPrice(payment.amount)}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div class="summary">
-        <div><span>Sub Total</span><span>${formatPrice(payment.amount)}</span></div>
-        <div><span>Grand Total</span><span>${formatPrice(payment.amount)}</span></div>
-        <div><span>${payment.method}</span><span>${formatPrice(payment.amount)}</span></div>
-      </div>
-
-      <div class="signature">
-        <div><strong>Signature:</strong></div>
-        <div><strong>REMARK:</strong></div>
-      </div>
-
-      <div class="terms">
-        <p><strong>Terms and Conditions</strong></p>
-        <p>Thank you.<br>This is computer generated receipt no signature required.</p>
-      </div>
-    </body>
-    </html>
-  `;
-
-  const printWindow = window.open('', '', 'height=800,width=800');
-  printWindow.document.write(printContent);
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
-  printWindow.close();
+  openPrintWindow(printContent);
 };
 
 // Pagination functions
