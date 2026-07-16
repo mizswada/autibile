@@ -16,11 +16,22 @@ const questions = ref([]);
 const isLoading = ref(true);
 const showQuestionModal = ref(false);
 const showHeaderModal = ref(false);
+
+const DEFAULT_NUMBER_CONFIG = {
+  min: 0,
+  max: 10,
+  step: 1,
+  defaultValue: 0,
+  minLabel: '',
+  maxLabel: '',
+};
+
 const newQuestion = ref({
   question_bm: '',
   question_en: '',
   requiredQuestion: '',
-  status: ''
+  status: '',
+  number_config: { ...DEFAULT_NUMBER_CONFIG },
 });
 const isEditingQuestion = ref(false);
 const editQuestionId = ref(null);
@@ -38,6 +49,37 @@ const showConfirmToggleModal = ref(false);
 const pendingToggleQuestion = ref(null);
 const isTogglingStatus = ref(false);
 const answerTypeOptions = ref([]);
+
+const numberAnswerTypeId = computed(() => {
+  const found = answerTypeOptions.value.find(
+    (type) => type.label === 'Number' || type.label?.toLowerCase() === 'number',
+  );
+  return found ? parseInt(found.value) : null;
+});
+
+const isNumberAnswerTypeSelected = computed(() => {
+  if (!newQuestion.value.answer_type || !numberAnswerTypeId.value) return false;
+  return parseInt(newQuestion.value.answer_type) === numberAnswerTypeId.value;
+});
+
+function parseNumberConfigFromScoringConfig(scoringConfig) {
+  if (!scoringConfig) return { ...DEFAULT_NUMBER_CONFIG };
+  try {
+    const parsed =
+      typeof scoringConfig === 'string' ? JSON.parse(scoringConfig) : scoringConfig;
+    if (parsed?.inputType !== 'number') return { ...DEFAULT_NUMBER_CONFIG };
+    return {
+      min: parsed.min ?? DEFAULT_NUMBER_CONFIG.min,
+      max: parsed.max ?? DEFAULT_NUMBER_CONFIG.max,
+      step: parsed.step ?? DEFAULT_NUMBER_CONFIG.step,
+      defaultValue: parsed.defaultValue ?? parsed.default ?? DEFAULT_NUMBER_CONFIG.defaultValue,
+      minLabel: parsed.minLabel || '',
+      maxLabel: parsed.maxLabel || '',
+    };
+  } catch {
+    return { ...DEFAULT_NUMBER_CONFIG };
+  }
+}
 
 // Add these new refs for sub-questions handling
 const showingSubQuestions = ref({});
@@ -143,6 +185,7 @@ async function fetchQuestions() {
         status: q.status,
         questionnaire_id: q.questionnaire_id,
         answer_type: q.answer_type,
+        scoring_config: q.scoring_config,
         has_sub_questions: q.has_sub_questions,
         sub_questions_count: q.sub_questions_count,
         parentID: q.parentID
@@ -190,6 +233,7 @@ async function fetchSubQuestions(parentQuestionId, forceShow = false) {
             status: q.status,
             questionnaire_id: q.questionnaire_id,
             answer_type: q.answer_type,
+        scoring_config: q.scoring_config,
             has_sub_questions: q.has_sub_questions,
             sub_questions_count: q.sub_questions_count,
             parentID: q.parentID
@@ -222,6 +266,7 @@ async function fetchSubQuestions(parentQuestionId, forceShow = false) {
                         status: q.status,
                         questionnaire_id: q.questionnaire_id,
                         answer_type: q.answer_type,
+        scoring_config: q.scoring_config,
                         has_sub_questions: q.has_sub_questions,
                         sub_questions_count: q.sub_questions_count,
                         parentID: q.parentID
@@ -302,6 +347,7 @@ async function toggleSubQuestions(questionId) {
           status: q.status,
           questionnaire_id: q.questionnaire_id,
           answer_type: q.answer_type,
+        scoring_config: q.scoring_config,
           has_sub_questions: q.has_sub_questions,
           sub_questions_count: q.sub_questions_count,
           parentID: q.parentID
@@ -337,6 +383,7 @@ async function toggleSubQuestions(questionId) {
                     status: q.status,
                     questionnaire_id: q.questionnaire_id,
                     answer_type: q.answer_type,
+        scoring_config: q.scoring_config,
                     has_sub_questions: q.has_sub_questions,
                     sub_questions_count: q.sub_questions_count,
                     parentID: q.parentID
@@ -438,6 +485,7 @@ async function toggleNestedSubQuestions(subQuestionId) {
             status: q.status,
             questionnaire_id: q.questionnaire_id,
             answer_type: q.answer_type,
+        scoring_config: q.scoring_config,
             has_sub_questions: q.has_sub_questions,
             sub_questions_count: q.sub_questions_count,
             parentID: q.parentID
@@ -519,6 +567,7 @@ async function toggleDeepNestedSubQuestions(nestedSubQuestionId) {
             status: q.status,
             questionnaire_id: q.questionnaire_id,
             answer_type: q.answer_type,
+        scoring_config: q.scoring_config,
             has_sub_questions: q.has_sub_questions,
             sub_questions_count: q.sub_questions_count,
             parentID: q.parentID
@@ -657,6 +706,7 @@ async function loadAllNestedSubQuestions() {
           status: q.status,
           questionnaire_id: q.questionnaire_id,
           answer_type: q.answer_type,
+        scoring_config: q.scoring_config,
           has_sub_questions: q.has_sub_questions,
           sub_questions_count: q.sub_questions_count,
           parentID: q.parentID
@@ -681,6 +731,7 @@ async function loadAllNestedSubQuestions() {
           status: q.status,
           questionnaire_id: q.questionnaire_id,
           answer_type: q.answer_type,
+        scoring_config: q.scoring_config,
           has_sub_questions: q.has_sub_questions,
           sub_questions_count: q.sub_questions_count,
           parentID: q.parentID
@@ -819,6 +870,7 @@ function openAddQuestionModal(parentQuestion = null) {
     requiredQuestion: '',
     status: '',
     answer_type: '',
+    number_config: { ...DEFAULT_NUMBER_CONFIG },
   };
   isEditingQuestion.value = false;
   editQuestionId.value = null;
@@ -839,7 +891,8 @@ async function openEditQuestionModal(question) {
     question_en: question.question_text_bi,
     requiredQuestion: question.is_required,
     status: question.status,
-    answer_type: question.answer_type
+    answer_type: question.answer_type,
+    number_config: parseNumberConfigFromScoringConfig(question.scoring_config),
   };
   
   isEditingQuestion.value = true;
@@ -861,8 +914,12 @@ async function saveQuestion() {
     question_en: newQuestion.value.question_en,
     requiredQuestion: newQuestion.value.requiredQuestion,
     status: newQuestion.value.status,
-    answer_type: newQuestion.value.answer_type
+    answer_type: newQuestion.value.answer_type,
   };
+
+  if (isNumberAnswerTypeSelected.value) {
+    payload.number_config = { ...newQuestion.value.number_config };
+  }
 
   // Add parentID if adding a sub-question
   if (addingSubQuestionFor.value) {
@@ -1039,9 +1096,18 @@ async function addExistingQuestion(question) {
   }
 }
 
-function getAnswerTypeLabel(answerType) {
+function getAnswerTypeLabel(answerType, question = null) {
   if (!answerType) return 'N/A';
-  
+
+  if (
+    question &&
+    numberAnswerTypeId.value &&
+    parseInt(answerType) === numberAnswerTypeId.value
+  ) {
+    const config = parseNumberConfigFromScoringConfig(question.scoring_config);
+    return `Number (${config.min}–${config.max})`;
+  }
+
   const found = answerTypeOptions.value.find(type => parseInt(type.value) === parseInt(answerType));
   return found ? found.label : `Type ID: ${answerType}`;
 }
@@ -1342,7 +1408,7 @@ async function performDelete() {
                   </td>
                   <td class="px-6 py-4">
                     <div class="text-sm text-gray-900">
-                      {{ getAnswerTypeLabel(question.answer_type) }}
+                      {{ getAnswerTypeLabel(question.answer_type, question) }}
                     </div>
                   </td>
                   <td class="px-6 py-4">
@@ -1461,7 +1527,7 @@ async function performDelete() {
                     </td>
                     <td class="px-6 py-4">
                       <div class="text-sm text-gray-900">
-                        {{ getAnswerTypeLabel(subQuestion.answer_type) }}
+                        {{ getAnswerTypeLabel(subQuestion.answer_type, subQuestion) }}
                       </div>
                     </td>
                     <td class="px-6 py-4">
@@ -1577,7 +1643,7 @@ async function performDelete() {
                         </td>
                         <td class="px-6 py-4">
                           <div class="text-sm text-gray-900">
-                            {{ getAnswerTypeLabel(nestedSubQuestion.answer_type) }}
+                            {{ getAnswerTypeLabel(nestedSubQuestion.answer_type, nestedSubQuestion) }}
                           </div>
                         </td>
                         <td class="px-6 py-4">
@@ -1681,7 +1747,7 @@ async function performDelete() {
                               </td>
                               <td class="px-6 py-4">
                                 <div class="text-sm text-gray-900">
-                                  {{ getAnswerTypeLabel(deepNestedSubQuestion.answer_type) }}
+                                  {{ getAnswerTypeLabel(deepNestedSubQuestion.answer_type, deepNestedSubQuestion) }}
                                 </div>
                               </td>
                               <td class="px-6 py-4">
@@ -1799,6 +1865,49 @@ async function performDelete() {
           validation-visibility="dirty"
           :validation-messages="{ required: 'This field is required' }"
         />
+
+        <div
+          v-if="isNumberAnswerTypeSelected"
+          class="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-3"
+        >
+          <h4 class="font-medium text-gray-800">Number Configuration</h4>
+          <div class="grid grid-cols-2 gap-3">
+            <FormKit
+              type="number"
+              v-model="newQuestion.number_config.min"
+              label="Min"
+              validation="required"
+            />
+            <FormKit
+              type="number"
+              v-model="newQuestion.number_config.max"
+              label="Max"
+              validation="required"
+            />
+            <FormKit
+              type="number"
+              v-model="newQuestion.number_config.step"
+              label="Step"
+              validation="required"
+            />
+            <FormKit
+              type="number"
+              v-model="newQuestion.number_config.defaultValue"
+              label="Default Value"
+              validation="required"
+            />
+            <FormKit
+              type="text"
+              v-model="newQuestion.number_config.minLabel"
+              label="Min Label (optional)"
+            />
+            <FormKit
+              type="text"
+              v-model="newQuestion.number_config.maxLabel"
+              label="Max Label (optional)"
+            />
+          </div>
+        </div>
 
         <FormKit
           type="select"

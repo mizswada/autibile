@@ -1,4 +1,6 @@
 // Added by: Firzana Huda 24 June 2025
+import { resolveScoringConfigForSave } from "~/server/utils/questionnaireNumberConfig";
+
 export default defineEventHandler(async (event) => {
     try {
       // Extract userID from the session context
@@ -20,6 +22,7 @@ export default defineEventHandler(async (event) => {
         status,
         answer_type,
         parentID,
+        number_config,
       } = body;
   
       // Basic validation
@@ -59,6 +62,23 @@ export default defineEventHandler(async (event) => {
         }
       }
 
+      let scoringConfigData = {};
+      if (answer_type && answer_type !== "") {
+        const scoringResult = await resolveScoringConfigForSave({
+          answer_type,
+          number_config,
+        });
+        if (scoringResult.error) {
+          return {
+            statusCode: 400,
+            message: scoringResult.error,
+          };
+        }
+        if (scoringResult.shouldUpdate) {
+          scoringConfigData = { scoring_config: scoringResult.scoring_config };
+        }
+      }
+
       // Save to DB - use the correct relation format for questionnaires
       const saved = await prisma.questionnaires_questions.create({
         data: {
@@ -73,6 +93,7 @@ export default defineEventHandler(async (event) => {
           ...(answer_type && answer_type !== '' ? { answer_type: parseInt(answer_type) } : {}),
           // Add parentID if provided
           ...(parentID ? { parentID: parseInt(parentID) } : {}),
+          ...scoringConfigData,
           created_at: new Date(),
         },
       });

@@ -6,6 +6,10 @@ import {
 } from "~/server/utils/questionnaireAccess";
 
 import { optionOrderBy, questionOrderBy } from "~/server/utils/questionnaireOrder";
+import {
+  enrichQuestionWithNumberConfig,
+  getNumberAnswerTypeLookupId,
+} from "~/server/utils/questionnaireNumberConfig";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -90,16 +94,17 @@ export default defineEventHandler(async (event) => {
       patient_info: patientInfo,
       mchatr_eligibility: mchatrEligibility,
       questionnaire_access: questionnaireAccess,
+      number_answer_type_id: await getNumberAnswerTypeLookupId(),
       questions: [],
     };
 
     for (const topQuestion of topLevelQuestions) {
-      const questionNode = {
+      const questionNode = await enrichQuestionWithNumberConfig({
         ...topQuestion,
         options: [],
         conditional_logic: [],
         sub_questions: [],
-      };
+      });
 
       const options = await prisma.questionnaires_questions_action.findMany({
         where: {
@@ -138,7 +143,7 @@ export default defineEventHandler(async (event) => {
                       },
                       orderBy: optionOrderBy,
                     });
-                  return { ...q, options: qOptions };
+                  return enrichQuestionWithNumberConfig({ ...q, options: qOptions });
                 }),
               );
 
@@ -160,10 +165,10 @@ export default defineEventHandler(async (event) => {
       );
 
       for (const subQuestion of questionSubQuestions) {
-        const subQuestionNode = {
+        const subQuestionNode = await enrichQuestionWithNumberConfig({
           ...subQuestion,
           options: [],
-        };
+        });
 
         const subOptions = await prisma.questionnaires_questions_action.findMany(
           {

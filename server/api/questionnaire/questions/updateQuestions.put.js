@@ -1,4 +1,6 @@
 // Added by: Firzana Huda 24 June 2025
+import { resolveScoringConfigForSave } from "~/server/utils/questionnaireNumberConfig";
+
 export default defineEventHandler(async (event) => {
   try {
     // Extract userID from the session context
@@ -18,7 +20,8 @@ export default defineEventHandler(async (event) => {
       requiredQuestion, 
       status,
       answer_type,
-      parentID  // Add parentID field for sub-questions
+      parentID,  // Add parentID field for sub-questions
+      number_config,
     } = body;
 
     // Basic validation
@@ -87,6 +90,26 @@ export default defineEventHandler(async (event) => {
       }
     }
 
+    const resolvedAnswerType =
+      answer_type && answer_type !== "" ? parseInt(answer_type) : existingQuestion.answer_type;
+
+    let scoringConfigData = {};
+    if (resolvedAnswerType) {
+      const scoringResult = await resolveScoringConfigForSave({
+        answer_type: resolvedAnswerType,
+        number_config,
+      });
+      if (scoringResult.error) {
+        return {
+          statusCode: 400,
+          message: scoringResult.error,
+        };
+      }
+      if (scoringResult.shouldUpdate) {
+        scoringConfigData = { scoring_config: scoringResult.scoring_config };
+      }
+    }
+
     // Update the question
     const updatedQuestion = await prisma.questionnaires_questions.update({
       where: {
@@ -101,6 +124,7 @@ export default defineEventHandler(async (event) => {
         ...(answer_type && answer_type !== '' ? { answer_type: parseInt(answer_type) } : {}),
         // Update parentID if provided
         ...(parentID !== undefined ? { parentID: parentID ? parseInt(parentID) : null } : {}),
+        ...scoringConfigData,
         updated_at: new Date()
       }
     });

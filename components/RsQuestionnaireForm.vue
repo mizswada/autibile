@@ -46,6 +46,44 @@ const loadingConditionalQuestions = ref({});
 // Cache for options to avoid refetching
 const optionsCache = ref({});
 
+function getNumberConfig(question) {
+  if (question?.number_config?.inputType === 'number') {
+    return question.number_config;
+  }
+
+  if (!question?.scoring_config) return null;
+
+  try {
+    const parsed =
+      typeof question.scoring_config === 'string'
+        ? JSON.parse(question.scoring_config)
+        : question.scoring_config;
+    if (parsed?.inputType === 'number') {
+      return parsed;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function isNumberQuestion(question) {
+  return !!getNumberConfig(question);
+}
+
+function initializeNumberAnswerDefaults(questionList) {
+  questionList.forEach((question) => {
+    const config = getNumberConfig(question);
+    if (!config) return;
+
+    const questionId = question.question_id;
+    if (answers.value[questionId] === undefined || answers.value[questionId] === null) {
+      answers.value[questionId] = config.defaultValue ?? config.min ?? 0;
+    }
+  });
+}
+
 const progress = computed(() => {
   if (!questions.value.length) return 0;
   
@@ -60,6 +98,10 @@ const progress = computed(() => {
      const questionId = q.question_id;
      const questionType = getQuestionOptionType(q);
      
+     // For number slider questions
+     if (isNumberQuestion(q)) {
+       return answers.value[questionId] !== undefined && answers.value[questionId] !== null;
+     }
      // For text or textarea questions, check textAnswers
      if (questionType === 'text' || questionType === 'textarea' || q.answer_type === 33) {
        return textAnswers.value[questionId] !== undefined && textAnswers.value[questionId] !== '';
@@ -92,7 +134,11 @@ const requiredQuestionsAnswered = computed(() => {
        const questionId = q.question_id;
        const questionType = getQuestionOptionType(q);
        
-       // For text or textarea questions, check textAnswers
+       // For number slider questions
+     if (isNumberQuestion(q)) {
+       return answers.value[questionId] !== undefined && answers.value[questionId] !== null;
+     }
+     // For text or textarea questions, check textAnswers
        if (questionType === 'text' || questionType === 'textarea' || q.answer_type === 33) {
          return textAnswers.value[questionId] !== undefined && textAnswers.value[questionId] !== '';
        } 
@@ -198,6 +244,8 @@ async function fetchQuestions() {
           optionsError: false
         };
       });
+
+      initializeNumberAnswerDefaults(questions.value);
       
       // Fetch options only for questions that need them
       const questionsNeedingOptions = questions.value.filter(q => q.answer_type === 35);
@@ -272,6 +320,8 @@ async function loadSubQuestionsForParent(parentQuestionId) {
         ...conditionalSubQuestions.value,
         [parentQuestionId]: subQuestions
       };
+
+      initializeNumberAnswerDefaults(subQuestions);
       
       // Ensure DOM updates
       await nextTick();
@@ -597,8 +647,8 @@ function handleTextInput(questionId, value) {
 }
 
 function getQuestionOptionType(question) {
-  
-  
+  if (isNumberQuestion(question)) return 'number';
+
   // First check the answer_type of the question
   if (question.answer_type === 33) return 'text'; // Text Type
   if (question.answer_type === 34) return 'range'; // Range Type
@@ -658,6 +708,18 @@ async function submitQuestionnaire() {
             text_answer: textAnswers.value[questionId],
             patient_id: props.patientId ? parseInt(props.patientId) : null,
             parentID: parentID ? parseInt(parentID) : null // Include parentID if it exists
+          });
+        }
+      }
+      // Handle Number Type (configurable slider)
+      else if (isNumberQuestion(question)) {
+        if (answers.value[questionId] !== undefined && answers.value[questionId] !== null) {
+          formattedAnswers.push({
+            question_id: parseInt(questionId),
+            option_id: null,
+            numeric_answer: parseInt(answers.value[questionId]),
+            patient_id: props.patientId ? parseInt(props.patientId) : null,
+            parentID: parentID ? parseInt(parentID) : null
           });
         }
       }
@@ -737,6 +799,21 @@ async function submitQuestionnaire() {
             question_id: parseInt(questionId),
             option_id: null,
             text_answer: textAnswers.value[questionId],
+            patient_id: props.patientId ? parseInt(props.patientId) : null,
+            parentID: parentID ? parseInt(parentID) : null
+          });
+        }
+      }
+      // Handle Number Type
+      else if (isNumberQuestion(question)) {
+        if (
+          answers.value[questionId] !== undefined &&
+          answers.value[questionId] !== null
+        ) {
+          formattedAnswers.push({
+            question_id: parseInt(questionId),
+            option_id: null,
+            numeric_answer: parseInt(answers.value[questionId]),
             patient_id: props.patientId ? parseInt(props.patientId) : null,
             parentID: parentID ? parseInt(parentID) : null
           });
@@ -988,6 +1065,28 @@ function cancelQuestionnaire() {
             </div>
           </div>
           
+          <!-- Number Type (Configurable Slider) -->
+          <div v-else-if="getQuestionOptionType(question) === 'number'" class="mt-4">
+            <div class="px-2">
+              <div class="flex justify-between items-center mb-2 text-sm text-gray-600">
+                <span>{{ getNumberConfig(question)?.minLabel || getNumberConfig(question)?.min }}</span>
+                <span class="font-semibold text-blue-600 text-base">
+                  {{ answers[question.question_id] }} / {{ getNumberConfig(question)?.max }}
+                </span>
+                <span>{{ getNumberConfig(question)?.maxLabel || getNumberConfig(question)?.max }}</span>
+              </div>
+              <input
+                type="range"
+                class="w-full"
+                :min="getNumberConfig(question)?.min ?? 0"
+                :max="getNumberConfig(question)?.max ?? 10"
+                :step="getNumberConfig(question)?.step ?? 1"
+                v-model.number="answers[question.question_id]"
+                :disabled="props.readOnly"
+              />
+            </div>
+          </div>
+
           <!-- Range Type (1-5 Scale) -->
           <div v-else-if="getQuestionOptionType(question) === 'range'" class="mt-4">
             <div class="flex justify-between items-center py-4">
@@ -1236,6 +1335,28 @@ function cancelQuestionnaire() {
                 </div>
               </div>
               
+              <!-- Number Type for Conditional Questions -->
+              <div v-else-if="getQuestionOptionType(conditionalQuestion) === 'number'" class="mt-4">
+                <div class="px-2">
+                  <div class="flex justify-between items-center mb-2 text-sm text-gray-600">
+                    <span>{{ getNumberConfig(conditionalQuestion)?.minLabel || getNumberConfig(conditionalQuestion)?.min }}</span>
+                    <span class="font-semibold text-blue-600 text-base">
+                      {{ answers[conditionalQuestion.question_id] }} / {{ getNumberConfig(conditionalQuestion)?.max }}
+                    </span>
+                    <span>{{ getNumberConfig(conditionalQuestion)?.maxLabel || getNumberConfig(conditionalQuestion)?.max }}</span>
+                  </div>
+                  <input
+                    type="range"
+                    class="w-full"
+                    :min="getNumberConfig(conditionalQuestion)?.min ?? 0"
+                    :max="getNumberConfig(conditionalQuestion)?.max ?? 10"
+                    :step="getNumberConfig(conditionalQuestion)?.step ?? 1"
+                    v-model.number="answers[conditionalQuestion.question_id]"
+                    :disabled="props.readOnly"
+                  />
+                </div>
+              </div>
+
               <!-- Text Type for Conditional Questions -->
               <div v-else-if="getQuestionOptionType(conditionalQuestion) === 'text'" class="mt-4">
                 <input

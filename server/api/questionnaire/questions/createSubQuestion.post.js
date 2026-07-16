@@ -1,4 +1,6 @@
 // API to create sub-questions with automatic parentID assignment
+import { resolveScoringConfigForSave } from "~/server/utils/questionnaireNumberConfig";
+
 export default defineEventHandler(async (event) => {
   try {
     const { userID } = event.context.user || {};
@@ -17,7 +19,8 @@ export default defineEventHandler(async (event) => {
       question_en,
       requiredQuestion = false,
       status = 'Active',
-      answer_type = null
+      answer_type = null,
+      number_config,
     } = body;
 
     // Validation
@@ -48,6 +51,23 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    let scoringConfigData = {};
+    if (answer_type) {
+      const scoringResult = await resolveScoringConfigForSave({
+        answer_type,
+        number_config,
+      });
+      if (scoringResult.error) {
+        return {
+          statusCode: 400,
+          message: scoringResult.error,
+        };
+      }
+      if (scoringResult.shouldUpdate) {
+        scoringConfigData = { scoring_config: scoringResult.scoring_config };
+      }
+    }
+
     // Create sub-question with correct parentID
     const subQuestion = await prisma.questionnaires_questions.create({
       data: {
@@ -58,6 +78,7 @@ export default defineEventHandler(async (event) => {
         is_required: requiredQuestion === '1' || requiredQuestion === true,
         status: status,
         answer_type: answer_type ? parseInt(answer_type) : null,
+        ...scoringConfigData,
         created_at: new Date(),
       }
     });

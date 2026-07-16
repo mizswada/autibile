@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import TextMask from '~/components/formkit/TextMask.vue';
 
@@ -44,15 +44,79 @@ const newSubQuestionForm = ref({
   question_bm: '',
   is_required: false,
   answer_type: 35, // Default to Option Type
-  sub_question_options: [] // For storing options when answer_type is 35
+  sub_question_options: [], // For storing options when answer_type is 35
+  number_config: {
+    min: 0,
+    max: 10,
+    step: 1,
+    defaultValue: 0,
+    minLabel: '',
+    maxLabel: '',
+  },
 });
 
-// Answer types for sub-questions
-const answerTypes = [
+// Answer types for sub-questions (loaded from lookup)
+const answerTypes = ref([
   { value: 33, label: 'Text Input', description: 'Single line text input' },
   { value: 34, label: 'Range/Scale', description: 'Scale from 1-5' },
-  { value: 35, label: 'Multiple Choice', description: 'Radio buttons or checkboxes' }
-];
+  { value: 35, label: 'Multiple Choice', description: 'Radio buttons or checkboxes' },
+]);
+
+const numberAnswerTypeId = computed(() => {
+  const found = answerTypes.value.find(
+    (type) => type.label === 'Number' || type.label?.toLowerCase() === 'number',
+  );
+  return found ? found.value : null;
+});
+
+const isNumberSubQuestionType = computed(() => {
+  if (!newSubQuestionForm.value.answer_type || !numberAnswerTypeId.value) return false;
+  return parseInt(newSubQuestionForm.value.answer_type) === numberAnswerTypeId.value;
+});
+
+function parseNumberConfigFromScoringConfig(scoringConfig) {
+  const defaults = {
+    min: 0,
+    max: 10,
+    step: 1,
+    defaultValue: 0,
+    minLabel: '',
+    maxLabel: '',
+  };
+  if (!scoringConfig) return { ...defaults };
+  try {
+    const parsed =
+      typeof scoringConfig === 'string' ? JSON.parse(scoringConfig) : scoringConfig;
+    if (parsed?.inputType !== 'number') return { ...defaults };
+    return {
+      min: parsed.min ?? defaults.min,
+      max: parsed.max ?? defaults.max,
+      step: parsed.step ?? defaults.step,
+      defaultValue: parsed.defaultValue ?? parsed.default ?? defaults.defaultValue,
+      minLabel: parsed.minLabel || '',
+      maxLabel: parsed.maxLabel || '',
+    };
+  } catch {
+    return { ...defaults };
+  }
+}
+
+async function fetchAnswerTypes() {
+  try {
+    const res = await fetch('/api/questionnaire/questions/lookupAnswer');
+    const result = await res.json();
+
+    if (res.ok && result.data?.length) {
+      answerTypes.value = result.data.map((type) => ({
+        value: type.lookupID,
+        label: type.title,
+        description: type.value || type.title,
+      }));
+    }
+  } catch (err) {
+    console.error('Error fetching answer types:', err);
+  }
+}
 
 // Define available option types
 const optionTypes = [
@@ -115,17 +179,22 @@ function showMessage(msg, type = 'success') {
 // Function to get answer type label
 function getAnswerTypeLabel(answerTypeId) {
   if (!answerTypeId) return 'N/A';
-  
-  const answerTypes = {
-    33: 'Text Type',
-    34: 'Range Type',
-    35: 'Option Type'
-  };
-  
-  return answerTypes[answerTypeId] || `Type ID: ${answerTypeId}`;
+
+  if (
+    question.value &&
+    numberAnswerTypeId.value &&
+    parseInt(answerTypeId) === numberAnswerTypeId.value
+  ) {
+    const config = parseNumberConfigFromScoringConfig(question.value.scoring_config);
+    return `Number (${config.min}–${config.max})`;
+  }
+
+  const found = answerTypes.value.find((type) => type.value === parseInt(answerTypeId));
+  return found ? found.label : `Type ID: ${answerTypeId}`;
 }
 
 onMounted(async () => {
+  await fetchAnswerTypes();
   await fetchQuestionData();
   await fetchOptions();
 });
@@ -241,6 +310,14 @@ function resetSubQuestionForm() {
   newSubQuestionForm.value.is_required = false;
   newSubQuestionForm.value.answer_type = 35;
   newSubQuestionForm.value.sub_question_options = [];
+  newSubQuestionForm.value.number_config = {
+    min: 0,
+    max: 10,
+    step: 1,
+    defaultValue: 0,
+    minLabel: '',
+    maxLabel: '',
+  };
 }
 
 // Create sub-question for option
@@ -263,7 +340,10 @@ async function createSubQuestionForOption() {
         question_en: newSubQuestionForm.value.question_en,
         requiredQuestion: newSubQuestionForm.value.is_required ? '1' : '0',
         status: 'Active',
-        answer_type: newSubQuestionForm.value.answer_type
+        answer_type: newSubQuestionForm.value.answer_type,
+        ...(isNumberSubQuestionType.value
+          ? { number_config: { ...newSubQuestionForm.value.number_config } }
+          : {}),
       })
     });
 
@@ -858,17 +938,31 @@ watch(() => newOption.value.option_type, (newType, oldType) => {
         <div v-else-if="question.answer_type === 34" class="bg-gray-50 p-4 rounded-lg">
           <h3 class="font-medium mb-2">Range Input Configuration</h3>
           <p class="text-gray-600 mb-4">This question will be answered with a scale from 1 to 5.</p>
-          <!-- <div class="mb-4">
-            <rs-button @click="generateRangeOptions" class="w-full">
-              <Icon name="material-symbols:add" class="mr-1" />
-              Generate Scale Options (1-5)
-            </rs-button>
-          </div> -->
           <div class="bg-blue-50 p-3 rounded-lg border border-blue-200">
                           <div class="flex items-center">
                 <Icon name="ic:outline-info" class="text-blue-600 mr-2" size="20" />
                 <p class="text-blue-800 text-sm">Automatically generate a 1-5 scale for this question.</p>
               </div>
+          </div>
+        </div>
+
+        <!-- Number Type -->
+        <div v-else-if="numberAnswerTypeId && question.answer_type === numberAnswerTypeId" class="bg-gray-50 p-4 rounded-lg">
+          <h3 class="font-medium mb-2">Number Slider Configuration</h3>
+          <p class="text-gray-600 mb-4">
+            Parents will answer using a slider configured with the range below.
+          </p>
+          <div class="grid grid-cols-2 gap-3 text-sm">
+            <div><span class="font-medium">Min:</span> {{ parseNumberConfigFromScoringConfig(question.scoring_config).min }}</div>
+            <div><span class="font-medium">Max:</span> {{ parseNumberConfigFromScoringConfig(question.scoring_config).max }}</div>
+            <div><span class="font-medium">Step:</span> {{ parseNumberConfigFromScoringConfig(question.scoring_config).step }}</div>
+            <div><span class="font-medium">Default:</span> {{ parseNumberConfigFromScoringConfig(question.scoring_config).defaultValue }}</div>
+          </div>
+          <div class="mt-3 bg-blue-50 p-3 rounded-lg border border-blue-200">
+            <div class="flex items-center">
+              <Icon name="ic:outline-info" class="text-blue-600 mr-2" size="20" />
+              <p class="text-blue-800 text-sm">Edit the question from the questions list to change the slider range.</p>
+            </div>
           </div>
         </div>
 
@@ -1215,6 +1309,24 @@ watch(() => newOption.value.option_type, (newType, oldType) => {
                 >
                   Generate 1-5 Scale
                 </button>
+              </div>
+            </div>
+
+            <!-- Number Type -->
+            <div v-else-if="isNumberSubQuestionType" class="space-y-3">
+              <div class="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                <div class="flex items-center">
+                  <Icon name="ic:outline-info" class="text-blue-600 mr-2" size="20" />
+                  <p class="text-blue-800 text-sm">Configure the slider range for this sub-question.</p>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <FormKit type="number" v-model="newSubQuestionForm.number_config.min" label="Min" />
+                <FormKit type="number" v-model="newSubQuestionForm.number_config.max" label="Max" />
+                <FormKit type="number" v-model="newSubQuestionForm.number_config.step" label="Step" />
+                <FormKit type="number" v-model="newSubQuestionForm.number_config.defaultValue" label="Default Value" />
+                <FormKit type="text" v-model="newSubQuestionForm.number_config.minLabel" label="Min Label (optional)" />
+                <FormKit type="text" v-model="newSubQuestionForm.number_config.maxLabel" label="Max Label (optional)" />
               </div>
             </div>
 

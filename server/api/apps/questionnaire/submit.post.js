@@ -2,6 +2,10 @@ import {
   assertCanSubmit,
   lockAfterSubmit,
 } from "~/server/utils/questionnaireAccess";
+import {
+  isNumberAnswerType,
+  validateNumericAnswerValue,
+} from "~/server/utils/questionnaireNumberConfig";
 
 export default defineEventHandler(async (event) => {
     try {
@@ -41,10 +45,52 @@ export default defineEventHandler(async (event) => {
       let totalScore = 0;
   
       // Save each answer
+      // Validate numeric answers before saving
+      for (const answer of answers) {
+        if (
+          answer.numeric_answer === undefined ||
+          answer.numeric_answer === null ||
+          answer.numeric_answer === ""
+        ) {
+          continue;
+        }
+
+        const question = await prisma.questionnaires_questions.findUnique({
+          where: { question_id: parseInt(answer.question_id) },
+        });
+
+        if (!question) {
+          return {
+            statusCode: 400,
+            message: `Question ${answer.question_id} not found`,
+          };
+        }
+
+        if (await isNumberAnswerType(question.answer_type)) {
+          const numericValidation = validateNumericAnswerValue(
+            answer.numeric_answer,
+            question.scoring_config,
+          );
+          if (!numericValidation.ok) {
+            return {
+              statusCode: 400,
+              message: numericValidation.message,
+            };
+          }
+        }
+      }
+
+      // Save each answer
       const savedAnswers = await Promise.all(
         answers.map(async (answer) => {
           let score = null;
-          
+
+          const question = await prisma.questionnaires_questions.findUnique({
+            where: {
+              question_id: parseInt(answer.question_id),
+            },
+          });
+
           // Calculate score based on answer type
           if (answer.option_id) {
             // For option-based answers, get score from the option
@@ -58,18 +104,17 @@ export default defineEventHandler(async (event) => {
               score = option.option_value;
               totalScore += score;
             }
-          } else if (answer.numeric_answer) {
-            // For range type questions, use the numeric value directly as score
-            score = parseInt(answer.numeric_answer);
+          } else if (answer.numeric_answer !== undefined && answer.numeric_answer !== null && answer.numeric_answer !== "") {
+            const numericValidation = validateNumericAnswerValue(
+              answer.numeric_answer,
+              question?.scoring_config,
+            );
+
+            score = numericValidation.ok
+              ? numericValidation.value
+              : parseInt(answer.numeric_answer);
             totalScore += score;
           }
-          
-          // Get the question to determine its type
-          const question = await prisma.questionnaires_questions.findUnique({
-            where: {
-              question_id: parseInt(answer.question_id)
-            }
-          });
   
           // Create the answer record
           return prisma.questionnaires_questions_answers.create({
