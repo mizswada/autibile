@@ -6,6 +6,10 @@ import {
   isNumberAnswerType,
   validateNumericAnswerValue,
 } from "~/server/utils/questionnaireNumberConfig";
+import {
+  parseCompositeScoringConfig,
+  computeCompositeScores,
+} from "~/server/utils/questionnaireCompositeScoring";
 
 export default defineEventHandler(async (event) => {
     try {
@@ -41,9 +45,20 @@ export default defineEventHandler(async (event) => {
         }
       });
   
+      // Load the questionnaire so we can apply an optional composite scoring recipe.
+      const questionnaireRecord = await prisma.questionnaires.findUnique({
+        where: { questionnaire_id: parseInt(questionnaireId) },
+        select: { composite_scoring_config: true },
+      });
+      const compositeConfig = parseCompositeScoringConfig(
+        questionnaireRecord?.composite_scoring_config,
+      );
+
       // Calculate total score
       let totalScore = 0;
-  
+      const perAnswerScores = [];
+      const numericAnswersByQuestionId = {};
+
       // Save each answer
       // Validate numeric answers before saving
       for (const answer of answers) {
@@ -102,7 +117,6 @@ export default defineEventHandler(async (event) => {
             
             if (option && option.option_value) {
               score = option.option_value;
-              totalScore += score;
             }
           } else if (answer.numeric_answer !== undefined && answer.numeric_answer !== null && answer.numeric_answer !== "") {
             const numericValidation = validateNumericAnswerValue(
@@ -113,7 +127,14 @@ export default defineEventHandler(async (event) => {
             score = numericValidation.ok
               ? numericValidation.value
               : parseInt(answer.numeric_answer);
-            totalScore += score;
+            numericAnswersByQuestionId[parseInt(answer.question_id)] = score;
+          }
+
+          if (score !== null) {
+            perAnswerScores.push({
+              question_id: parseInt(answer.question_id),
+              score,
+            });
           }
   
           // Create the answer record
@@ -130,6 +151,28 @@ export default defineEventHandler(async (event) => {
         })
       );
   
+      // Compute the total score, applying the composite scoring recipe if present.
+      let compositeGroups = [];
+      if (compositeConfig) {
+        const composite = computeCompositeScores(
+          compositeConfig,
+          numericAnswersByQuestionId,
+        );
+        compositeGroups = composite.groups;
+
+        // Sum the raw scores of every answer that is NOT part of a composite
+        // group, then add the discrete group scores on top.
+        const rawNonMemberTotal = perAnswerScores.reduce((sum, entry) => {
+          return composite.memberQuestionIds.has(entry.question_id)
+            ? sum
+            : sum + entry.score;
+        }, 0);
+
+        totalScore = rawNonMemberTotal + composite.groupScoresTotal;
+      } else {
+        totalScore = perAnswerScores.reduce((sum, entry) => sum + entry.score, 0);
+      }
+
       // Update the questionnaire response with the total score
       await prisma.questionnaires_responds.update({
         where: {
@@ -255,6 +298,7 @@ export default defineEventHandler(async (event) => {
           redirect_to_questionnaire_2: redirectToQuestionnaire2,
           score_interpretation: scoreInterpretation,
           questionnaire_id: parseInt(questionnaireId),
+          composite_scores: compositeGroups,
           ai_analysis: aiAnalysis,
           ai_error: aiErrorMessage,
           debug: {

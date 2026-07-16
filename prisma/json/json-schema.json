@@ -538,6 +538,12 @@
           "type": "boolean",
           "default": false
         },
+        "composite_scoring_config": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "questionnaire_scoring": {
           "type": "array",
           "items": {

@@ -140,6 +140,7 @@ model questionnaires {
   updated_at                         DateTime?                            @default(now()) @db.Timestamp(0)
   deleted_at                         DateTime?                            @db.Timestamp(0)
   hidden                             Boolean                              @default(false)
+  composite_scoring_config           String?                              @db.Text
   questionnaire_scoring              questionnaire_scoring[]
   questionnaires_questions           questionnaires_questions[]
   questionnaires_questions_followups questionnaires_questions_followups[]

@@ -418,6 +418,14 @@ function navigateToQuestions(questionnaireId) {
             @click="router.push(`/questionnaire/thresholds/${q.id}`)"
             title="Manage Scoring Thresholds"
           />
+
+          <Icon
+            name="material-symbols:functions"
+            class="action-icon text-teal-500 hover:text-teal-600"
+            size="22"
+            @click="router.push(`/questionnaire/composite-scoring/${q.id}`)"
+            title="Configure Composite Scoring"
+          />
           
           <Icon
             v-if="!isProtectedQuestionnaire(q.id)"
