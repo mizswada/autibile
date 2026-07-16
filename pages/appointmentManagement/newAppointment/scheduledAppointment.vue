@@ -2150,7 +2150,7 @@ const validatePatientData = (patient) => {
           </div>
 
           <div class="space-y-4">
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p class="text-sm text-gray-500">Patient</p>
                 <p class="font-medium">{{ selectedAppointment.patientName }}</p>
@@ -2161,7 +2161,7 @@ const validatePatientData = (patient) => {
               </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p class="text-sm text-gray-500">Service</p>
                 <p class="font-medium">{{ selectedAppointment.serviceName }}</p>
@@ -2179,7 +2179,7 @@ const validatePatientData = (patient) => {
               </div>
             </div>
             
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p class="text-sm text-gray-500">Session Number</p>
                 <p class="font-medium">
@@ -2197,7 +2197,7 @@ const validatePatientData = (patient) => {
               </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p class="text-sm text-gray-500">Date</p>
                 <p class="font-medium">{{ selectedAppointment.date }}</p>

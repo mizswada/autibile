@@ -334,7 +334,8 @@ function closeSearchICForm() {
         </div>
       </div>
 
-      <table v-else class="min-w-full border border-gray-300 text-sm">
+      <div v-else class="overflow-x-auto">
+      <table class="min-w-full border border-gray-300 text-sm">
         <thead class="bg-gray-100">
           <tr>
             <th class="px-3 py-2 border">Full Name</th>
@@ -380,6 +381,7 @@ function closeSearchICForm() {
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
 
     <!-- Add Child Form -->
@@ -457,7 +459,7 @@ function closeSearchICForm() {
       </div>
 
       <!-- Results -->
-      <div v-if="searchResults.length" class="mt-4">
+      <div v-if="searchResults.length" class="mt-4 overflow-x-auto">
         <table class="min-w-full border border-gray-300 text-sm rounded-lg overflow-hidden shadow">
           <thead class="bg-gray-200 text-gray-700 uppercase tracking-wider">
             <tr>

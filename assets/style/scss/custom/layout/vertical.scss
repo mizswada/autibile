@@ -3,7 +3,7 @@ $medium: 768px;
 $large: 1024px;
 $xlarge: 1280px;
 
-@media screen and (max-width: $medium) {
+@media screen and (max-width: $large) {
   body:has(.menu-overlay:not(.hide)) {
     overflow: hidden;
   }
@@ -47,7 +47,7 @@ $xlarge: 1280px;
   .w-header-search {
     width: calc(100% - 256px);
 
-    @media screen and (max-width: $medium) {
+    @media screen and (max-width: $large) {
       width: 100%;
     }
   }
@@ -60,7 +60,7 @@ $xlarge: 1280px;
     margin-left: 256px;
     padding: 6rem 2rem 10px 2rem;
 
-    @media screen and (max-width: $medium) {
+    @media screen and (max-width: $large) {
       margin-left: 0px;
       padding: 6rem 1.25rem 0 1.25rem;
     }

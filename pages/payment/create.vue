@@ -330,7 +330,7 @@ const saveInvoice = async () => {
         <!-- Package Info (shown when a package is selected) -->
         <div v-if="selectedPackage" class="p-3 bg-blue-50 border border-blue-200 rounded-md mb-4">
           <h6 class="font-medium text-blue-800 mb-2">Package Information</h6>
-          <div class="grid grid-cols-2 gap-2 text-sm">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
             <div><span class="font-medium">Package:</span> {{ selectedPackage.package_name }}</div>
             <div><span class="font-medium">Sessions:</span> {{ selectedPackage.avail_session }}</div>
             <div><span class="font-medium">Amount:</span> RM {{ selectedPackage.amount }}</div>
@@ -341,7 +341,7 @@ const saveInvoice = async () => {
         <!-- Product Info (shown when a product is selected) -->
         <div v-if="selectedProduct" class="p-3 bg-green-50 border border-green-200 rounded-md mb-4">
           <h6 class="font-medium text-green-800 mb-2">Product Information</h6>
-          <div class="grid grid-cols-2 gap-2 text-sm">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
             <div><span class="font-medium">Product:</span> {{ selectedProduct.product_name }}</div>
             <div><span class="font-medium">Unit Price:</span> RM {{ selectedProduct.amount }}</div>
             <div><span class="font-medium">Status:</span> {{ selectedProduct.status }}</div>

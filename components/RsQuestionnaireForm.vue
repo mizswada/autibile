@@ -926,7 +926,7 @@ function cancelQuestionnaire() {
           v-for="question in questions" 
           :key="question.question_id" 
           class="card p-5"
-          :class="{'ml-8 border-l-4 border-l-blue-300': question.parentID}"
+          :class="{'ml-4 md:ml-8 border-l-4 border-l-blue-300': question.parentID}"
         >
           <div class="mb-3">
             <!-- Show parent question info if this is a sub-question -->
@@ -1185,7 +1185,7 @@ function cancelQuestionnaire() {
           <div v-else class="text-gray-500 italic">No options available for this question</div>
           
           <!-- Loading indicator for conditional questions for this specific question -->
-          <div v-if="loadingConditionalQuestions[question.question_id]" class="card p-5 ml-8 border-l-4 border-l-green-300 bg-green-50 mt-4">
+          <div v-if="loadingConditionalQuestions[question.question_id]" class="card p-5 ml-4 md:ml-8 border-l-4 border-l-green-300 bg-green-50 mt-4">
             <div class="flex items-center justify-center">
               <div class="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-green-500 mr-2"></div>
               <span class="text-sm text-gray-500">Loading conditional questions...</span>
@@ -1197,7 +1197,7 @@ function cancelQuestionnaire() {
             <div 
               v-for="conditionalQuestion in conditionalSubQuestions[question.question_id]" 
               :key="conditionalQuestion.question_id" 
-              class="card p-5 ml-8 border-l-4 border-l-green-300 bg-green-50 mt-4"
+              class="card p-5 ml-4 md:ml-8 border-l-4 border-l-green-300 bg-green-50 mt-4"
             >
               <div class="mb-3">
                 <div class="text-xs text-green-600 mb-2 flex items-center">

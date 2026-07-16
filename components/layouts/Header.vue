@@ -1,8 +1,14 @@
 <script setup>
-const isVertical = ref(true);
-const isDesktop = ref(true);
 import { useUserStore } from "~/stores/user";
-    
+import { useLayoutStore } from "~/stores/layout";
+import { useWindowSize } from "vue-window-size";
+
+const isVertical = ref(true);
+const layoutStore = useLayoutStore();
+const mobileWidth = Number(layoutStore.mobileWidth);
+const { width } = useWindowSize();
+const isDesktop = computed(() => width.value > mobileWidth);
+
 const userStore = useUserStore();
 const emit = defineEmits(["toggleMenu"]);
 // alert(JSON.stringify(userStore));
@@ -99,7 +105,7 @@ const languageNow = computed(() => {
 
 onMounted(() => {
   // If mobile toggleMenu
-  if (window.innerWidth < 768) {
+  if (window.innerWidth <= mobileWidth) {
     emit("toggleMenu", true);
   }
 });

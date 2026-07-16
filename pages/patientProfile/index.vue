@@ -607,13 +607,13 @@ async function downloadReferralLetter(referral) {
     <!-- Content -->
     <div v-else>
       <!-- Tabs -->
-      <div class="flex space-x-4 border-b mb-6">
+      <div class="flex space-x-4 border-b mb-6 overflow-x-auto">
         <button
           v-for="tab in tabs"
           :key="tab"
           @click="activeTab = tab"
           :class="[
-            'px-4 py-2 font-medium',
+            'px-4 py-2 font-medium whitespace-nowrap',
             activeTab === tab ? 'border-b-4 border-purple-800 text-purple-800' : 'text-gray-600 hover:text-purple-800'
           ]"
         >

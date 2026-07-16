@@ -1345,7 +1345,7 @@ async function performDelete() {
         </div>
         
         
-        <div class="overflow-hidden">
+        <div class="overflow-x-auto">
           <table class="questions-table divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
@@ -1871,7 +1871,7 @@ async function performDelete() {
           class="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-3"
         >
           <h4 class="font-medium text-gray-800">Number Configuration</h4>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormKit
               type="number"
               v-model="newQuestion.number_config.min"

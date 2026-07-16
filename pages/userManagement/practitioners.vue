@@ -425,7 +425,7 @@ watch(() => showModal.value, (newVal) => {
       </div>
 
       <!-- Side by side grid layout -->
-      <div class="grid grid-cols-2 gap-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Display each field with beautified design -->
         <div v-for="field in [
           { label: 'Full Name', key: 'fullName' },

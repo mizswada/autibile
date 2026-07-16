@@ -367,7 +367,7 @@ async function performDelete() {
       </div>
     </div>
 
-    <div v-else-if="viewData" class="grid grid-cols-2 gap-6">
+    <div v-else-if="viewData" class="grid grid-cols-1 md:grid-cols-2 gap-6">
       <!-- Basic Information -->
       <div v-for="field in [
         { label: 'Full Name', key: 'fullName', value: viewData.fullName },

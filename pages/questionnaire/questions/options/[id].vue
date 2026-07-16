@@ -952,7 +952,7 @@ watch(() => newOption.value.option_type, (newType, oldType) => {
           <p class="text-gray-600 mb-4">
             Parents will answer using a slider configured with the range below.
           </p>
-          <div class="grid grid-cols-2 gap-3 text-sm">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
             <div><span class="font-medium">Min:</span> {{ parseNumberConfigFromScoringConfig(question.scoring_config).min }}</div>
             <div><span class="font-medium">Max:</span> {{ parseNumberConfigFromScoringConfig(question.scoring_config).max }}</div>
             <div><span class="font-medium">Step:</span> {{ parseNumberConfigFromScoringConfig(question.scoring_config).step }}</div>
@@ -987,7 +987,7 @@ watch(() => newOption.value.option_type, (newType, oldType) => {
           </div>
 
           <!-- Options List -->
-          <div class="card p-4">
+          <div class="card p-4 overflow-x-auto">
             <div v-if="options.length === 0" class="text-center py-8">
               <div class="flex flex-col items-center">
                 <Icon name="ic:outline-list" size="64" class="text-gray-400 mb-4" />
@@ -1320,7 +1320,7 @@ watch(() => newOption.value.option_type, (newType, oldType) => {
                   <p class="text-blue-800 text-sm">Configure the slider range for this sub-question.</p>
                 </div>
               </div>
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <FormKit type="number" v-model="newSubQuestionForm.number_config.min" label="Min" />
                 <FormKit type="number" v-model="newSubQuestionForm.number_config.max" label="Max" />
                 <FormKit type="number" v-model="newSubQuestionForm.number_config.step" label="Step" />
