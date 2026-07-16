@@ -20,6 +20,11 @@ export default defineEventHandler(async (event) => {
         select: {
           diary_id: true,
           description: true,
+          category_1: true,
+          category_2: true,
+          category_3: true,
+          category_4: true,
+          category_5: true,
           date: true,
           created_at: true,
           updated_at: true,

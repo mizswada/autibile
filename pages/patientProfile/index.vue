@@ -3,6 +3,7 @@ import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { jsPDF } from 'jspdf';
+import { getDiaryEntryLines } from '~/utils/diaryReport';
 
 const route = useRoute();
 const patientId = computed(() => route.query.patientId || route.params.id);
@@ -1135,7 +1136,15 @@ async function downloadReferralLetter(referral) {
                             <div class="flex justify-between items-start mb-2">
                               <span class="text-sm text-gray-500">{{ formatTimestamp(entry.created_at) }}</span>
                             </div>
-                            <p class="text-gray-800 whitespace-pre-wrap">{{ entry.description }}</p>
+                            <div class="space-y-2">
+                              <template v-for="(line, lineIndex) in getDiaryEntryLines(entry)" :key="lineIndex">
+                                <div v-if="line.label" class="text-gray-800">
+                                  <span class="font-semibold text-primary">{{ line.label }}:</span>
+                                  <span class="whitespace-pre-wrap"> {{ line.value }}</span>
+                                </div>
+                                <p v-else class="text-gray-800 whitespace-pre-wrap">{{ line.value }}</p>
+                              </template>
+                            </div>
                           </div>
                         </div>
                       </div>

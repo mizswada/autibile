@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { getDiaryEntryLines, formatDiaryEntryText } from '~/utils/diaryReport';
 
 const route = useRoute();
 const router = useRouter();
@@ -294,7 +295,7 @@ async function generateReport() {
       pdf.setFont(undefined, 'bold');
       pdf.text('Date', 14, yPosition);
       pdf.text('Time', 60, yPosition);
-      pdf.text('Description', 100, yPosition);
+      pdf.text('Entry', 100, yPosition);
       pdf.setFont(undefined, 'normal');
       yPosition += lineHeight;
       
@@ -317,7 +318,7 @@ async function generateReport() {
           pdf.setFont(undefined, 'bold');
           pdf.text('Date', 14, yPosition);
           pdf.text('Time', 60, yPosition);
-          pdf.text('Description', 100, yPosition);
+          pdf.text('Entry', 100, yPosition);
           pdf.setFont(undefined, 'normal');
           yPosition += lineHeight;
           pdf.line(14, yPosition, pageWidth - 14, yPosition);
@@ -333,9 +334,10 @@ async function generateReport() {
         pdf.text(dateStr, 14, yPosition);
         pdf.text(timeStr, 60, yPosition);
         
-        // Handle description with text wrapping
+        // Handle entry content with text wrapping
         const descriptionWidth = pageWidth - 114; // 100 + 14 margin
-        const splitDescription = pdf.splitTextToSize(entry.description, descriptionWidth);
+        const entryText = formatDiaryEntryText(entry);
+        const splitDescription = pdf.splitTextToSize(entryText, descriptionWidth);
         pdf.text(splitDescription, 100, yPosition);
         
         // Calculate row height based on description length
@@ -624,7 +626,15 @@ onMounted(loadPatientDetails);
                         <div class="flex justify-between items-start mb-2">
                           <span class="text-sm text-gray-500">{{ formatTimestamp(entry.created_at) }}</span>
                         </div>
-                        <p class="text-gray-800 whitespace-pre-wrap">{{ entry.description }}</p>
+                        <div class="space-y-2">
+                          <template v-for="(line, lineIndex) in getDiaryEntryLines(entry)" :key="lineIndex">
+                            <div v-if="line.label" class="text-gray-800">
+                              <span class="font-semibold text-primary">{{ line.label }}:</span>
+                              <span class="whitespace-pre-wrap"> {{ line.value }}</span>
+                            </div>
+                            <p v-else class="text-gray-800 whitespace-pre-wrap">{{ line.value }}</p>
+                          </template>
+                        </div>
                       </div>
                     </div>
                   </div>
