@@ -27,7 +27,6 @@ const form = ref({
   amount: '',
   quantity: 1, // Add quantity field for products only
   invoiceDate: '',
-  status: '',
 });
 
 // Computed properties
@@ -206,8 +205,8 @@ const saveInvoice = async () => {
   
   // Validate form data
   if (!form.value.patientID || !form.value.invoiceType || !form.value.description || 
-      !form.value.amount || !form.value.invoiceDate || !form.value.status || 
-      form.value.status === '' || form.value.invoiceType === '') {
+      !form.value.amount || !form.value.invoiceDate || 
+      form.value.invoiceType === '') {
     console.log('Validation failed. Missing fields:', {
       patientID: !!form.value.patientID,
       patientName: !!form.value.patientName,
@@ -215,8 +214,6 @@ const saveInvoice = async () => {
       description: !!form.value.description,
       amount: !!form.value.amount,
       invoiceDate: !!form.value.invoiceDate,
-      status: !!form.value.status,
-      statusValue: form.value.status,
       invoiceTypeValue: form.value.invoiceType
     });
     showMessage('Please fill in all required fields.', 'error');
@@ -247,7 +244,6 @@ const saveInvoice = async () => {
       amount: amountValue,
       quantity: form.value.quantity, // Include quantity for all invoice types
       date: form.value.invoiceDate,
-      status: form.value.status,
     };
     
     console.log('Request body:', requestBody);
@@ -375,11 +371,17 @@ const saveInvoice = async () => {
           :help="selectedProduct ? 'Amount is calculated automatically based on quantity' : ''"
         />
         <FormKit type="date" v-model="form.invoiceDate" label="Date" validation="required" />
-        <FormKit type="select" v-model="form.status" label="Status" :options="[
-          { label: '-- Please select --', value: '' },
-          { label: 'Paid', value: 'Paid' },
-          { label: 'Unpaid', value: 'Unpaid' }
-        ]" validation="required|not:" />
+
+        <!-- Invoices are always created as Unpaid. Admin must record payment via
+             the "Make a Payment" flow so a receipt is generated and sessions counted. -->
+        <div class="p-3 bg-amber-50 border border-amber-200 rounded-md mb-2">
+          <p class="text-sm text-amber-800">
+            <span class="font-medium">Note:</span> This invoice will be created as
+            <span class="font-semibold">Unpaid</span>. To mark it as paid, use
+            <span class="font-medium">Make a Payment</span> so a receipt is issued and
+            the patient's sessions are counted.
+          </p>
+        </div>
 
         <div class="flex gap-4 mt-6">
           <rs-button class="w-full" @click="saveInvoice" :disabled="isSubmitting">

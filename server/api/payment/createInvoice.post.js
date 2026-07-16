@@ -18,14 +18,13 @@ export default defineEventHandler(async (event) => {
       description,
       amount,
       date,
-      status,
     } = body;
 
     // Basic validation
-    if (!patientID || !patientName || !invoiceType || !description || !amount || !date || !status) {
+    if (!patientID || !patientName || !invoiceType || !description || !amount || !date) {
       return {
         statusCode: 400,
-        message: "Missing required fields: patientID, patientName, invoiceType, description, amount, date, and status are required",
+        message: "Missing required fields: patientID, patientName, invoiceType, description, amount, and date are required",
       };
     }
 
@@ -35,14 +34,6 @@ export default defineEventHandler(async (event) => {
       return {
         statusCode: 400,
         message: "Invalid patient ID",
-      };
-    }
-
-    // Validate status
-    if (!['Paid', 'Unpaid'].includes(status)) {
-      return {
-        statusCode: 400,
-        message: "Invalid status. Must be either 'Paid' or 'Unpaid'",
       };
     }
 
@@ -87,7 +78,9 @@ export default defineEventHandler(async (event) => {
         description: description,
         amount: amountValue,
         date: invoiceDate,
-        status: status,
+        // Invoices are always created as Unpaid. Payment must go through the
+        // "make payment" flow so a receipt is generated and sessions counted.
+        status: "Unpaid",
         created_at: new Date(),
         update_at: new Date(),
       },
