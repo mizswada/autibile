@@ -26,8 +26,11 @@ export default defineEventHandler(async (event) => {
       deleted_at: null, // Only show non-deleted payments
     };
 
-    // Note: Payment table doesn't have a status field, so we'll filter based on other criteria
-    // For now, we'll skip status filtering for payments
+    if (status && ['Pending', 'Approved', 'Rejected'].includes(status)) {
+      whereClause.status = status;
+    } else {
+      whereClause.status = "Approved";
+    }
 
     // Add method filter if provided
     if (method && ['Online Banking', 'Credit Card', 'E-Wallet'].includes(method)) {
@@ -108,7 +111,12 @@ export default defineEventHandler(async (event) => {
       method: payment.method,
       bank_name: payment.bank_name,
       reference_code: payment.reference_code,
-      status: 'Completed', // Since payment table doesn't have status, assume all payments are completed
+      status: payment.status,
+      submitted_by: payment.submitted_by,
+      parent_id: payment.parent_id,
+      approved_by: payment.approved_by,
+      approved_at: payment.approved_at,
+      rejection_reason: payment.rejection_reason,
       created_at: payment.created_at,
       updated_at: payment.updated_at,
     }));

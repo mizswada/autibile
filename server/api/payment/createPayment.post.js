@@ -1,3 +1,5 @@
+import { approvePaymentAndInvoice } from "~/server/utils/paymentApproval";
+
 export default defineEventHandler(async (event) => {
   try {
     // Extract userID from the session context for authorization
@@ -109,7 +111,22 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    // Create payment record
+    const pendingPayment = await prisma.payment.findFirst({
+      where: {
+        invoice_id: invoiceIdValue,
+        status: "Pending",
+        deleted_at: null,
+      },
+    });
+
+    if (pendingPayment) {
+      return {
+        statusCode: 400,
+        message: "This invoice has a pending payment awaiting approval",
+      };
+    }
+
+    // Create admin payment record
     const paymentData = await prisma.payment.create({
       data: {
         patient_id: patientIdValue,
@@ -118,6 +135,10 @@ export default defineEventHandler(async (event) => {
         method: method,
         bank_name: isCash ? null : bank_name,
         reference_code: isCash ? null : reference_code,
+        status: "Approved",
+        submitted_by: "admin",
+        approved_by: userID,
+        approved_at: new Date(),
         created_at: new Date(),
         updated_at: new Date(),
       },
@@ -130,44 +151,12 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    // Update invoice status to Paid
-    await prisma.invoice.update({
-      where: {
-        invoice_id: invoiceIdValue,
-      },
-      data: {
-        status: 'Paid',
-        update_at: new Date(),
-      },
-    });
-
-    // If this is a package invoice, add sessions to patient
-    if (invoice.invoice_type && invoice.invoice_type !== 'Other') {
-      const matchingPackage = await prisma.renamedpackage.findFirst({
-        where: {
-          package_name: invoice.invoice_type,
-          status: 'Active',
-          deleted_at: null,
-        },
-      });
-
-      if (matchingPackage) {
-        const currentSessions = patient.available_session || 0;
-        const newSessions = currentSessions + (matchingPackage.avail_session || 0);
-
-        // Update patient's available sessions
-        await prisma.user_patients.update({
-          where: {
-            patient_id: patientIdValue,
-          },
-          data: {
-            available_session: newSessions,
-            update_at: new Date(),
-          },
-        });
-
-        console.log(`Added ${matchingPackage.avail_session} sessions to patient ${patientIdValue}. New total: ${newSessions}`);
-      }
+    const approvalResult = await approvePaymentAndInvoice(paymentData.payment_id, userID);
+    if (!approvalResult.ok) {
+      return {
+        statusCode: approvalResult.statusCode,
+        message: approvalResult.message,
+      };
     }
 
     return {

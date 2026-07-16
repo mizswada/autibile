@@ -218,6 +218,12 @@ onMounted(() => {
                 Payment History
                 </rs-button>
             </NuxtLink>
+            <NuxtLink to="/payment/pendingApprovals">
+                <rs-button variant="warning">
+                <NuxtIcon name="ic:outline-approval" class="mr-1" />
+                Pending Approvals
+                </rs-button>
+            </NuxtLink>
             <NuxtLink v-if="selectedInvoice" to="#">
             <rs-button variant="primary" @click="printInvoice">
                 <NuxtIcon name="ic:outline-print" class="mr-1" />

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 
 definePageMeta({
@@ -14,6 +14,8 @@ const messageType = ref('success');
 const isUpdating = ref(false);
 const invoiceId = route.params.id;
 const invoiceData = ref(null);
+
+const hasPendingPayment = computed(() => invoiceData.value?.latest_payment?.status === "Pending");
 
 function showMessage(msg, type = 'success') {
   message.value = msg;
@@ -152,6 +154,9 @@ onMounted(() => {
               >
                 {{ invoiceData.status }}
               </rs-badge>
+              <rs-badge v-if="hasPendingPayment" variant="info" class="text-sm mb-2 block">
+                Pending Parent Payment
+              </rs-badge>
               <div class="text-3xl font-bold text-green-600">
                 RM {{ formatPrice(invoiceData.amount) }}
               </div>
@@ -192,6 +197,10 @@ onMounted(() => {
                 <span class="text-sm text-gray-500">Amount:</span>
                 <div class="font-medium text-green-600">RM {{ formatPrice(invoiceData.amount) }}</div>
               </div>
+              <div v-if="invoiceData.latest_payment">
+                <span class="text-sm text-gray-500">Latest Payment:</span>
+                <div class="font-medium">{{ invoiceData.latest_payment.status }} ({{ invoiceData.latest_payment.method || "N/A" }})</div>
+              </div>
             </div>
           </div>
         </div>
@@ -204,7 +213,7 @@ onMounted(() => {
               v-if="invoiceData.status === 'Unpaid'"
               variant="success" 
               size="sm"
-              :disabled="isUpdating"
+              :disabled="isUpdating || hasPendingPayment"
               @click="updateStatus('Paid')"
             >
               <NuxtIcon v-if="isUpdating" name="line-md:loading-twotone-loop" class="mr-2" />
@@ -214,7 +223,7 @@ onMounted(() => {
               v-if="invoiceData.status === 'Paid'"
               variant="warning" 
               size="sm"
-              :disabled="isUpdating"
+              :disabled="isUpdating || hasPendingPayment"
               @click="updateStatus('Unpaid')"
             >
               <NuxtIcon v-if="isUpdating" name="line-md:loading-twotone-loop" class="mr-2" />
@@ -223,6 +232,9 @@ onMounted(() => {
           </div>
           <p class="text-sm text-gray-600 mt-2">
             <strong>Note:</strong> When marking a package invoice as "Paid", the available sessions will be automatically added to the patient's account.
+          </p>
+          <p v-if="hasPendingPayment" class="text-sm text-blue-600 mt-2">
+            Parent payment submission is pending approval. Approve/reject it from Pending Approvals before changing invoice status manually.
           </p>
         </div>
 

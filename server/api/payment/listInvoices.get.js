@@ -90,6 +90,7 @@ export default defineEventHandler(async (event) => {
             method: true,
             bank_name: true,
             reference_code: true,
+            status: true,
             created_at: true,
           },
           orderBy: {
@@ -117,6 +118,7 @@ export default defineEventHandler(async (event) => {
         payment_date: latestPayment?.created_at || null,
         payment_method: latestPayment?.method || null,
         payment_reference: latestPayment?.reference_code || null,
+        payment_status: latestPayment?.status || null,
         created_at: invoice.created_at,
         update_at: invoice.update_at,
       };

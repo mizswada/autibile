@@ -34,6 +34,10 @@ const fetchInvoices = async (status = '') => {
 
 const filterByStatus = (status) => {
   selectedStatus.value = status;
+  if (status === "Pending Approval") {
+    fetchInvoices("Unpaid");
+    return;
+  }
   fetchInvoices(status);
 };
 
@@ -56,8 +60,16 @@ const formatInvoiceId = (id) => {
   return `INV-${id.toString().padStart(3, '0')}`;
 };
 
+const getInvoiceDisplayStatus = (invoice) => {
+  if (invoice.status === "Paid") return "Paid";
+  if (invoice.payment_status === "Pending") return "Pending Approval";
+  return "Unpaid";
+};
+
 const getStatusBadgeVariant = (status) => {
-  return status === 'Paid' ? 'success' : 'warning';
+  if (status === "Paid") return "success";
+  if (status === "Pending Approval") return "info";
+  return "warning";
 };
 
 onMounted(() => {
@@ -115,6 +127,14 @@ onMounted(() => {
         >
           Unpaid
         </rs-button>
+        <rs-button 
+          variant="ghost" 
+          size="sm"
+          :class="selectedStatus === 'Pending Approval' ? 'bg-primary text-white' : ''"
+          @click="filterByStatus('Pending Approval')"
+        >
+          Pending Approval
+        </rs-button>
       </div>
 
       <!-- States -->
@@ -164,7 +184,7 @@ onMounted(() => {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="invoice in invoices" :key="invoice.invoice_id" class="border-b border-gray-100 hover:bg-gray-50">
+              <tr v-for="invoice in invoices.filter((item) => !selectedStatus || getInvoiceDisplayStatus(item) === selectedStatus)" :key="invoice.invoice_id" class="border-b border-gray-100 hover:bg-gray-50">
                 <td class="py-3 px-4">
                   <span class="font-mono text-sm">{{ formatInvoiceId(invoice.invoice_id) }}</span>
                 </td>
@@ -188,10 +208,10 @@ onMounted(() => {
                 </td>
                 <td class="py-3 px-4">
                   <rs-badge 
-                    :variant="getStatusBadgeVariant(invoice.status)"
+                    :variant="getStatusBadgeVariant(getInvoiceDisplayStatus(invoice))"
                     class="text-xs"
                   >
-                    {{ invoice.status }}
+                    {{ getInvoiceDisplayStatus(invoice) }}
                   </rs-badge>
                 </td>
                 <td class="py-3 px-4">
