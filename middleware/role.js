@@ -22,6 +22,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
       '/payment',
       '/therapyService',
       '/techSupport',
+      '/reports',
       '/devtool'
     ],
     // Doctor-allowed pages

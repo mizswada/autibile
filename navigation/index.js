@@ -116,6 +116,11 @@ const adminNavigation = [
         path: "/diaryReport",
       },
       {
+        title: "Reports",
+        icon: "ic:outline-assessment",
+        path: "/reports",
+      },
+      {
         title: "Patient Profile",
         icon: "material-symbols:person",
         path: "/patientProfile/select",
