@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue';
-import logo from '@/assets/img/logo/splash.png';
+import { buildDocumentHtml, buildInvoiceDocOptions, openPrintWindow } from '~/utils/paymentDocuments';
 
 definePageMeta({
   title: "Payment - Unpaid Invoices",
@@ -80,100 +80,8 @@ const printInvoice = () => {
     return;
   }
 
-  const invoice = selectedInvoice.value;
-  console.log('Logo URL:', logo);
-  const absoluteLogo = window.location.origin + '/img/logo-splash.png';
-  console.log('Absolute Logo:', absoluteLogo);
-
-  const printContent = `
-    <html>
-    <head>
-      <title>Invoice ${invoice.invoice_id}</title>
-      <style>
-        body { font-family: Arial, sans-serif; padding: 40px; }
-        .header, .footer { text-align: center; }
-        .logo { max-width: 150px; margin-bottom: 10px; }
-        .company-info { text-align: left; }
-        .invoice-meta { text-align: right; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 8px; }
-        th { background-color: #f2f2f2; }
-        .summary { margin-top: 30px; float: right; width: 300px; }
-        .summary div { display: flex; justify-content: space-between; padding: 4px 0; }
-        .signature { margin-top: 60px; display: flex; justify-content: space-between; }
-        .terms { margin-top: 80px; font-size: 12px; text-align: center; }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <img src="${absoluteLogo}" class="logo" />
-        <h2>Autibile</h2>
-        <div class="company-info">
-          47150 Puchong, Selangor.<br>
-          1 - 4, Prima Bizwalk Business Park<br>
-          Jalan Tasik Prima 6/2<br>
-          Taman Tasik Prima,
-        </div>
-        <br>
-      </div>
-
-      <div class="invoice-meta">
-        <p>Invoice No ${formatInvoiceId(invoice.invoice_id)}</p>
-        <p>Sales Date ${formatDate(invoice.date)}</p>
-        <p>Issued Date ${new Date().toLocaleDateString()}</p>
-      </div>
-
-      <div>
-        <h4>BILL TO</h4>
-        <p>${invoice.patient_name || 'N/A'}</p>
-        <p>Patient ID: ${invoice.patient_id || 'N/A'}</p>
-      </div>
-
-      <table>
-        <thead>
-          <tr>
-            <th>Description</th>
-            <th>Price</th>
-            <th>Discount</th>
-            <th>Qty</th>
-            <th>Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>${invoice.description}</td>
-            <td>${formatPrice(invoice.amount)}</td>
-            <td>0.00</td>
-            <td>1</td>
-            <td>${formatPrice(invoice.amount)}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div class="summary">
-        <div><span>Sub Total</span><span>${formatPrice(invoice.amount)}</span></div>
-        <div><span>Grand Total</span><span>${formatPrice(invoice.amount)}</span></div>
-        <div><span>Online</span><span>${formatPrice(invoice.amount)}</span></div>
-      </div>
-
-      <div class="signature">
-        <div><strong>REMARK:</strong></div>
-      </div>
-
-      <div class="terms">
-        <p><strong>Terms and Conditions</strong></p>
-        <p>Thank you.<br>This is computer generated receipt no signature required.</p>
-      </div>
-    </body>
-    </html>
-  `;
-
-  const printWindow = window.open('', '', 'height=800,width=800');
-  printWindow.document.write(printContent);
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
-  printWindow.close();
+  const printContent = buildDocumentHtml(buildInvoiceDocOptions(selectedInvoice.value));
+  openPrintWindow(printContent);
 };
 
 const getStatusBadgeVariant = (status) => {
