@@ -30,6 +30,26 @@ const showMchatrResults = ref(false);
 const mchatrResults = ref(null);
 const showContinueConfirmation = ref(false);
 
+const isMchatrResult = computed(
+  () => Number(mchatrResults.value?.questionnaire_id) === 1
+);
+
+// Prediction shown in the results summary (from matching threshold)
+const resultPrediction = computed(
+  () => mchatrResults.value?.threshold?.interpretation || ''
+);
+
+// Recommendation shown in the blue box.
+// M-CHAT-R uses the admin recommendation; other screenings use the threshold recommendation.
+const resultRecommendation = computed(() => {
+  const results = mchatrResults.value;
+  if (!results) return '';
+  if (isMchatrResult.value) {
+    return results.threshold?.admin_recommendation || results.score_interpretation || '';
+  }
+  return results.threshold?.recommendation || '';
+});
+
 // New state for MCHATR-F
 const showMchatrFQuestions = ref(false);
 const mchatrFAnswers = ref({});
@@ -250,12 +270,10 @@ function handleSubmit(data) {
               message.value = 'Autism screening submitted successfully!';
       messageType.value = 'success';
       
-      // Check if this is MCHAT-R (questionnaire ID 1) - show results modal for all scores
-      if (result.data && result.data.questionnaire_id === 1) {
-        // Show results and confirmation for all MCHAT-R submissions
+      // Show the result overlay for all questionnaires (M-CHAT-R and others)
+      if (result.data) {
         showMchatrResultsAndConfirmation(result.data);
       } else {
-        // For other questionnaires, redirect after a short delay
         setTimeout(() => {
           router.push('/questionnaire');
         }, 2000);
@@ -500,8 +518,12 @@ function handleMchatrFNavigateBack() {
       <div class="bg-white rounded-lg p-6 max-w-md mx-4 w-full">
         <div class="text-center mb-6">
           <Icon name="ic:outline-check-circle" size="64" class="text-green-500 mx-auto mb-4" />
-          <h3 class="text-xl font-semibold text-gray-800 mb-2">MCHAT-R Completed!</h3>
-          <p class="text-gray-600">Your MCHAT-R questionnaire has been submitted successfully.</p>
+          <h3 class="text-xl font-semibold text-gray-800 mb-2">
+            {{ isMchatrResult ? 'MCHAT-R Completed!' : 'Autism Screening Completed!' }}
+          </h3>
+          <p class="text-gray-600">
+            {{ isMchatrResult ? 'Your MCHAT-R questionnaire has been submitted successfully.' : 'The autism screening has been submitted successfully.' }}
+          </p>
         </div>
 
         <!-- Results Summary -->
@@ -516,16 +538,16 @@ function handleMchatrFNavigateBack() {
               <div class="text-sm text-gray-600 mb-1">Risk Level:</div>
               <div class="text-sm font-medium text-gray-800">{{ mchatrResults.score_interpretation }}</div>
             </div>
-            <div v-if="mchatrResults.threshold" class="border-t pt-2">
-              <div class="text-sm text-gray-600 mb-1">Interpretation:</div>
-              <div class="text-sm font-medium text-gray-800">{{ mchatrResults.threshold.interpretation }}</div>
+            <div v-if="resultPrediction" class="border-t pt-2">
+              <div class="text-sm text-gray-600 mb-1">Prediction:</div>
+              <div class="text-sm font-medium text-gray-800">{{ resultPrediction }}</div>
             </div>
           </div>
         </div>
 
-        <!-- Admin Recommendation -->
+        <!-- Recommendation -->
         <div
-          v-if="mchatrResults.threshold?.admin_recommendation || mchatrResults.questionnaire_id === 1"
+          v-if="resultRecommendation"
           class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6"
         >
           <div class="flex items-start">
@@ -533,11 +555,7 @@ function handleMchatrFNavigateBack() {
             <div>
               <h4 class="font-medium text-blue-800 mb-1">Recommendation</h4>
               <p class="text-sm text-blue-700 whitespace-pre-line">
-                {{
-                  mchatrResults.threshold?.admin_recommendation ||
-                  mchatrResults.score_interpretation ||
-                  'Please review the score and interpretation above.'
-                }}
+                {{ resultRecommendation }}
               </p>
             </div>
           </div>
