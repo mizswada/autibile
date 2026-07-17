@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 const route = useRoute();
@@ -22,8 +22,11 @@ const newThreshold = ref({
   interpretation: '',
   interpretation_bm: '',
   recommendation: '',
-  recommendation_bm: ''
+  recommendation_bm: '',
+  admin_recommendation: ''
 });
+
+const isMchatrQuestionnaire = computed(() => String(questionnaireId) === '1');
 
 onMounted(async () => {
   await fetchQuestionnaireData();
@@ -77,7 +80,8 @@ function openAddThresholdModal() {
     interpretation: '',
     interpretation_bm: '',
     recommendation: '',
-    recommendation_bm: ''
+    recommendation_bm: '',
+    admin_recommendation: ''
   };
   isEditingThreshold.value = false;
   editThresholdId.value = null;
@@ -91,7 +95,8 @@ function openEditThresholdModal(threshold) {
     interpretation: threshold.interpretation,
     interpretation_bm: threshold.interpretation_bm || '',
     recommendation: threshold.recommendation,
-    recommendation_bm: threshold.recommendation_bm || ''
+    recommendation_bm: threshold.recommendation_bm || '',
+    admin_recommendation: threshold.admin_recommendation || ''
   };
   isEditingThreshold.value = true;
   editThresholdId.value = threshold.threshold_id;
@@ -122,7 +127,8 @@ async function saveThreshold() {
       interpretation: newThreshold.value.interpretation,
       interpretation_bm: newThreshold.value.interpretation_bm,
       recommendation: newThreshold.value.recommendation,
-      recommendation_bm: newThreshold.value.recommendation_bm
+      recommendation_bm: newThreshold.value.recommendation_bm,
+      admin_recommendation: newThreshold.value.admin_recommendation
     };
 
     if (isEditingThreshold.value && editThresholdId.value) {
@@ -273,6 +279,13 @@ function getScoreRangeDisplay(threshold) {
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Recommendation (BM)
                 </th>
+                <th
+                  v-if="isMchatrQuestionnaire"
+                  scope="col"
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Admin Recommendation
+                </th>
                 <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
@@ -294,6 +307,9 @@ function getScoreRangeDisplay(threshold) {
                 </td>
                 <td class="px-6 py-4">
                   <div class="text-sm">{{ threshold.recommendation_bm || '-' }}</div>
+                </td>
+                <td v-if="isMchatrQuestionnaire" class="px-6 py-4">
+                  <div class="text-sm">{{ threshold.admin_recommendation || '-' }}</div>
                 </td>
                 <td class="px-6 py-4 text-right text-sm font-medium">
                   <div class="flex justify-end gap-3 items-center">
@@ -404,6 +420,17 @@ function getScoreRangeDisplay(threshold) {
           name="recommendationBm"
           label="Recommendation (BM)"
           placeholder="Enter Malay recommendation for this score range"
+          rows="3"
+        />
+
+        <FormKit
+          v-if="isMchatrQuestionnaire"
+          type="textarea"
+          v-model="newThreshold.admin_recommendation"
+          name="adminRecommendation"
+          label="Admin Recommendation"
+          help="Shown in the blue recommendation box after answering M-CHAT-R for a patient."
+          placeholder="Enter admin recommendation shown after questionnaire submission"
           rows="3"
         />
 

@@ -293,7 +293,8 @@ export default defineEventHandler(async (event) => {
             interpretation: threshold.scoring_interpretation,
             interpretation_bm: threshold.scoring_interpretation_bm,
             recommendation: threshold.scoring_recommendation,
-            recommendation_bm: threshold.scoring_recommendation_bm
+            recommendation_bm: threshold.scoring_recommendation_bm,
+            admin_recommendation: threshold.admin_recommendation,
           } : null,
           redirect_to_questionnaire_2: redirectToQuestionnaire2,
           score_interpretation: scoreInterpretation,

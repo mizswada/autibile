@@ -28,6 +28,9 @@ export default defineEventHandler(async (event) => {
           description: true,
           header: true,
           status: true,
+          min_age_months: true,
+          max_age_months: true,
+          age_warning_enabled: true,
         },
       });
   

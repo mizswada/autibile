@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
@@ -7,8 +7,20 @@ const modalErrorMessage = ref('');
 const questionnaires = ref([]);
 const isLoading = ref(true);
 
+const emptyQuestionnaireForm = () => ({
+  name: '',
+  description: '',
+  status: '',
+  minAgeYears: '',
+  minAgeMonths: '',
+  maxAgeYears: '',
+  maxAgeMonths: '',
+  ageWarningEnabled: true,
+  ageWarningMessage: '',
+});
+
 const showQuestionnaireModal = ref(false);
-const newQuestionnaire = ref({ name: '', description: '', status: '' });
+const newQuestionnaire = ref(emptyQuestionnaireForm());
 const isEditingQuestionnaire = ref(false);
 const editQuestionnaireId = ref(null);
 
@@ -35,6 +47,56 @@ function showMessage(msg, type = 'success') {
   }, 3000);
 }
 
+function totalMonthsToParts(totalMonths) {
+  if (totalMonths === null || totalMonths === undefined) {
+    return { years: '', months: '' };
+  }
+  const value = Number(totalMonths);
+  if (Number.isNaN(value) || value < 0) {
+    return { years: '', months: '' };
+  }
+  return {
+    years: String(Math.floor(value / 12)),
+    months: String(value % 12),
+  };
+}
+
+function partsToTotalMonths(years, months) {
+  const hasYears = years !== '' && years !== null && years !== undefined;
+  const hasMonths = months !== '' && months !== null && months !== undefined;
+  if (!hasYears && !hasMonths) return null;
+
+  const y = hasYears ? Number(years) : 0;
+  const m = hasMonths ? Number(months) : 0;
+  if (Number.isNaN(y) || Number.isNaN(m) || y < 0 || m < 0 || m > 11) {
+    return NaN;
+  }
+  return y * 12 + m;
+}
+
+function formatAgeRangeDisplay(minAgeMonths, maxAgeMonths) {
+  const format = (total) => {
+    if (total === null || total === undefined) return null;
+    const years = Math.floor(total / 12);
+    const months = total % 12;
+    const parts = [];
+    if (years > 0) parts.push(`${years}y`);
+    if (months > 0 || years === 0) parts.push(`${months}m`);
+    return parts.join(' ');
+  };
+
+  const minLabel = format(minAgeMonths);
+  const maxLabel = format(maxAgeMonths);
+  if (!minLabel && !maxLabel) return 'No age limit';
+  if (minLabel && maxLabel) return `${minLabel} – ${maxLabel}`;
+  if (minLabel) return `${minLabel}+`;
+  return `up to ${maxLabel}`;
+}
+
+const isEditingProtected = computed(
+  () => isEditingQuestionnaire.value && isProtectedQuestionnaire(editQuestionnaireId.value),
+);
+
 onMounted(fetchQuestionnaires)
 
 async function fetchQuestionnaires() {
@@ -50,6 +112,10 @@ async function fetchQuestionnaires() {
         name: q.title,
         description: q.description,
         status: q.status,
+        min_age_months: q.min_age_months,
+        max_age_months: q.max_age_months,
+        age_warning_enabled: q.age_warning_enabled !== false,
+        age_warning_message: q.age_warning_message || '',
         questions: q.questionnaires_questions.map(qn => ({
           id: qn.question_id,
           question_bm: qn.question_text_bm,
@@ -78,36 +144,70 @@ async function fetchQuestionnaires() {
 
 
 function openAddQuestionnaireModal() {
-  newQuestionnaire.value = { name: '', description: '', status: '' };
+  newQuestionnaire.value = emptyQuestionnaireForm();
   isEditingQuestionnaire.value = false;
   editQuestionnaireId.value = null;
+  modalErrorMessage.value = '';
   showQuestionnaireModal.value = true;
 }
 
 function openEditQuestionnaireModal(q) {
-  // Don't allow editing of protected questionnaire
-  if (isProtectedQuestionnaire(q.id)) {
-          showMessage('This autism screening cannot be edited as it is a system autism screening.', 'error');
-    return;
-  }
-  
+  const minParts = totalMonthsToParts(q.min_age_months);
+  const maxParts = totalMonthsToParts(q.max_age_months);
+
   newQuestionnaire.value = {
     name: q.name,
     description: q.description,
     status: q.status,
+    minAgeYears: minParts.years,
+    minAgeMonths: minParts.months,
+    maxAgeYears: maxParts.years,
+    maxAgeMonths: maxParts.months,
+    ageWarningEnabled: q.age_warning_enabled !== false,
+    ageWarningMessage: q.age_warning_message || '',
   };
   isEditingQuestionnaire.value = true;
   editQuestionnaireId.value = q.id;
+  modalErrorMessage.value = '';
   showQuestionnaireModal.value = true;
 }
 
 async function saveQuestionnaire() {
   if (!newQuestionnaire.value.name.trim()) return;
 
+  const minAge = partsToTotalMonths(
+    newQuestionnaire.value.minAgeYears,
+    newQuestionnaire.value.minAgeMonths,
+  );
+  const maxAge = partsToTotalMonths(
+    newQuestionnaire.value.maxAgeYears,
+    newQuestionnaire.value.maxAgeMonths,
+  );
+
+  if (Number.isNaN(minAge) || Number.isNaN(maxAge)) {
+    modalErrorMessage.value =
+      'Age months must be between 0 and 11. Leave fields empty for no limit.';
+    return;
+  }
+
+  if (minAge !== null && maxAge !== null && minAge > maxAge) {
+    modalErrorMessage.value = 'Minimum age cannot be greater than maximum age.';
+    return;
+  }
+
   const payload = {
     title: newQuestionnaire.value.name,
     description: newQuestionnaire.value.description,
     status: newQuestionnaire.value.status,
+    min_age_months: minAge,
+    max_age_months: maxAge,
+    age_warning_enabled: isProtectedQuestionnaire(editQuestionnaireId.value)
+      ? false
+      : newQuestionnaire.value.ageWarningEnabled !== false &&
+        newQuestionnaire.value.ageWarningEnabled !== 'false',
+    age_warning_message: isProtectedQuestionnaire(editQuestionnaireId.value)
+      ? null
+      : (newQuestionnaire.value.ageWarningMessage || '').trim() || null,
   };
 
   try {
@@ -135,7 +235,11 @@ async function saveQuestionnaire() {
             ...questionnaires.value[index],
             name: result.data.title,
             description: result.data.description,
-            status: result.data.status
+            status: result.data.status,
+            min_age_months: result.data.min_age_months,
+            max_age_months: result.data.max_age_months,
+            age_warning_enabled: result.data.age_warning_enabled !== false,
+            age_warning_message: result.data.age_warning_message || '',
           };
         }
         
@@ -162,6 +266,10 @@ async function saveQuestionnaire() {
           name: result.data.title,
           description: result.data.description,
           status: result.data.status,
+          min_age_months: result.data.min_age_months,
+          max_age_months: result.data.max_age_months,
+          age_warning_enabled: result.data.age_warning_enabled !== false,
+          age_warning_message: result.data.age_warning_message || '',
           questions: [],
         });
         
@@ -380,6 +488,12 @@ function navigateToQuestions(questionnaireId) {
           <p class="text-sm text-gray-500">{{ q.description }} | <span :class="q.status === 'Active' ? 'text-green-600' : 'text-red-500'">{{ q.status }}</span></p>
           <p class="text-sm text-gray-500 mt-1">
             <span class="font-medium">Questions:</span> {{ q.questions.length }}
+            <span class="mx-2">|</span>
+            <span class="font-medium">Age range:</span> {{ formatAgeRangeDisplay(q.min_age_months, q.max_age_months) }}
+            <template v-if="!isProtectedQuestionnaire(q.id)">
+              <span class="mx-2">|</span>
+              <span class="font-medium">Age warning:</span> {{ q.age_warning_enabled ? 'On' : 'Off' }}
+            </template>
           </p>
         </div>
         <div class="flex gap-2 items-center">
@@ -395,12 +509,11 @@ function navigateToQuestions(questionnaireId) {
           
           <!-- Standardized action icons -->
           <Icon
-            v-if="!isProtectedQuestionnaire(q.id)"
             name="material-symbols:edit-outline-rounded"
             class="action-icon text-gray-600 hover:text-gray-800"
             size="22"
             @click="openEditQuestionnaireModal(q)"
-            title="Edit Questionnaire"
+            :title="isProtectedQuestionnaire(q.id) ? 'Edit Age Limits' : 'Edit Questionnaire'"
           />
           
           <Icon
@@ -482,6 +595,7 @@ function navigateToQuestions(questionnaireId) {
           validation="required"
           validation-visibility="dirty"
           :validation-messages="{ required: 'This field is required' }"
+          :disabled="isEditingProtected"
         />
         <FormKit
           type="text"
@@ -492,6 +606,7 @@ function navigateToQuestions(questionnaireId) {
           validation="required"
           validation-visibility="dirty"
           :validation-messages="{ required: 'This field is required' }"
+          :disabled="isEditingProtected"
         />
         <FormKit
           type="select"
@@ -506,6 +621,95 @@ function navigateToQuestions(questionnaireId) {
           validation="required"
           validation-visibility="dirty"
           :validation-messages="{ required: 'This field is required' }"
+          :disabled="isEditingProtected"
+        />
+
+        <div class="mt-4 mb-2">
+          <p class="font-medium text-sm text-gray-700">Age Limit (optional)</p>
+          <p class="text-xs text-gray-500 mb-3">
+            Leave blank for no limit. Ages are stored as total months.
+            <span v-if="isEditingProtected">
+              Outside this range, M-CHAT-R will be locked for the child.
+            </span>
+            <span v-else>
+              Outside this range, the app can show a warning before answering.
+            </span>
+          </p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <p class="text-sm font-medium mb-1">Minimum Age</p>
+            <div class="flex gap-2 items-end">
+              <FormKit
+                type="number"
+                v-model="newQuestionnaire.minAgeYears"
+                name="minAgeYears"
+                label="Years"
+                placeholder="0"
+                :min="0"
+                number="integer"
+              />
+              <FormKit
+                type="number"
+                v-model="newQuestionnaire.minAgeMonths"
+                name="minAgeMonthsPart"
+                label="Months"
+                placeholder="0"
+                :min="0"
+                :max="11"
+                number="integer"
+              />
+            </div>
+          </div>
+          <div>
+            <p class="text-sm font-medium mb-1">Maximum Age</p>
+            <div class="flex gap-2 items-end">
+              <FormKit
+                type="number"
+                v-model="newQuestionnaire.maxAgeYears"
+                name="maxAgeYears"
+                label="Years"
+                placeholder="0"
+                :min="0"
+                number="integer"
+              />
+              <FormKit
+                type="number"
+                v-model="newQuestionnaire.maxAgeMonths"
+                name="maxAgeMonthsPart"
+                label="Months"
+                placeholder="0"
+                :min="0"
+                :max="11"
+                number="integer"
+              />
+            </div>
+          </div>
+        </div>
+
+        <FormKit
+          v-if="!isEditingProtected"
+          type="select"
+          v-model="newQuestionnaire.ageWarningEnabled"
+          name="ageWarningEnabled"
+          label="Show age warning in app"
+          help="When the child is outside the age range, show a popup before they continue."
+          :options="[
+            { label: 'Yes', value: true },
+            { label: 'No', value: false }
+          ]"
+        />
+
+        <FormKit
+          v-if="!isEditingProtected && newQuestionnaire.ageWarningEnabled !== false && newQuestionnaire.ageWarningEnabled !== 'false'"
+          type="textarea"
+          v-model="newQuestionnaire.ageWarningMessage"
+          name="ageWarningMessage"
+          label="Age warning message"
+          help="Leave blank to use the default message. You can use {range} and {age} placeholders."
+          placeholder="e.g. This screening is intended for children aged {range}. This child is currently {age} old. You may still continue."
+          rows="3"
         />
 
         <!-- Custom Footer -->

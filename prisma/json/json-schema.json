@@ -544,6 +544,28 @@
             "null"
           ]
         },
+        "min_age_months": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "max_age_months": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "age_warning_enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "age_warning_message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "questionnaire_scoring": {
           "type": "array",
           "items": {
@@ -1512,6 +1534,12 @@
           "type": "string"
         },
         "scoring_recommendation_bm": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "admin_recommendation": {
           "type": [
             "string",
             "null"

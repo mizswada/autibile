@@ -1,4 +1,9 @@
 import { PrismaClient } from "@prisma/client";
+import {
+  calculateAgeInMonths,
+  evaluateAgeAgainstLimits,
+  formatAgeRange,
+} from "~/server/utils/questionnaireAge";
 
 const prisma = globalThis.prisma ?? new PrismaClient();
 if (process.env.NODE_ENV !== "production") {
@@ -138,6 +143,44 @@ async function lockAfterSubmit(patientId, questionnaireId) {
   return setAccessStatus(patientId, questionnaireId, "Disable");
 }
 
+async function getQuestionnaireAgeConfig(questionnaireId) {
+  return prisma.questionnaires.findUnique({
+    where: { questionnaire_id: questionnaireId },
+    select: {
+      min_age_months: true,
+      max_age_months: true,
+      age_warning_enabled: true,
+      age_warning_message: true,
+    },
+  });
+}
+
+function buildAgeWarningMessage(customMessage, ageEval, ageRangeLabel) {
+  const fallback =
+    ageEval.reason ||
+    `This child is outside the recommended age range${
+      ageRangeLabel ? ` (${ageRangeLabel})` : ""
+    } for this screening. You may still continue.`;
+
+  const trimmed =
+    typeof customMessage === "string" ? customMessage.trim() : "";
+  if (!trimmed) {
+    return fallback;
+  }
+
+  return trimmed
+    .replace(/\{range\}/gi, ageRangeLabel || "")
+    .replace(/\{age\}/gi, ageEval.ageLabel || "");
+}
+
+async function getPatientAgeMonths(patientId) {
+  const patient = await prisma.user_patients.findUnique({
+    where: { patient_id: patientId },
+    select: { dob: true },
+  });
+  return calculateAgeInMonths(patient?.dob);
+}
+
 async function getQuestionnaireAccessInfo(patientId, questionnaireId) {
   const accessStatus = await getAccessStatus(patientId, questionnaireId);
   const accessEnabled = isAccessEnabled(accessStatus);
@@ -156,12 +199,28 @@ async function getQuestionnaireAccessInfo(patientId, questionnaireId) {
   const isEligibleForQuestionnaire2 =
     mchatrScore !== null && mchatrScore >= 3 && mchatrScore <= 7;
 
+  const ageConfig = await getQuestionnaireAgeConfig(questionnaireId);
+  const ageMonths = await getPatientAgeMonths(patientId);
+  const ageEval = evaluateAgeAgainstLimits(
+    ageMonths,
+    ageConfig?.min_age_months,
+    ageConfig?.max_age_months,
+  );
+  const ageRangeLabel = formatAgeRange(
+    ageConfig?.min_age_months,
+    ageConfig?.max_age_months,
+  );
+  const ageWarningEnabled = ageConfig?.age_warning_enabled !== false;
+  const outsideAgeRange = ageEval.inRange === false;
+
   let canAccess = accessEnabled;
   let accessReason = accessEnabled
     ? hasCompleted
       ? "Patient can retake this questionnaire"
       : "Questionnaire is available"
     : "Questionnaire is locked. Contact admin to unlock.";
+  let showAgeWarning = false;
+  let ageWarningMessage = null;
 
   if (questionnaireId === MCHATR_F_QUESTIONNAIRE_ID) {
     if (!hasCompletedMchatr) {
@@ -177,17 +236,33 @@ async function getQuestionnaireAccessInfo(patientId, questionnaireId) {
       canAccess = false;
       accessReason = "M-CHAT-R-F is locked. Contact admin to unlock.";
     }
-  } else if (questionnaireId !== MCHATR_QUESTIONNAIRE_ID) {
-    if (!hasCompletedMchatr) {
+  } else if (questionnaireId === MCHATR_QUESTIONNAIRE_ID) {
+    // M-CHAT-R: hard lock when outside configured age range
+    if (outsideAgeRange) {
       canAccess = false;
-      accessReason = "Complete M-CHAT-R screening first.";
+      accessReason =
+        ageEval.reason ||
+        `This child is outside the recommended age range${
+          ageRangeLabel ? ` (${ageRangeLabel})` : ""
+        } for M-CHAT-R.`;
     } else if (!accessEnabled) {
       canAccess = false;
-      accessReason = "Questionnaire is locked. Contact admin to unlock.";
+      accessReason = "M-CHAT-R is locked. Contact admin to unlock.";
     }
-  } else if (!accessEnabled) {
-    canAccess = false;
-    accessReason = "M-CHAT-R is locked. Contact admin to unlock.";
+  } else {
+    // Other screenings: no longer require M-CHAT-R first.
+    // Outside age range → optional warning (does not lock).
+    if (!accessEnabled) {
+      canAccess = false;
+      accessReason = "Questionnaire is locked. Contact admin to unlock.";
+    } else if (outsideAgeRange && ageWarningEnabled) {
+      showAgeWarning = true;
+      ageWarningMessage = buildAgeWarningMessage(
+        ageConfig?.age_warning_message,
+        ageEval,
+        ageRangeLabel,
+      );
+    }
   }
 
   return {
@@ -201,6 +276,15 @@ async function getQuestionnaireAccessInfo(patientId, questionnaireId) {
     mchatr_score: mchatrScore,
     is_eligible_for_questionnaire_2: isEligibleForQuestionnaire2,
     can_retake: accessEnabled && hasCompleted,
+    age_months: ageMonths,
+    age_label: ageEval.ageLabel,
+    min_age_months: ageConfig?.min_age_months ?? null,
+    max_age_months: ageConfig?.max_age_months ?? null,
+    age_range_label: ageRangeLabel,
+    age_in_range: ageEval.inRange,
+    age_warning_enabled: ageWarningEnabled,
+    show_age_warning: showAgeWarning,
+    age_warning_message: ageWarningMessage,
   };
 }
 
@@ -243,6 +327,10 @@ async function getMchatrEligibility(patientId) {
     is_eligible_for_questionnaire_2: mchatrInfo.is_eligible_for_questionnaire_2,
     can_take_questionnaire_2:
       mchatrInfo.is_eligible_for_questionnaire_2 && mchatrFEnabled,
+    age_months: mchatrInfo.age_months,
+    age_in_range: mchatrInfo.age_in_range,
+    age_range_label: mchatrInfo.age_range_label,
+    access_reason: mchatrInfo.access_reason,
   };
 }
 
@@ -272,6 +360,8 @@ async function listAccessForPatient(patientId) {
         has_completed: info.has_completed,
         can_access: info.can_access,
         access_reason: info.access_reason,
+        show_age_warning: info.show_age_warning,
+        age_warning_message: info.age_warning_message,
       };
     }),
   );

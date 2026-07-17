@@ -64,6 +64,7 @@ async function handleGet(event) {
       interpretation_bm: threshold.scoring_interpretation_bm,
       recommendation: threshold.scoring_recommendation,
       recommendation_bm: threshold.scoring_recommendation_bm,
+      admin_recommendation: threshold.admin_recommendation,
       scoring_min: threshold.scoring_min,
       scoring_max: threshold.scoring_max
     }));
@@ -102,6 +103,7 @@ async function handlePost(event) {
       interpretation_bm,
       recommendation,
       recommendation_bm,
+      admin_recommendation,
       threshold_id
     } = body;
 
@@ -124,6 +126,10 @@ async function handlePost(event) {
     }
 
     const now = new Date();
+    const adminRecommendation =
+      admin_recommendation === undefined || admin_recommendation === null
+        ? null
+        : String(admin_recommendation).trim() || null;
 
     if (threshold_id) {
       // Update existing threshold
@@ -139,6 +145,7 @@ async function handlePost(event) {
           scoring_interpretation_bm: interpretation_bm ?? null,
           scoring_recommendation: recommendation,
           scoring_recommendation_bm: recommendation_bm ?? null,
+          admin_recommendation: adminRecommendation,
           updated_at: now,
         },
       });
@@ -159,6 +166,7 @@ async function handlePost(event) {
           scoring_interpretation_bm: interpretation_bm ?? null,
           scoring_recommendation: recommendation,
           scoring_recommendation_bm: recommendation_bm ?? null,
+          admin_recommendation: adminRecommendation,
           created_at: now,
           updated_at: now,
         },

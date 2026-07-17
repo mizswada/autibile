@@ -282,13 +282,6 @@ function showMchatrResultsAndConfirmation(results) {
   showContinueConfirmation.value = true;
 }
 
-function continueToQuestionnaire2() {
-  showMchatrResults.value = false;
-  showContinueConfirmation.value = false;
-  mchatrResults.value = null;
-  router.push(`/questionnaire/take/2?patientId=${selectedPatientId.value}`);
-}
-
 function goBackToQuestionnaire() {
   showMchatrResults.value = false;
   showContinueConfirmation.value = false;
@@ -530,27 +523,21 @@ function handleMchatrFNavigateBack() {
           </div>
         </div>
 
-        <!-- Follow-up Recommendation -->
-        <div v-if="mchatrResults.redirect_to_questionnaire_2" class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <!-- Admin Recommendation -->
+        <div
+          v-if="mchatrResults.threshold?.admin_recommendation || mchatrResults.questionnaire_id === 1"
+          class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6"
+        >
           <div class="flex items-start">
             <Icon name="ic:outline-info" class="text-blue-500 mr-2 mt-0.5 flex-shrink-0" />
             <div>
-              <h4 class="font-medium text-blue-800 mb-1">Follow-up Required</h4>
-              <p class="text-sm text-blue-700">
-                Based on your score of {{ mchatrResults.total_score }}, we recommend taking the follow-up questionnaire to gather more detailed information.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <!-- No Follow-up Required Message -->
-        <div v-else-if="mchatrResults.questionnaire_id === 1" class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-          <div class="flex items-start">
-            <Icon name="ic:outline-check-circle" class="text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-            <div>
-              <h4 class="font-medium text-green-800 mb-1">No Follow-up Required</h4>
-              <p class="text-sm text-green-700">
-                Based on your score of {{ mchatrResults.total_score }}, no additional questionnaires are required at this time.
+              <h4 class="font-medium text-blue-800 mb-1">Recommendation</h4>
+              <p class="text-sm text-blue-700 whitespace-pre-line">
+                {{
+                  mchatrResults.threshold?.admin_recommendation ||
+                  mchatrResults.score_interpretation ||
+                  'Please review the score and interpretation above.'
+                }}
               </p>
             </div>
           </div>
@@ -559,14 +546,6 @@ function handleMchatrFNavigateBack() {
         <!-- Action Buttons -->
         <div class="flex gap-3">
           <button 
-            v-if="mchatrResults.redirect_to_questionnaire_2"
-            @click="continueToQuestionnaire2"
-            class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Continue to Follow-up
-          </button>
-          <button 
-            v-else
             @click="goBackToQuestionnaire"
             class="flex-1 bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors"
           >

@@ -141,6 +141,10 @@ model questionnaires {
   deleted_at                         DateTime?                            @db.Timestamp(0)
   hidden                             Boolean                              @default(false)
   composite_scoring_config           String?                              @db.Text
+  min_age_months                     Int?
+  max_age_months                     Int?
+  age_warning_enabled                Boolean                              @default(true)
+  age_warning_message                String?                              @db.Text
   questionnaire_scoring              questionnaire_scoring[]
   questionnaires_questions           questionnaires_questions[]
   questionnaires_questions_followups questionnaires_questions_followups[]
@@ -397,6 +401,7 @@ model questionnaire_scoring {
   scoring_interpretation_bm String?     @db.VarChar(255)
   scoring_recommendation String         @db.Text
   scoring_recommendation_bm String?     @db.Text
+  admin_recommendation   String?        @db.Text
   created_at             DateTime       @db.Timestamp(0)
   updated_at             DateTime       @db.Timestamp(0)
   deleted_at             DateTime?      @db.Timestamp(0)
