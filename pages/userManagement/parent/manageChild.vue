@@ -360,7 +360,7 @@ function getOriginalData(childIC, parentUsername) {
             type="checkbox"
             class="toggle-checkbox"
             :checked="row.value.status === 'Active'"
-            @change="confirmToggleStatus(getOriginalData(row.value.childIC, row.value.parentUsername))"
+            @click.prevent="confirmToggleStatus(getOriginalData(row.value.childIC, row.value.parentUsername))"
           />
         </template>
 
@@ -370,7 +370,7 @@ function getOriginalData(childIC, parentUsername) {
             type="checkbox"
             class="toggle-checkbox"
             :checked="row.value.mchatrStatus === 'Enable'"
-            @change="confirmMchatrToggleStatus(getOriginalData(row.value.childIC, row.value.parentUsername))"
+            @click.prevent="confirmMchatrToggleStatus(getOriginalData(row.value.childIC, row.value.parentUsername))"
           />
         </template>
 
@@ -564,7 +564,7 @@ function getOriginalData(childIC, parentUsername) {
             class="toggle-checkbox"
             :checked="item.access_status === 'Enable'"
             :disabled="isTogglingQuestionnaireAccess"
-            @change="confirmQuestionnaireAccessToggle(item)"
+            @click.prevent="confirmQuestionnaireAccessToggle(item)"
           />
         </div>
       </div>
