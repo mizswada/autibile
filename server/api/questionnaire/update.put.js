@@ -1,9 +1,6 @@
 // Added by: Firzana Huda 24 June 2025
 import { normalizeAgeMonthsInput } from "~/server/utils/questionnaireAge";
-import {
-  MCHATR_QUESTIONNAIRE_ID,
-  disableMchatrForOutOfRangePatients,
-} from "~/server/utils/questionnaireAccess";
+import { syncAccessByAgeForQuestionnaire } from "~/server/utils/questionnaireAccess";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -102,18 +99,20 @@ export default defineEventHandler(async (event) => {
       data
     });
 
-    // If M-CHAT-R age limits changed, re-lock every child now outside the range.
-    let mchatrRecompute = null;
+    // If age limits changed, sync lock/unlock for every child against the new range.
+    let ageRecompute = null;
     const ageChanged =
       (hasMinAge && minAge !== existingQuestionnaire.min_age_months) ||
       (hasMaxAge && maxAge !== existingQuestionnaire.max_age_months);
 
-    if (parseInt(questionnaireID) === MCHATR_QUESTIONNAIRE_ID && ageChanged) {
+    if (ageChanged) {
       try {
-        mchatrRecompute = await disableMchatrForOutOfRangePatients();
+        ageRecompute = await syncAccessByAgeForQuestionnaire(
+          parseInt(questionnaireID),
+        );
       } catch (recomputeError) {
         console.error(
-          "Failed to recompute M-CHAT-R age locks:",
+          "Failed to recompute questionnaire age locks:",
           recomputeError,
         );
       }
@@ -121,11 +120,11 @@ export default defineEventHandler(async (event) => {
 
     return {
       statusCode: 200,
-      message: mchatrRecompute
-        ? `Questionnaire updated successfully. M-CHAT-R disabled for ${mchatrRecompute.disabled} child(ren) outside the age range and unlocked for ${mchatrRecompute.enabled} child(ren) inside the age range.`
+      message: ageRecompute
+        ? `Questionnaire updated successfully. Disabled for ${ageRecompute.disabled} child(ren) outside the age range and unlocked for ${ageRecompute.enabled} child(ren) inside the age range.`
         : "Questionnaire updated successfully",
       data: updated,
-      mchatrRecompute,
+      ageRecompute,
     };
 
   } catch (error) {

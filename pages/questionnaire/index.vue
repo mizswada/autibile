@@ -312,10 +312,9 @@ async function saveQuestionnaire() {
 
   const payload = buildQuestionnairePayload(minAge, maxAge);
 
-  // Changing M-CHAT-R age limits auto-disables out-of-range children — confirm first.
+  // Changing age limits auto lock/unlock children — confirm first.
   const ageChanged =
     isEditingQuestionnaire.value &&
-    isProtectedQuestionnaire(editQuestionnaireId.value) &&
     (minAge !== originalAgeLimits.value.min ||
       maxAge !== originalAgeLimits.value.max);
 
@@ -688,13 +687,9 @@ function navigateToQuestions(questionnaireId) {
           <p class="font-medium text-sm text-gray-700">Age Limit (optional)</p>
           <p class="text-xs text-gray-500 mb-3">
             Leave blank for no limit. Ages are stored as total months.
-            <span v-if="isEditingProtected">
-              Outside this range, M-CHAT-R is locked by default for new children.
-              Changing these limits will disable M-CHAT-R for children now outside the range and unlock it for children now inside the range. Admins can still override individual children with a confirmation.
-            </span>
-            <span v-else>
-              Outside this range, the app can show a warning before answering.
-            </span>
+            Outside this range, the screening is locked by default for new children.
+            Changing these limits will disable it for children now outside the range and unlock it for children now inside the range.
+            Admins can still override individual children with a confirmation.
           </p>
         </div>
 
@@ -815,9 +810,9 @@ function navigateToQuestions(questionnaireId) {
       </div>
     </rs-modal>
 
-    <!-- M-CHAT-R age limit change confirmation -->
+    <!-- Age limit change confirmation -->
     <rs-modal
-      title="Update M-CHAT-R Age Limit"
+      title="Update Age Limit"
       ok-title="Yes, update access"
       cancel-title="Cancel"
       :ok-callback="confirmAgeLimitChange"
@@ -826,15 +821,15 @@ function navigateToQuestions(questionnaireId) {
       :overlay-close="false"
     >
       <p class="mb-4">
-        You are changing the M-CHAT-R age limit. Access will be updated automatically:
+        You are changing this screening's age limit. Access will be updated automatically:
       </p>
       <ul class="list-disc ml-5 mb-4 text-sm space-y-1">
         <li>
-          Children now <span class="font-semibold text-red-600">outside</span> the range → M-CHAT-R
+          Children now <span class="font-semibold text-red-600">outside</span> the range →
           <span class="font-semibold text-red-600">disabled</span>
         </li>
         <li>
-          Children now <span class="font-semibold text-green-600">inside</span> the range → M-CHAT-R
+          Children now <span class="font-semibold text-green-600">inside</span> the range →
           <span class="font-semibold text-green-600">unlocked</span>
         </li>
       </ul>
@@ -845,7 +840,7 @@ function navigateToQuestions(questionnaireId) {
           </div>
           <div class="ml-3">
             <p class="text-sm text-orange-800">
-              Admins can still override M-CHAT-R for individual children later, with a confirmation warning when unlocking outside the age range.
+              Admins can still override access for individual children later, with a confirmation warning when unlocking outside the age range.
             </p>
           </div>
         </div>

@@ -36,11 +36,7 @@ const isUnlockingMchatrOutsideAge = computed(() => {
 const isUnlockingAccessOutsideAge = computed(() => {
   const item = pendingAccessToggleItem.value;
   if (!item) return false;
-  return (
-    item.questionnaire_id === 1 &&
-    item.access_status !== 'Enable' &&
-    item.age_in_range === false
-  );
+  return item.access_status !== 'Enable' && item.age_in_range === false;
 });
 
 const columns = [
@@ -600,7 +596,7 @@ function getOriginalData(childIC, parentUsername) {
           <div class="ml-3">
             <p class="text-sm text-orange-800">
               <strong>Age warning:</strong>
-              This child is outside the recommended M-CHAT-R age range
+              This child is outside the recommended age range
               <span v-if="pendingAccessToggleItem?.age_range_label">
                 ({{ pendingAccessToggleItem.age_range_label }})
               </span>

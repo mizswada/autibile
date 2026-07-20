@@ -242,28 +242,13 @@ async function getQuestionnaireAccessInfo(patientId, questionnaireId) {
           : `M-CHAT-R score (${mchatrScore}) is not in eligible range 3-7.`;
     } else if (!accessEnabled) {
       canAccess = false;
-      accessReason = "M-CHAT-R-F is locked. Contact admin to unlock.";
-    }
-  } else if (questionnaireId === MCHATR_QUESTIONNAIRE_ID) {
-    // M-CHAT-R: age is a default (soft) lock that an admin can override.
-    if (!accessEnabled) {
-      // Explicitly locked (admin action or auto-lock after submission).
-      canAccess = false;
       accessReason = outsideAgeRange
-        ? `M-CHAT-R is locked. This child is outside the recommended age range${
+        ? `M-CHAT-R-F is locked. This child is outside the recommended age range${
             ageRangeLabel ? ` (${ageRangeLabel})` : ""
           }. Contact admin to unlock.`
-        : "M-CHAT-R is locked. Contact admin to unlock.";
-    } else if (!hasExplicitRecord && outsideAgeRange) {
-      // No explicit admin decision yet → default-lock by age.
-      canAccess = false;
-      accessReason =
-        ageEval.reason ||
-        `This child is outside the recommended age range${
-          ageRangeLabel ? ` (${ageRangeLabel})` : ""
-        } for M-CHAT-R. Contact admin to unlock.`;
+        : "M-CHAT-R-F is locked. Contact admin to unlock.";
     } else if (outsideAgeRange) {
-      // Admin explicitly enabled despite age → allow but warn (non-blocking).
+      // Admin enabled despite age → allow but warn.
       showAgeWarning = true;
       ageWarningMessage = buildAgeWarningMessage(
         ageConfig?.age_warning_message,
@@ -272,12 +257,25 @@ async function getQuestionnaireAccessInfo(patientId, questionnaireId) {
       );
     }
   } else {
-    // Other screenings: no longer require M-CHAT-R first.
-    // Outside age range → optional warning (does not lock).
+    // All screenings (including M-CHAT-R): age is a default (soft) lock
+    // that an admin can override by setting access_status = Enable.
     if (!accessEnabled) {
       canAccess = false;
-      accessReason = "Questionnaire is locked. Contact admin to unlock.";
-    } else if (outsideAgeRange && ageWarningEnabled) {
+      accessReason = outsideAgeRange
+        ? `Questionnaire is locked. This child is outside the recommended age range${
+            ageRangeLabel ? ` (${ageRangeLabel})` : ""
+          }. Contact admin to unlock.`
+        : "Questionnaire is locked. Contact admin to unlock.";
+    } else if (!hasExplicitRecord && outsideAgeRange) {
+      // No explicit admin decision yet → default-lock by age.
+      canAccess = false;
+      accessReason =
+        ageEval.reason ||
+        `This child is outside the recommended age range${
+          ageRangeLabel ? ` (${ageRangeLabel})` : ""
+        }. Contact admin to unlock.`;
+    } else if (outsideAgeRange) {
+      // Admin explicitly enabled despite age → allow but warn (non-blocking).
       showAgeWarning = true;
       ageWarningMessage = buildAgeWarningMessage(
         ageConfig?.age_warning_message,
@@ -356,8 +354,8 @@ async function getMchatrEligibility(patientId) {
   };
 }
 
-async function getMchatrDefaultStatusForDob(dob) {
-  const ageConfig = await getQuestionnaireAgeConfig(MCHATR_QUESTIONNAIRE_ID);
+async function getDefaultAccessStatusForDob(questionnaireId, dob) {
+  const ageConfig = await getQuestionnaireAgeConfig(questionnaireId);
   const ageMonths = calculateAgeInMonths(dob);
   const ageEval = evaluateAgeAgainstLimits(
     ageMonths,
@@ -365,26 +363,54 @@ async function getMchatrDefaultStatusForDob(dob) {
     ageConfig?.max_age_months,
   );
   // Outside the configured age range → locked by default; otherwise enabled.
+  // No age limits configured (inRange === null) → enabled.
   return ageEval.inRange === false ? "Disable" : "Enable";
 }
 
-// Called when a new child is created: sets the M-CHAT-R default lock by age.
-async function initializeMchatrAccessForPatient(patientId, dob) {
-  const status = await getMchatrDefaultStatusForDob(dob);
-  return setAccessStatus(patientId, MCHATR_QUESTIONNAIRE_ID, status);
+async function listActiveQuestionnairesForAccess() {
+  return prisma.questionnaires.findMany({
+    where: {
+      deleted_at: null,
+      hidden: { not: true },
+    },
+    select: {
+      questionnaire_id: true,
+      min_age_months: true,
+      max_age_months: true,
+    },
+    orderBy: { questionnaire_id: "asc" },
+  });
 }
 
-// Called when the M-CHAT-R age limit changes: disable out-of-range children
+// Called when a new child is created: set each questionnaire's default lock by age.
+async function initializeQuestionnaireAccessForPatient(patientId, dob) {
+  const questionnaires = await listActiveQuestionnairesForAccess();
+  const results = [];
+
+  for (const q of questionnaires) {
+    const status = await getDefaultAccessStatusForDob(q.questionnaire_id, dob);
+    const updated = await setAccessStatus(
+      patientId,
+      q.questionnaire_id,
+      status,
+    );
+    results.push(updated);
+  }
+
+  return results;
+}
+
+// Backward-compatible alias (M-CHAT-R-only callers).
+async function initializeMchatrAccessForPatient(patientId, dob) {
+  return initializeQuestionnaireAccessForPatient(patientId, dob);
+}
+
+// Called when a questionnaire's age limit changes: disable out-of-range children
 // and unlock in-range children so access matches the new limits.
-async function disableMchatrForOutOfRangePatients() {
-  const ageConfig = await getQuestionnaireAgeConfig(MCHATR_QUESTIONNAIRE_ID);
+async function syncAccessByAgeForQuestionnaire(questionnaireId) {
+  const ageConfig = await getQuestionnaireAgeConfig(questionnaireId);
   const minAge = ageConfig?.min_age_months ?? null;
   const maxAge = ageConfig?.max_age_months ?? null;
-
-  // No age limits configured → nothing to lock/unlock by age.
-  if (minAge === null && maxAge === null) {
-    return { disabled: 0, enabled: 0 };
-  }
 
   const patients = await prisma.user_patients.findMany({
     select: { patient_id: true, dob: true },
@@ -392,28 +418,35 @@ async function disableMchatrForOutOfRangePatients() {
 
   let disabled = 0;
   let enabled = 0;
+
+  // No age limits → unlock everyone (no age restriction left).
+  if (minAge === null && maxAge === null) {
+    for (const patient of patients) {
+      await setAccessStatus(patient.patient_id, questionnaireId, "Enable");
+      enabled += 1;
+    }
+    return { disabled, enabled, questionnaire_id: questionnaireId };
+  }
+
   for (const patient of patients) {
     const ageMonths = calculateAgeInMonths(patient.dob);
     const ageEval = evaluateAgeAgainstLimits(ageMonths, minAge, maxAge);
     if (ageEval.inRange === false) {
-      await setAccessStatus(
-        patient.patient_id,
-        MCHATR_QUESTIONNAIRE_ID,
-        "Disable",
-      );
+      await setAccessStatus(patient.patient_id, questionnaireId, "Disable");
       disabled += 1;
     } else if (ageEval.inRange === true) {
-      await setAccessStatus(
-        patient.patient_id,
-        MCHATR_QUESTIONNAIRE_ID,
-        "Enable",
-      );
+      await setAccessStatus(patient.patient_id, questionnaireId, "Enable");
       enabled += 1;
     }
     // inRange === null (unknown DOB / no comparable age) → leave as-is
   }
 
-  return { disabled, enabled };
+  return { disabled, enabled, questionnaire_id: questionnaireId };
+}
+
+// Backward-compatible alias.
+async function disableMchatrForOutOfRangePatients() {
+  return syncAccessByAgeForQuestionnaire(MCHATR_QUESTIONNAIRE_ID);
 }
 
 async function listAccessForPatient(patientId) {
@@ -463,6 +496,8 @@ export {
   getQuestionnaireAccessInfo,
   getMchatrEligibility,
   listAccessForPatient,
+  initializeQuestionnaireAccessForPatient,
   initializeMchatrAccessForPatient,
+  syncAccessByAgeForQuestionnaire,
   disableMchatrForOutOfRangePatients,
 };
