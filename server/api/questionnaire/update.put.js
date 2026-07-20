@@ -1,5 +1,9 @@
 // Added by: Firzana Huda 24 June 2025
 import { normalizeAgeMonthsInput } from "~/server/utils/questionnaireAge";
+import {
+  MCHATR_QUESTIONNAIRE_ID,
+  disableMchatrForOutOfRangePatients,
+} from "~/server/utils/questionnaireAccess";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -58,34 +62,70 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    // Only touch age-related fields when the caller actually sent them, so
+    // partial saves (e.g. header-only updates) can't accidentally clear them.
+    const hasMinAge = Object.prototype.hasOwnProperty.call(body, "min_age_months");
+    const hasMaxAge = Object.prototype.hasOwnProperty.call(body, "max_age_months");
+
+    const data = {
+      title,
+      description,
+      header,
+      status,
+      updated_at: new Date(),
+    };
+
+    if (hasMinAge) {
+      data.min_age_months = minAge;
+    }
+    if (hasMaxAge) {
+      data.max_age_months = maxAge;
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "age_warning_enabled")) {
+      data.age_warning_enabled =
+        age_warning_enabled === false || age_warning_enabled === "false"
+          ? false
+          : true;
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "age_warning_message")) {
+      data.age_warning_message =
+        typeof age_warning_message === "string" && age_warning_message.trim()
+          ? age_warning_message.trim()
+          : null;
+    }
+
     // Update the questionnaire
     const updated = await prisma.questionnaires.update({
       where: {
         questionnaire_id: parseInt(questionnaireID)
       },
-      data: {
-        title,
-        description,
-        header,
-        status,
-        min_age_months: minAge,
-        max_age_months: maxAge,
-        age_warning_enabled:
-          age_warning_enabled === false || age_warning_enabled === "false"
-            ? false
-            : true,
-        age_warning_message:
-          typeof age_warning_message === "string" && age_warning_message.trim()
-            ? age_warning_message.trim()
-            : null,
-        updated_at: new Date()
-      }
+      data
     });
+
+    // If M-CHAT-R age limits changed, re-lock every child now outside the range.
+    let mchatrRecompute = null;
+    const ageChanged =
+      (hasMinAge && minAge !== existingQuestionnaire.min_age_months) ||
+      (hasMaxAge && maxAge !== existingQuestionnaire.max_age_months);
+
+    if (parseInt(questionnaireID) === MCHATR_QUESTIONNAIRE_ID && ageChanged) {
+      try {
+        mchatrRecompute = await disableMchatrForOutOfRangePatients();
+      } catch (recomputeError) {
+        console.error(
+          "Failed to recompute M-CHAT-R age locks:",
+          recomputeError,
+        );
+      }
+    }
 
     return {
       statusCode: 200,
-      message: "Questionnaire updated successfully",
-      data: updated
+      message: mchatrRecompute
+        ? `Questionnaire updated successfully. M-CHAT-R disabled for ${mchatrRecompute.disabled} child(ren) outside the age range and unlocked for ${mchatrRecompute.enabled} child(ren) inside the age range.`
+        : "Questionnaire updated successfully",
+      data: updated,
+      mchatrRecompute,
     };
 
   } catch (error) {

@@ -1,3 +1,5 @@
+import { initializeMchatrAccessForPatient } from "~/server/utils/questionnaireAccess";
+
 export default defineEventHandler(async (event) => {
     try {
       const body = await readBody(event);
@@ -49,6 +51,16 @@ export default defineEventHandler(async (event) => {
           },
         });
         patientID = saved.patient_id;
+
+        // Default-lock M-CHAT-R based on the child's age at creation.
+        try {
+          await initializeMchatrAccessForPatient(
+            patientID,
+            new Date(dateOfBirth),
+          );
+        } catch (accessError) {
+          console.error("Failed to initialize M-CHAT-R access:", accessError);
+        }
       }
   
       // Check if link already exists

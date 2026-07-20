@@ -24,6 +24,24 @@ const pendingAccessChild = ref(null);
 const questionnaireAccessList = ref([]);
 const isLoadingQuestionnaireAccess = ref(false);
 const isTogglingQuestionnaireAccess = ref(false);
+const showConfirmAccessToggleModal = ref(false);
+const pendingAccessToggleItem = ref(null);
+
+const isUnlockingMchatrOutsideAge = computed(() => {
+  const child = pendingMchatrToggleChild.value;
+  if (!child) return false;
+  return child.mchatrStatus !== 'Enable' && child.mchatrAgeInRange === false;
+});
+
+const isUnlockingAccessOutsideAge = computed(() => {
+  const item = pendingAccessToggleItem.value;
+  if (!item) return false;
+  return (
+    item.questionnaire_id === 1 &&
+    item.access_status !== 'Enable' &&
+    item.age_in_range === false
+  );
+});
 
 const columns = [
   { name: 'parentUsername', label: 'Parent Username' },
@@ -156,9 +174,20 @@ function closeQuestionnaireAccessModal() {
   questionnaireAccessList.value = [];
 }
 
-async function toggleQuestionnaireAccess(item) {
+function confirmQuestionnaireAccessToggle(item) {
+  pendingAccessToggleItem.value = item;
+  showConfirmAccessToggleModal.value = true;
+}
+
+function cancelQuestionnaireAccessToggle() {
+  pendingAccessToggleItem.value = null;
+  showConfirmAccessToggleModal.value = false;
+}
+
+async function performQuestionnaireAccessToggle() {
   const child = pendingAccessChild.value;
-  if (!child) return;
+  const item = pendingAccessToggleItem.value;
+  if (!child || !item) return;
 
   const newStatus = item.access_status === 'Enable' ? 'Disable' : 'Enable';
   isTogglingQuestionnaireAccess.value = true;
@@ -187,6 +216,8 @@ async function toggleQuestionnaireAccess(item) {
         );
         if (mchatr) {
           child.mchatrStatus = mchatr.access_status;
+          child.mchatrAgeInRange = mchatr.age_in_range;
+          child.mchatrAgeRangeLabel = mchatr.age_range_label;
         }
       }
       showMessage(`Access updated for "${item.title}"`, 'success');
@@ -197,6 +228,8 @@ async function toggleQuestionnaireAccess(item) {
     console.error('Questionnaire access update error:', err);
     showMessage('An error occurred while updating questionnaire access.', 'error');
   } finally {
+    showConfirmAccessToggleModal.value = false;
+    pendingAccessToggleItem.value = null;
     isTogglingQuestionnaireAccess.value = false;
   }
 }
@@ -258,6 +291,8 @@ onMounted(async () => {
         availableSession: p.availableSession || 0, // Use actual session count directly
         status: p.status,
         mchatrStatus: p.mchatr_status || 'Enable', // Default to Enable if not set
+        mchatrAgeInRange: p.mchatrAgeInRange,
+        mchatrAgeRangeLabel: p.mchatrAgeRangeLabel,
         okuCard: p.okuCard === 1 ? 'Yes' : 'No',
         treatmentType: p.treatmentType || '-',
       }));
@@ -425,7 +460,7 @@ function getOriginalData(childIC, parentUsername) {
     <!-- MCHAT-R Toggle Status Modal -->
     <rs-modal
       title="MCHAT-R Status Confirmation"
-      ok-title="Yes"
+      :ok-title="isUnlockingMchatrOutsideAge ? 'Yes, unlock anyway' : 'Yes'"
       cancel-title="No"
       :ok-callback="performMchatrToggleStatus"
       :cancel-callback="cancelMchatrToggleStatus"
@@ -454,7 +489,28 @@ function getOriginalData(childIC, parentUsername) {
         </div>
       </div>
 
-      <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 my-4">
+      <div
+        v-if="isUnlockingMchatrOutsideAge"
+        class="bg-orange-50 border-l-4 border-orange-500 p-4 my-4"
+      >
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <Icon name="material-symbols:warning" class="text-orange-500" />
+          </div>
+          <div class="ml-3">
+            <p class="text-sm text-orange-800">
+              <strong>Age warning:</strong>
+              This child is outside the recommended M-CHAT-R age range
+              <span v-if="pendingMchatrToggleChild?.mchatrAgeRangeLabel">
+                ({{ pendingMchatrToggleChild.mchatrAgeRangeLabel }})
+              </span>.
+              Unlocking will let them take the screening anyway. Continue only if you are sure.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="bg-yellow-50 border-l-4 border-yellow-400 p-4 my-4">
         <div class="flex">
           <div class="flex-shrink-0">
             <Icon name="material-symbols:warning" class="text-yellow-400" />
@@ -508,9 +564,58 @@ function getOriginalData(childIC, parentUsername) {
             class="toggle-checkbox"
             :checked="item.access_status === 'Enable'"
             :disabled="isTogglingQuestionnaireAccess"
-            @change="toggleQuestionnaireAccess(item)"
+            @change="confirmQuestionnaireAccessToggle(item)"
           />
         </div>
+      </div>
+    </rs-modal>
+
+    <!-- Questionnaire Access Toggle Confirmation -->
+    <rs-modal
+      title="Questionnaire Access Confirmation"
+      :ok-title="isUnlockingAccessOutsideAge ? 'Yes, unlock anyway' : 'Yes'"
+      cancel-title="No"
+      :ok-callback="performQuestionnaireAccessToggle"
+      :cancel-callback="cancelQuestionnaireAccessToggle"
+      v-model="showConfirmAccessToggleModal"
+      :overlay-close="false"
+    >
+      <p>
+        Are you sure you want to
+        <span v-if="pendingAccessToggleItem?.access_status === 'Enable'" class="font-semibold text-red-600">lock</span>
+        <span v-else class="font-semibold text-green-600">unlock</span>
+        <span class="font-semibold">"{{ pendingAccessToggleItem?.title }}"</span>
+        for
+        <span class="font-semibold">"{{ pendingAccessChild?.fullname }}"</span>?
+      </p>
+
+      <div
+        v-if="isUnlockingAccessOutsideAge"
+        class="bg-orange-50 border-l-4 border-orange-500 p-4 my-4"
+      >
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <Icon name="material-symbols:warning" class="text-orange-500" />
+          </div>
+          <div class="ml-3">
+            <p class="text-sm text-orange-800">
+              <strong>Age warning:</strong>
+              This child is outside the recommended M-CHAT-R age range
+              <span v-if="pendingAccessToggleItem?.age_range_label">
+                ({{ pendingAccessToggleItem.age_range_label }})
+              </span>
+              <span v-if="pendingAccessToggleItem?.age_label">
+                — currently {{ pendingAccessToggleItem.age_label }} old
+              </span>.
+              Unlocking will let them take the screening anyway. Continue only if you are sure.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="isTogglingQuestionnaireAccess" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
+        <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
+        <span>Updating access...</span>
       </div>
     </rs-modal>
 

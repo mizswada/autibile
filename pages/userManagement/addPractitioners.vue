@@ -49,7 +49,6 @@ const step2Form = ref({
   workplace: '', // Add workplace field
 });
 
-const roleOptions = ref([]);
 const departmentOptions = ref([]); // Add department options
 
 // File upload handling
@@ -161,15 +160,7 @@ watch(() => selectedFile.value, (newVal) => {
 onMounted(async () => {
   isLoading.value = true;
   try {
-    const [roleRes, departmentRes] = await Promise.all([
-      fetch('/api/parents/lookupRole'),
-      fetch('/api/lookup/departments'), // New API endpoint for departments
-    ]);
-
-    roleOptions.value = [
-      { label: '-- Please select --', value: '' },
-      ...await roleRes.json().then(data => data.map(i => ({ label: i.roleName, value: i.roleID })))
-    ];
+    const departmentRes = await fetch('/api/lookup/departments');
 
     // Load department options
     if (departmentRes.ok) {
@@ -494,14 +485,6 @@ function removeFile() {
             </template>
           </FormKit>
 
-          <FormKit
-            type="select"
-            name="role"
-            v-model="step1Form.role"
-            label="Role"
-            validation="required"
-            :options="roleOptions"
-          />
         </div>
 
         <div class="flex justify-end mt-6">

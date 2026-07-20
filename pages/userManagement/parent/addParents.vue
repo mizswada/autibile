@@ -54,7 +54,6 @@ const step2Form = ref({
 const relationshipOptions = ref([]);
 const nationalityOptions = ref([]);
 const stateOptions = ref([]);
-const roleOptions = ref([]);
 
 watch(() => step1Form.value.username, async (newVal) => {
   usernameError.value = '';
@@ -139,11 +138,10 @@ watch(() => step1Form.value.confirmPassword, (newVal) => {
 
 onMounted(async () => {
   try {
-    const [relRes, natRes, stateRes, roleRes] = await Promise.all([
+    const [relRes, natRes, stateRes] = await Promise.all([
       fetch('/api/parents/lookupRelationship'),
       fetch('/api/parents/lookupNationality'),
       fetch('/api/parents/lookupState'),
-      fetch('/api/parents/lookupRole'),
     ]);
 
     relationshipOptions.value = [
@@ -157,10 +155,6 @@ onMounted(async () => {
     stateOptions.value = [
       { label: '-- Please select --', value: '' },
       ...await stateRes.json().then(data => data.map(i => ({ label: i.title, value: i.lookupID })))
-    ];
-    roleOptions.value = [
-      { label: '-- Please select --', value: '' },
-      ...await roleRes.json().then(data => data.map(i => ({ label: i.roleName, value: i.roleID })))
     ];
   } catch (err) {
     console.error('Dropdown fetch error:', err);
@@ -382,15 +376,6 @@ async function submitStep2() {
         </template>
       </FormKit>
       <p v-if="confirmPasswordError" class="text-red-500 text-sm mt-1 mb-2">{{ confirmPasswordError }}</p>
-
-      <FormKit
-        type="select"
-        name="parentRole"
-        v-model="step1Form.role"
-        label="Role"
-        validation="required"
-        :options="roleOptions"
-      />
 
       <div class="flex justify-end mt-4">
         <rs-button @click="handleStep1Submit" :disabled="isSubmittingStep1">

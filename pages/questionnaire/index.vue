@@ -23,6 +23,7 @@ const showQuestionnaireModal = ref(false);
 const newQuestionnaire = ref(emptyQuestionnaireForm());
 const isEditingQuestionnaire = ref(false);
 const editQuestionnaireId = ref(null);
+const originalAgeLimits = ref({ min: null, max: null });
 
 const message = ref('');
 const messageType = ref('success'); // 'success' or 'error'
@@ -36,6 +37,11 @@ const isTogglingStatus = ref(false);
 const showDeleteModal = ref(false);
 const pendingDeleteQuestionnaire = ref(null);
 const isDeleting = ref(false);
+
+// Confirm before M-CHAT-R age limit change (auto-disables out-of-range children)
+const showConfirmAgeLimitModal = ref(false);
+const pendingAgeLimitPayload = ref(null);
+const isSavingAgeLimitChange = ref(false);
 
 function showMessage(msg, type = 'success') {
   message.value = msg;
@@ -147,6 +153,7 @@ function openAddQuestionnaireModal() {
   newQuestionnaire.value = emptyQuestionnaireForm();
   isEditingQuestionnaire.value = false;
   editQuestionnaireId.value = null;
+  originalAgeLimits.value = { min: null, max: null };
   modalErrorMessage.value = '';
   showQuestionnaireModal.value = true;
 }
@@ -168,8 +175,116 @@ function openEditQuestionnaireModal(q) {
   };
   isEditingQuestionnaire.value = true;
   editQuestionnaireId.value = q.id;
+  originalAgeLimits.value = {
+    min: q.min_age_months ?? null,
+    max: q.max_age_months ?? null,
+  };
   modalErrorMessage.value = '';
   showQuestionnaireModal.value = true;
+}
+
+function buildQuestionnairePayload(minAge, maxAge) {
+  return {
+    title: newQuestionnaire.value.name,
+    description: newQuestionnaire.value.description,
+    status: newQuestionnaire.value.status,
+    min_age_months: minAge,
+    max_age_months: maxAge,
+    age_warning_enabled: isProtectedQuestionnaire(editQuestionnaireId.value)
+      ? false
+      : newQuestionnaire.value.ageWarningEnabled !== false &&
+        newQuestionnaire.value.ageWarningEnabled !== 'false',
+    age_warning_message: isProtectedQuestionnaire(editQuestionnaireId.value)
+      ? null
+      : (newQuestionnaire.value.ageWarningMessage || '').trim() || null,
+  };
+}
+
+async function persistQuestionnaire(payload) {
+  try {
+    let res;
+    let result;
+
+    if (isEditingQuestionnaire.value) {
+      res = await fetch('/api/questionnaire/update', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...payload,
+          questionnaireID: editQuestionnaireId.value,
+        }),
+      });
+
+      result = await res.json();
+
+      if (res.ok && result.data) {
+        const index = questionnaires.value.findIndex(
+          (q) => q.id === editQuestionnaireId.value,
+        );
+        if (index !== -1) {
+          questionnaires.value[index] = {
+            ...questionnaires.value[index],
+            name: result.data.title,
+            description: result.data.description,
+            status: result.data.status,
+            min_age_months: result.data.min_age_months,
+            max_age_months: result.data.max_age_months,
+            age_warning_enabled: result.data.age_warning_enabled !== false,
+            age_warning_message: result.data.age_warning_message || '',
+          };
+        }
+
+        showQuestionnaireModal.value = false;
+        modalErrorMessage.value = '';
+        showMessage(
+          result.message || 'Autism screening updated successfully.',
+          'success',
+        );
+        return true;
+      }
+
+      console.error('Failed to update autism screening:', result.message);
+      modalErrorMessage.value =
+        result.message || 'Failed to update autism screening.';
+      return false;
+    }
+
+    res = await fetch('/api/questionnaire/insert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    result = await res.json();
+
+    if (res.ok && result.data) {
+      questionnaires.value.push({
+        id: result.data.questionnaire_id,
+        name: result.data.title,
+        description: result.data.description,
+        status: result.data.status,
+        min_age_months: result.data.min_age_months,
+        max_age_months: result.data.max_age_months,
+        age_warning_enabled: result.data.age_warning_enabled !== false,
+        age_warning_message: result.data.age_warning_message || '',
+        questions: [],
+      });
+
+      showQuestionnaireModal.value = false;
+      modalErrorMessage.value = '';
+      showMessage('Autism screening inserted successfully.', 'success');
+      return true;
+    }
+
+    console.error('Failed to insert autism screening:', result.message);
+    modalErrorMessage.value =
+      result.message || 'Failed to insert autism screening.';
+    return false;
+  } catch (err) {
+    console.error('Error while saving autism screening:', err);
+    modalErrorMessage.value = 'An unexpected error occurred.';
+    return false;
+  }
 }
 
 async function saveQuestionnaire() {
@@ -195,95 +310,40 @@ async function saveQuestionnaire() {
     return;
   }
 
-  const payload = {
-    title: newQuestionnaire.value.name,
-    description: newQuestionnaire.value.description,
-    status: newQuestionnaire.value.status,
-    min_age_months: minAge,
-    max_age_months: maxAge,
-    age_warning_enabled: isProtectedQuestionnaire(editQuestionnaireId.value)
-      ? false
-      : newQuestionnaire.value.ageWarningEnabled !== false &&
-        newQuestionnaire.value.ageWarningEnabled !== 'false',
-    age_warning_message: isProtectedQuestionnaire(editQuestionnaireId.value)
-      ? null
-      : (newQuestionnaire.value.ageWarningMessage || '').trim() || null,
-  };
+  const payload = buildQuestionnairePayload(minAge, maxAge);
 
+  // Changing M-CHAT-R age limits auto-disables out-of-range children — confirm first.
+  const ageChanged =
+    isEditingQuestionnaire.value &&
+    isProtectedQuestionnaire(editQuestionnaireId.value) &&
+    (minAge !== originalAgeLimits.value.min ||
+      maxAge !== originalAgeLimits.value.max);
+
+  if (ageChanged) {
+    pendingAgeLimitPayload.value = payload;
+    showConfirmAgeLimitModal.value = true;
+    return;
+  }
+
+  await persistQuestionnaire(payload);
+}
+
+function cancelAgeLimitChange() {
+  pendingAgeLimitPayload.value = null;
+  showConfirmAgeLimitModal.value = false;
+}
+
+async function confirmAgeLimitChange() {
+  if (!pendingAgeLimitPayload.value) return;
+  isSavingAgeLimitChange.value = true;
   try {
-    let res;
-    let result;
-
-    if (isEditingQuestionnaire.value) {
-      // Update existing questionnaire
-      res = await fetch('/api/questionnaire/update', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...payload,
-          questionnaireID: editQuestionnaireId.value
-        }),
-      });
-      
-      result = await res.json();
-      
-      if (res.ok && result.data) {
-        // Update the questionnaire in the local array
-        const index = questionnaires.value.findIndex(q => q.id === editQuestionnaireId.value);
-        if (index !== -1) {
-          questionnaires.value[index] = {
-            ...questionnaires.value[index],
-            name: result.data.title,
-            description: result.data.description,
-            status: result.data.status,
-            min_age_months: result.data.min_age_months,
-            max_age_months: result.data.max_age_months,
-            age_warning_enabled: result.data.age_warning_enabled !== false,
-            age_warning_message: result.data.age_warning_message || '',
-          };
-        }
-        
-        showQuestionnaireModal.value = false;
-        modalErrorMessage.value = '';
-        showMessage('Autism screening updated successfully.', 'success');
-      } else {
-        console.error('Failed to update autism screening:', result.message);
-        modalErrorMessage.value = result.message || 'Failed to update autism screening.';
-      }
-    } else {
-      // Create new questionnaire
-      res = await fetch('/api/questionnaire/insert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      
-      result = await res.json();
-      
-      if (res.ok && result.data) {
-        questionnaires.value.push({
-          id: result.data.questionnaire_id,
-          name: result.data.title,
-          description: result.data.description,
-          status: result.data.status,
-          min_age_months: result.data.min_age_months,
-          max_age_months: result.data.max_age_months,
-          age_warning_enabled: result.data.age_warning_enabled !== false,
-          age_warning_message: result.data.age_warning_message || '',
-          questions: [],
-        });
-        
-        showQuestionnaireModal.value = false;
-        modalErrorMessage.value = '';
-        showMessage('Autism screening inserted successfully.', 'success');
-      } else {
-        console.error('Failed to insert autism screening:', result.message);
-        modalErrorMessage.value = result.message || 'Failed to insert autism screening.';
-      }
+    const ok = await persistQuestionnaire(pendingAgeLimitPayload.value);
+    if (ok) {
+      showConfirmAgeLimitModal.value = false;
+      pendingAgeLimitPayload.value = null;
     }
-  } catch (err) {
-          console.error('Error while saving autism screening:', err);
-    modalErrorMessage.value = 'An unexpected error occurred.';
+  } finally {
+    isSavingAgeLimitChange.value = false;
   }
 }
 
@@ -629,7 +689,8 @@ function navigateToQuestions(questionnaireId) {
           <p class="text-xs text-gray-500 mb-3">
             Leave blank for no limit. Ages are stored as total months.
             <span v-if="isEditingProtected">
-              Outside this range, M-CHAT-R will be locked for the child.
+              Outside this range, M-CHAT-R is locked by default for new children.
+              Changing these limits will disable M-CHAT-R for children now outside the range and unlock it for children now inside the range. Admins can still override individual children with a confirmation.
             </span>
             <span v-else>
               Outside this range, the app can show a warning before answering.
@@ -751,6 +812,47 @@ function navigateToQuestions(questionnaireId) {
       <div v-if="isTogglingStatus" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
         <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
         <span>Updating status...</span>
+      </div>
+    </rs-modal>
+
+    <!-- M-CHAT-R age limit change confirmation -->
+    <rs-modal
+      title="Update M-CHAT-R Age Limit"
+      ok-title="Yes, update access"
+      cancel-title="Cancel"
+      :ok-callback="confirmAgeLimitChange"
+      :cancel-callback="cancelAgeLimitChange"
+      v-model="showConfirmAgeLimitModal"
+      :overlay-close="false"
+    >
+      <p class="mb-4">
+        You are changing the M-CHAT-R age limit. Access will be updated automatically:
+      </p>
+      <ul class="list-disc ml-5 mb-4 text-sm space-y-1">
+        <li>
+          Children now <span class="font-semibold text-red-600">outside</span> the range → M-CHAT-R
+          <span class="font-semibold text-red-600">disabled</span>
+        </li>
+        <li>
+          Children now <span class="font-semibold text-green-600">inside</span> the range → M-CHAT-R
+          <span class="font-semibold text-green-600">unlocked</span>
+        </li>
+      </ul>
+      <div class="bg-orange-50 border-l-4 border-orange-500 p-4 mb-4">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <Icon name="material-symbols:warning" class="text-orange-500" />
+          </div>
+          <div class="ml-3">
+            <p class="text-sm text-orange-800">
+              Admins can still override M-CHAT-R for individual children later, with a confirmation warning when unlocking outside the age range.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div v-if="isSavingAgeLimitChange" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
+        <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
+        <span>Updating age limits and syncing child access...</span>
       </div>
     </rs-modal>
 

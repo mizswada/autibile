@@ -8,6 +8,21 @@ export default defineEventHandler(async (event) => {
   try {
     const prisma = new PrismaClient();
 
+    const { userID, roles } = event.context.user || {};
+    if (!userID) {
+      return {
+        success: false,
+        message: "Unauthorized: Missing user session",
+      };
+    }
+
+    const isAdmin = roles?.some(
+      (role) => role.includes("Admin") || role.includes("Administrator"),
+    );
+    const isDoctor = roles?.some(
+      (role) => role.includes("Practitioners") || role.includes("Doctor"),
+    );
+
     const query = getQuery(event);
     const { date, patient_id, practitioner_id, status } = query;
 
@@ -16,6 +31,23 @@ export default defineEventHandler(async (event) => {
     if (patient_id) filter.patient_id = parseInt(patient_id);
     if (practitioner_id) filter.practitioner_id = parseInt(practitioner_id);
     if (status) filter.status = parseInt(status);
+
+    // Doctors may only see their own appointments.
+    if (isDoctor && !isAdmin) {
+      const doctor = await prisma.user_practitioners.findFirst({
+        where: {
+          user_id: parseInt(userID),
+          type: "Doctor",
+          status: "Active",
+        },
+      });
+
+      if (!doctor) {
+        return { success: true, data: [] };
+      }
+
+      filter.practitioner_id = doctor.practitioner_id;
+    }
 
     const appointments = await prisma.appointments.findMany({
       where: {

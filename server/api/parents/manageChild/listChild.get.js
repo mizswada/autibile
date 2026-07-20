@@ -1,3 +1,11 @@
+import {
+  calculateAgeInMonths,
+  evaluateAgeAgainstLimits,
+  formatAgeRange,
+} from "~/server/utils/questionnaireAge";
+
+const MCHATR_QUESTIONNAIRE_ID = 1;
+
 export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
@@ -58,9 +66,25 @@ export default defineEventHandler(async (event) => {
       return typeMap[treatmentType] || treatmentType;
     };
 
+    // M-CHAT-R age range, used to warn the admin when unlocking an
+    // out-of-range child.
+    const mchatrConfig = await prisma.questionnaires.findUnique({
+      where: { questionnaire_id: MCHATR_QUESTIONNAIRE_ID },
+      select: { min_age_months: true, max_age_months: true },
+    });
+    const mchatrRangeLabel = formatAgeRange(
+      mchatrConfig?.min_age_months,
+      mchatrConfig?.max_age_months,
+    );
+
     const transformed = relations.map(r => {
       const c = r.user_patients;
       const p = r.user_parents;
+      const mchatrAgeEval = evaluateAgeAgainstLimits(
+        calculateAgeInMonths(c.dob),
+        mchatrConfig?.min_age_months,
+        mchatrConfig?.max_age_months,
+      );
       return {
         childID: c.patient_id,
         parentID: r.parent_id,
@@ -76,6 +100,8 @@ export default defineEventHandler(async (event) => {
         availableSession: c.available_session,
         status: c.status,
         mchatr_status: c.mchatr_status,
+        mchatrAgeInRange: mchatrAgeEval.inRange,
+        mchatrAgeRangeLabel: mchatrRangeLabel,
         okuCard: c.OKUCard,
         treatmentType: mapTreatmentType(c.treatment_type),
       };

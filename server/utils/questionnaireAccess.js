@@ -57,12 +57,7 @@ async function getAccessRecord(patientId, questionnaireId) {
   }
 }
 
-async function getAccessStatus(patientId, questionnaireId) {
-  const record = await getAccessRecord(patientId, questionnaireId);
-  if (record) {
-    return record.access_status;
-  }
-
+async function getFallbackAccessStatus(patientId, questionnaireId) {
   if (questionnaireId === MCHATR_QUESTIONNAIRE_ID) {
     const patient = await prisma.user_patients.findUnique({
       where: { patient_id: patientId },
@@ -72,6 +67,15 @@ async function getAccessStatus(patientId, questionnaireId) {
   }
 
   return "Enable";
+}
+
+async function getAccessStatus(patientId, questionnaireId) {
+  const record = await getAccessRecord(patientId, questionnaireId);
+  if (record) {
+    return record.access_status;
+  }
+
+  return getFallbackAccessStatus(patientId, questionnaireId);
 }
 
 async function syncLegacyMchatrStatus(patientId, accessStatus) {
@@ -182,7 +186,11 @@ async function getPatientAgeMonths(patientId) {
 }
 
 async function getQuestionnaireAccessInfo(patientId, questionnaireId) {
-  const accessStatus = await getAccessStatus(patientId, questionnaireId);
+  const accessRecord = await getAccessRecord(patientId, questionnaireId);
+  const hasExplicitRecord = !!accessRecord;
+  const accessStatus = accessRecord
+    ? accessRecord.access_status
+    : await getFallbackAccessStatus(patientId, questionnaireId);
   const accessEnabled = isAccessEnabled(accessStatus);
 
   const existingResponse = await prisma.questionnaires_responds.findFirst({
@@ -237,17 +245,31 @@ async function getQuestionnaireAccessInfo(patientId, questionnaireId) {
       accessReason = "M-CHAT-R-F is locked. Contact admin to unlock.";
     }
   } else if (questionnaireId === MCHATR_QUESTIONNAIRE_ID) {
-    // M-CHAT-R: hard lock when outside configured age range
-    if (outsideAgeRange) {
+    // M-CHAT-R: age is a default (soft) lock that an admin can override.
+    if (!accessEnabled) {
+      // Explicitly locked (admin action or auto-lock after submission).
+      canAccess = false;
+      accessReason = outsideAgeRange
+        ? `M-CHAT-R is locked. This child is outside the recommended age range${
+            ageRangeLabel ? ` (${ageRangeLabel})` : ""
+          }. Contact admin to unlock.`
+        : "M-CHAT-R is locked. Contact admin to unlock.";
+    } else if (!hasExplicitRecord && outsideAgeRange) {
+      // No explicit admin decision yet → default-lock by age.
       canAccess = false;
       accessReason =
         ageEval.reason ||
         `This child is outside the recommended age range${
           ageRangeLabel ? ` (${ageRangeLabel})` : ""
-        } for M-CHAT-R.`;
-    } else if (!accessEnabled) {
-      canAccess = false;
-      accessReason = "M-CHAT-R is locked. Contact admin to unlock.";
+        } for M-CHAT-R. Contact admin to unlock.`;
+    } else if (outsideAgeRange) {
+      // Admin explicitly enabled despite age → allow but warn (non-blocking).
+      showAgeWarning = true;
+      ageWarningMessage = buildAgeWarningMessage(
+        ageConfig?.age_warning_message,
+        ageEval,
+        ageRangeLabel,
+      );
     }
   } else {
     // Other screenings: no longer require M-CHAT-R first.
@@ -334,6 +356,66 @@ async function getMchatrEligibility(patientId) {
   };
 }
 
+async function getMchatrDefaultStatusForDob(dob) {
+  const ageConfig = await getQuestionnaireAgeConfig(MCHATR_QUESTIONNAIRE_ID);
+  const ageMonths = calculateAgeInMonths(dob);
+  const ageEval = evaluateAgeAgainstLimits(
+    ageMonths,
+    ageConfig?.min_age_months,
+    ageConfig?.max_age_months,
+  );
+  // Outside the configured age range → locked by default; otherwise enabled.
+  return ageEval.inRange === false ? "Disable" : "Enable";
+}
+
+// Called when a new child is created: sets the M-CHAT-R default lock by age.
+async function initializeMchatrAccessForPatient(patientId, dob) {
+  const status = await getMchatrDefaultStatusForDob(dob);
+  return setAccessStatus(patientId, MCHATR_QUESTIONNAIRE_ID, status);
+}
+
+// Called when the M-CHAT-R age limit changes: disable out-of-range children
+// and unlock in-range children so access matches the new limits.
+async function disableMchatrForOutOfRangePatients() {
+  const ageConfig = await getQuestionnaireAgeConfig(MCHATR_QUESTIONNAIRE_ID);
+  const minAge = ageConfig?.min_age_months ?? null;
+  const maxAge = ageConfig?.max_age_months ?? null;
+
+  // No age limits configured → nothing to lock/unlock by age.
+  if (minAge === null && maxAge === null) {
+    return { disabled: 0, enabled: 0 };
+  }
+
+  const patients = await prisma.user_patients.findMany({
+    select: { patient_id: true, dob: true },
+  });
+
+  let disabled = 0;
+  let enabled = 0;
+  for (const patient of patients) {
+    const ageMonths = calculateAgeInMonths(patient.dob);
+    const ageEval = evaluateAgeAgainstLimits(ageMonths, minAge, maxAge);
+    if (ageEval.inRange === false) {
+      await setAccessStatus(
+        patient.patient_id,
+        MCHATR_QUESTIONNAIRE_ID,
+        "Disable",
+      );
+      disabled += 1;
+    } else if (ageEval.inRange === true) {
+      await setAccessStatus(
+        patient.patient_id,
+        MCHATR_QUESTIONNAIRE_ID,
+        "Enable",
+      );
+      enabled += 1;
+    }
+    // inRange === null (unknown DOB / no comparable age) → leave as-is
+  }
+
+  return { disabled, enabled };
+}
+
 async function listAccessForPatient(patientId) {
   const questionnaires = await prisma.questionnaires.findMany({
     where: {
@@ -362,6 +444,9 @@ async function listAccessForPatient(patientId) {
         access_reason: info.access_reason,
         show_age_warning: info.show_age_warning,
         age_warning_message: info.age_warning_message,
+        age_in_range: info.age_in_range,
+        age_range_label: info.age_range_label,
+        age_label: info.age_label,
       };
     }),
   );
@@ -378,4 +463,6 @@ export {
   getQuestionnaireAccessInfo,
   getMchatrEligibility,
   listAccessForPatient,
+  initializeMchatrAccessForPatient,
+  disableMchatrForOutOfRangePatients,
 };
