@@ -1081,3 +1081,192 @@ export const renderInvoiceHistoryReportPdf = async (jsPDF, invoices = []) => {
 
   return pdf;
 };
+
+// Renders a themed multi-payment history report PDF (matches invoice/receipt design)
+export const renderPaymentHistoryReportPdf = async (jsPDF, payments = []) => {
+  const t = DOCUMENT_THEME;
+  const accent = hexToRgb(t.greenBright);
+  const greenDark = hexToRgb(t.greenDark);
+  const greenTint = hexToRgb(t.greenTint);
+  const ink = hexToRgb(t.ink);
+  const muted = hexToRgb(t.muted);
+  const border = hexToRgb(t.border);
+
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const marginX = 16;
+  const rightX = pageWidth - marginX;
+  const contentW = pageWidth - marginX * 2;
+  const bottomLimit = pageHeight - 18;
+
+  const setFill = (c) => pdf.setFillColor(c[0], c[1], c[2]);
+  const setText = (c) => pdf.setTextColor(c[0], c[1], c[2]);
+  const setDraw = (c) => pdf.setDrawColor(c[0], c[1], c[2]);
+
+  const totalPayments = payments.length;
+  const totalAmount = payments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
+  const generatedOn = new Date().toLocaleDateString('en-MY');
+
+  const logoDataUrl = await loadImageDataUrl(
+    `${window.location.origin}/img/neurspatherapy_logo.png`,
+  );
+
+  const drawHeader = () => {
+    let y = 16;
+    let textX = marginX;
+
+    if (logoDataUrl) {
+      try {
+        const props = pdf.getImageProperties(logoDataUrl);
+        const logoH = 16;
+        const logoW = props.width && props.height ? (props.width / props.height) * logoH : 16;
+        pdf.addImage(logoDataUrl, 'PNG', marginX, y, logoW, logoH);
+        textX = marginX + logoW + 4;
+      } catch {
+        textX = marginX;
+      }
+    }
+
+    setText(greenDark);
+    pdf.setFont(undefined, 'bold');
+    pdf.setFontSize(15);
+    pdf.text(COMPANY_INFO.name, textX, y + 6);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(8);
+    setText(muted);
+    COMPANY_INFO.addressLines.forEach((line, i) => {
+      pdf.text(line, textX, y + 11 + i * 4);
+    });
+
+    setText(greenDark);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(22);
+    pdf.text('REPORT', rightX, y + 7, { align: 'right' });
+
+    pdf.setFont(undefined, 'bold');
+    pdf.setFontSize(8);
+    const badgeText = 'PAYMENT HISTORY';
+    const badgeTextW = pdf.getTextWidth(badgeText);
+    const badgeW = badgeTextW + 10;
+    const badgeH = 6;
+    const badgeX = rightX - badgeW;
+    const badgeY = y + 11;
+    setFill(accent);
+    pdf.roundedRect(badgeX, badgeY, badgeW, badgeH, 3, 3, 'F');
+    setText([255, 255, 255]);
+    pdf.text(badgeText, badgeX + badgeW / 2, badgeY + 4.1, { align: 'center' });
+
+    y = 36;
+    setFill(greenDark);
+    pdf.rect(marginX, y, contentW, 1.4, 'F');
+    return y + 8;
+  };
+
+  const drawTableHeader = (y) => {
+    const headH = 8;
+    setFill(accent);
+    pdf.rect(marginX, y, contentW, headH, 'F');
+    setText([255, 255, 255]);
+    pdf.setFont(undefined, 'bold');
+    pdf.setFontSize(8.5);
+    pdf.text('RECEIPT NO', marginX + 2, y + 5.3);
+    pdf.text('PATIENT', marginX + 32, y + 5.3);
+    pdf.text('INVOICE', marginX + 78, y + 5.3);
+    pdf.text('AMOUNT', marginX + 105, y + 5.3, { align: 'right' });
+    pdf.text('DATE', marginX + 130, y + 5.3);
+    pdf.text('METHOD', rightX - 2, y + 5.3, { align: 'right' });
+    return y + headH;
+  };
+
+  let y = drawHeader();
+
+  const metaRows = [
+    { label: 'Generated On', value: generatedOn },
+    { label: 'Total Payments', value: String(totalPayments) },
+    { label: 'Total Amount', value: `RM ${formatPrice(totalAmount)}` },
+  ];
+  const stripH = 14;
+  setFill(greenTint);
+  setDraw(border);
+  pdf.setLineWidth(0.3);
+  pdf.roundedRect(marginX, y, contentW, stripH, 2, 2, 'FD');
+  const colW = contentW / metaRows.length;
+  metaRows.forEach((row, i) => {
+    const cx = marginX + i * colW + 4;
+    setText(muted);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(7);
+    pdf.text(String(row.label).toUpperCase(), cx, y + 5.5);
+    setText(ink);
+    pdf.setFont(undefined, 'bold');
+    pdf.setFontSize(9.5);
+    pdf.text(String(row.value), cx, y + 10.5);
+  });
+  y += stripH + 10;
+
+  setText(accent);
+  pdf.setFont(undefined, 'bold');
+  pdf.setFontSize(8);
+  pdf.text('PAYMENT DETAILS', marginX, y);
+  y += 5;
+
+  y = drawTableHeader(y);
+
+  const rowH = 7.5;
+  payments.forEach((payment, index) => {
+    if (y + rowH > bottomLimit) {
+      pdf.addPage();
+      y = drawHeader();
+      y = drawTableHeader(y);
+    }
+
+    if (index % 2 === 0) {
+      setFill(greenTint);
+      pdf.rect(marginX, y, contentW, rowH, 'F');
+    }
+
+    setText(ink);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(8.5);
+    pdf.text(formatPaymentId(payment.payment_id), marginX + 2, y + 5);
+
+    const patientName = String(payment.patient_name || 'N/A');
+    const truncatedPatient = pdf.splitTextToSize(patientName, 38)[0] || patientName;
+    pdf.text(truncatedPatient, marginX + 32, y + 5);
+
+    pdf.text(formatInvoiceId(payment.invoice_id), marginX + 78, y + 5);
+    pdf.text(`RM ${formatPrice(payment.amount)}`, marginX + 105, y + 5, { align: 'right' });
+    pdf.text(formatDate(payment.created_at), marginX + 130, y + 5);
+
+    const methodText = String(payment.method || 'N/A');
+    const truncatedMethod = pdf.splitTextToSize(methodText, 28)[0] || methodText;
+    pdf.text(truncatedMethod, rightX - 2, y + 5, { align: 'right' });
+
+    setDraw(border);
+    pdf.setLineWidth(0.2);
+    pdf.line(marginX, y + rowH, rightX, y + rowH);
+    y += rowH;
+  });
+
+  const totalPages = pdf.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    pdf.setPage(i);
+    const footerY = pageHeight - 12;
+    setDraw(accent);
+    pdf.setLineWidth(0.5);
+    pdf.line(marginX, footerY - 4, rightX, footerY - 4);
+    setText(muted);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(7.5);
+    pdf.text(
+      `Thank you for choosing ${COMPANY_INFO.name}.  ·  Generated on ${generatedOn}`,
+      pageWidth / 2,
+      footerY,
+      { align: 'center' },
+    );
+    pdf.text(`Page ${i} of ${totalPages}`, rightX, footerY, { align: 'right' });
+  }
+
+  return pdf;
+};

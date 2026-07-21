@@ -6,6 +6,7 @@ import {
   openPrintWindow,
   renderDocumentPdf,
   renderInvoiceHistoryReportPdf,
+  renderPaymentHistoryReportPdf,
 } from '~/utils/paymentDocuments';
 
 definePageMeta({
@@ -133,14 +134,19 @@ const fetchPayments = async () => {
   }
 };
 
-// Load data when tab changes
-const loadData = () => {
-  currentPage.value = 1;
+// Fetch data for the active tab without resetting pagination
+const refreshData = () => {
   if (activeTab.value === 'invoices') {
     fetchInvoices();
   } else {
     fetchPayments();
   }
+};
+
+// Reset to first page and fetch (filters, tab changes)
+const loadData = () => {
+  currentPage.value = 1;
+  refreshData();
 };
 
 // Watch for tab changes
@@ -222,6 +228,29 @@ const downloadAllInvoices = async () => {
     pdf.save(filename);
 
     alert('Invoice history report downloaded successfully!');
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    alert('Error generating PDF: ' + (error.message || 'Unknown error'));
+  } finally {
+    isGeneratingAllPdf.value = false;
+  }
+};
+
+const downloadAllReceipts = async () => {
+  try {
+    if (paymentHistory.value.length === 0) {
+      alert('No receipts to download.');
+      return;
+    }
+
+    isGeneratingAllPdf.value = true;
+
+    const { default: jsPDF } = await import('jspdf');
+    const pdf = await renderPaymentHistoryReportPdf(jsPDF, paymentHistory.value);
+    const filename = `Receipt_History_Report_${new Date().toISOString().slice(0, 10)}.pdf`;
+    pdf.save(filename);
+
+    alert('Receipt history report downloaded successfully!');
   } catch (error) {
     console.error('Error generating PDF:', error);
     alert('Error generating PDF: ' + (error.message || 'Unknown error'));
@@ -316,20 +345,20 @@ const printReceipt = (payment) => {
 const nextPage = () => {
   if (currentPage.value * itemsPerPage.value < totalItems.value) {
     currentPage.value++;
-    loadData();
+    refreshData();
   }
 };
 
 const prevPage = () => {
   if (currentPage.value > 1) {
     currentPage.value--;
-    loadData();
+    refreshData();
   }
 };
 
 const goToPage = (page) => {
   currentPage.value = page;
-  loadData();
+  refreshData();
 };
 
 // Computed properties for pagination
@@ -373,6 +402,16 @@ const pageNumbers = computed(() => {
             >
               <NuxtIcon name="ic:outline-download" class="mr-1" />
               {{ isGeneratingAllPdf ? 'Generating PDF...' : 'Download All Invoices' }}
+            </rs-button>
+            <rs-button 
+              v-if="activeTab === 'payments' && paymentHistory.length > 0"
+              variant="primary" 
+              @click="downloadAllReceipts"
+              :loading="isGeneratingAllPdf"
+              :disabled="isGeneratingAllPdf"
+            >
+              <NuxtIcon name="ic:outline-download" class="mr-1" />
+              {{ isGeneratingAllPdf ? 'Generating PDF...' : 'Download All Receipts' }}
             </rs-button>
             <NuxtLink to="/payment">
               <rs-button variant="outline">
