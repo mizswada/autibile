@@ -5,6 +5,7 @@ import {
   buildReceiptDocOptions,
   openPrintWindow,
   renderDocumentPdf,
+  renderInvoiceHistoryReportPdf,
 } from '~/utils/paymentDocuments';
 
 definePageMeta({
@@ -215,139 +216,11 @@ const downloadAllInvoices = async () => {
 
     isGeneratingAllPdf.value = true;
 
-    // Import jsPDF dynamically
     const { default: jsPDF } = await import('jspdf');
-    
-    // Create a PDF with A4 dimensions
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    
-    let currentPage = 1;
-    let yPosition = 20;
-    
-    // Add header with company info on the left
-    pdf.setFontSize(18);
-    pdf.setFont(undefined, 'bold');
-    pdf.text('Autibile', 20, yPosition);
-    pdf.setFont(undefined, 'normal');
-    pdf.setFontSize(10);
-    yPosition += 10;
-    
-    // Company address on the left
-    pdf.text('47150 Puchong, Selangor.', 20, yPosition);
-    yPosition += 5;
-    pdf.text('1 - 4, Prima Bizwalk Business Park', 20, yPosition);
-    yPosition += 5;
-    pdf.text('Jalan Tasik Prima 6/2', 20, yPosition);
-    yPosition += 5;
-    pdf.text('Taman Tasik Prima', 20, yPosition);
-    yPosition += 15;
-    
-    // Title
-    pdf.setFontSize(16);
-    pdf.setFont(undefined, 'bold');
-    pdf.text('INVOICE HISTORY REPORT', pageWidth / 2, yPosition, { align: 'center' });
-    pdf.setFont(undefined, 'normal');
-    pdf.setFontSize(10);
-    yPosition += 10;
-    pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, yPosition, { align: 'center' });
-    yPosition += 15;
-    
-    // Summary table
-    pdf.setFontSize(12);
-    pdf.setFont(undefined, 'bold');
-    pdf.text('SUMMARY:', 20, yPosition);
-    pdf.setFont(undefined, 'normal');
-    pdf.setFontSize(10);
-    yPosition += 8;
-    
-    const totalInvoices = invoiceHistory.value.length;
-    const paidInvoices = invoiceHistory.value.filter(inv => inv.status === 'Paid').length;
-    const unpaidInvoices = totalInvoices - paidInvoices;
-    const totalAmount = invoiceHistory.value.reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
-    const paidAmount = invoiceHistory.value
-      .filter(inv => inv.status === 'Paid')
-      .reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
-    
-    pdf.text(`Total Invoices: ${totalInvoices}`, 20, yPosition);
-    yPosition += 5;
-    pdf.text(`Paid Invoices: ${paidInvoices}`, 20, yPosition);
-    yPosition += 5;
-    pdf.text(`Unpaid Invoices: ${unpaidInvoices}`, 20, yPosition);
-    yPosition += 5;
-    pdf.text(`Total Amount: RM ${formatPrice(totalAmount)}`, 20, yPosition);
-    yPosition += 5;
-    pdf.text(`Paid Amount: RM ${formatPrice(paidAmount)}`, 20, yPosition);
-    yPosition += 5;
-    pdf.text(`Outstanding Amount: RM ${formatPrice(totalAmount - paidAmount)}`, 20, yPosition);
-    yPosition += 15;
-    
-    // Invoice details table
-    pdf.setFontSize(12);
-    pdf.setFont(undefined, 'bold');
-    pdf.text('INVOICE DETAILS:', 20, yPosition);
-    pdf.setFont(undefined, 'normal');
-    pdf.setFontSize(10);
-    yPosition += 8;
-    
-    // Table headers with proper column positioning
-    const headers = ['Invoice No', 'Patient', 'Amount', 'Date', 'Status'];
-    const colWidths = [30, 50, 25, 25, 20];
-    const startX = 20;
-    const colPositions = [startX + 5, startX + 35, startX + 85, startX + 110, startX + 135];
-    
-    pdf.setFont(undefined, 'bold');
-    headers.forEach((header, index) => {
-      pdf.text(header, colPositions[index], yPosition);
-    });
-    pdf.setFont(undefined, 'normal');
-    yPosition += 5;
-    
-    // Table content
-    for (const invoice of invoiceHistory.value) {
-      // Check if we need a new page
-      if (yPosition > pageHeight - 30) {
-        pdf.addPage();
-        currentPage++;
-        yPosition = 20;
-        
-        // Repeat headers on new page
-        pdf.setFont(undefined, 'bold');
-        headers.forEach((header, index) => {
-          pdf.text(header, colPositions[index], yPosition);
-        });
-        pdf.setFont(undefined, 'normal');
-        yPosition += 5;
-      }
-      
-      pdf.text(formatInvoiceId(invoice.invoice_id), colPositions[0], yPosition);
-      
-      // Truncate patient name if too long
-      const patientName = invoice.patient_name.length > 15 ? 
-        invoice.patient_name.substring(0, 12) + '...' : invoice.patient_name;
-      pdf.text(patientName, colPositions[1], yPosition);
-      
-      pdf.text(`RM ${formatPrice(invoice.amount)}`, colPositions[2], yPosition);
-      pdf.text(formatDate(invoice.date), colPositions[3], yPosition);
-      pdf.text(invoice.status, colPositions[4], yPosition);
-      
-      yPosition += 5;
-    }
-    
-    // Add page numbers
-    const totalPages = pdf.internal.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      pdf.setPage(i);
-      pdf.setFontSize(8);
-      pdf.text(`Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
-    }
-    
-    // Save the PDF with a formatted filename
+    const pdf = await renderInvoiceHistoryReportPdf(jsPDF, invoiceHistory.value);
     const filename = `Invoice_History_Report_${new Date().toISOString().slice(0, 10)}.pdf`;
     pdf.save(filename);
-    
-    // Show success message
+
     alert('Invoice history report downloaded successfully!');
   } catch (error) {
     console.error('Error generating PDF:', error);

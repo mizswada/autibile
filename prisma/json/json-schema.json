@@ -1600,6 +1600,67 @@
         }
       }
     },
+    "account_deletion_requests": {
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "type": "integer"
+        },
+        "full_name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "account_type": {
+          "type": "string"
+        },
+        "additional_info": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "default": "Pending"
+        },
+        "admin_notes": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "processed_by": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "processed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    },
     "community": {
       "type": "object",
       "properties": {
@@ -2286,6 +2347,9 @@
     },
     "tech_supports": {
       "$ref": "#/definitions/tech_supports"
+    },
+    "account_deletion_requests": {
+      "$ref": "#/definitions/account_deletion_requests"
     },
     "community": {
       "$ref": "#/definitions/community"

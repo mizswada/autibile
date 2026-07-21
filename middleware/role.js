@@ -22,6 +22,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
       '/payment',
       '/therapyService',
       '/techSupport',
+      '/accountDeletionRequests',
       '/reports',
       '/devtool'
     ],
@@ -46,6 +47,19 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
 
   // Get current path
   const currentPath = to.path;
+
+  // Public pages (no auth / role required)
+  const publicPaths = [
+    "/login",
+    "/logout",
+    "/forgot-password",
+    "/reset-password",
+    "/register",
+    "/delete-account",
+  ];
+  if (publicPaths.some((path) => currentPath === path || currentPath.startsWith(`${path}/`))) {
+    return;
+  }
 
   // If user is admin, allow access to all pages
   if (isAdmin) {

@@ -131,6 +131,11 @@ const adminNavigation = [
         path: "/techSupport",
       },
       {
+        title: "Account Deletion Requests",
+        icon: "ic:outline-person-off",
+        path: "/accountDeletionRequests",
+      },
+      {
         title: "AI Settings",
         icon: "ic:outline-psychology",
         path: "/apps/aiSettings",

@@ -421,6 +421,21 @@ model tech_supports {
   deleted_at         DateTime? @db.Timestamp(0)
 }
 
+model account_deletion_requests {
+  request_id      Int       @id @default(autoincrement())
+  full_name       String    @db.VarChar(255)
+  email           String    @db.VarChar(255)
+  account_type    String    @db.VarChar(50)
+  additional_info String?   @db.Text
+  status          String    @default("Pending") @db.VarChar(50)
+  admin_notes     String?   @db.Text
+  processed_by    Int?
+  processed_at    DateTime? @db.Timestamp(0)
+  created_at      DateTime  @db.Timestamp(0)
+  updated_at      DateTime  @db.Timestamp(0)
+  deleted_at      DateTime? @db.Timestamp(0)
+}
+
 model community {
   community_id      Int       @id @default(autoincrement())
   community_author  String    @db.VarChar(255)

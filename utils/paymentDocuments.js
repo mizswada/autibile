@@ -843,3 +843,241 @@ export const renderDocumentPdf = async (jsPDF, opts) => {
 
   return pdf;
 };
+
+// Renders a themed multi-invoice history report PDF (matches invoice/receipt design)
+export const renderInvoiceHistoryReportPdf = async (jsPDF, invoices = []) => {
+  const t = DOCUMENT_THEME;
+  const accent = hexToRgb(t.green);
+  const greenDark = hexToRgb(t.greenDark);
+  const greenTint = hexToRgb(t.greenTint);
+  const ink = hexToRgb(t.ink);
+  const muted = hexToRgb(t.muted);
+  const border = hexToRgb(t.border);
+  const unpaid = hexToRgb('#E0A800');
+
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const marginX = 16;
+  const rightX = pageWidth - marginX;
+  const contentW = pageWidth - marginX * 2;
+  const bottomLimit = pageHeight - 18;
+
+  const setFill = (c) => pdf.setFillColor(c[0], c[1], c[2]);
+  const setText = (c) => pdf.setTextColor(c[0], c[1], c[2]);
+  const setDraw = (c) => pdf.setDrawColor(c[0], c[1], c[2]);
+
+  const totalInvoices = invoices.length;
+  const paidInvoices = invoices.filter((inv) => inv.status === 'Paid').length;
+  const unpaidInvoices = totalInvoices - paidInvoices;
+  const totalAmount = invoices.reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
+  const paidAmount = invoices
+    .filter((inv) => inv.status === 'Paid')
+    .reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
+  const outstandingAmount = totalAmount - paidAmount;
+  const generatedOn = new Date().toLocaleDateString('en-MY');
+
+  const logoDataUrl = await loadImageDataUrl(
+    `${window.location.origin}/img/neurspatherapy_logo.png`,
+  );
+
+  const drawHeader = () => {
+    let y = 16;
+    let textX = marginX;
+
+    if (logoDataUrl) {
+      try {
+        const props = pdf.getImageProperties(logoDataUrl);
+        const logoH = 16;
+        const logoW = props.width && props.height ? (props.width / props.height) * logoH : 16;
+        pdf.addImage(logoDataUrl, 'PNG', marginX, y, logoW, logoH);
+        textX = marginX + logoW + 4;
+      } catch {
+        textX = marginX;
+      }
+    }
+
+    setText(greenDark);
+    pdf.setFont(undefined, 'bold');
+    pdf.setFontSize(15);
+    pdf.text(COMPANY_INFO.name, textX, y + 6);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(8);
+    setText(muted);
+    COMPANY_INFO.addressLines.forEach((line, i) => {
+      pdf.text(line, textX, y + 11 + i * 4);
+    });
+
+    setText(greenDark);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(22);
+    pdf.text('REPORT', rightX, y + 7, { align: 'right' });
+
+    pdf.setFont(undefined, 'bold');
+    pdf.setFontSize(8);
+    const badgeText = 'INVOICE HISTORY';
+    const badgeTextW = pdf.getTextWidth(badgeText);
+    const badgeW = badgeTextW + 10;
+    const badgeH = 6;
+    const badgeX = rightX - badgeW;
+    const badgeY = y + 11;
+    setFill(accent);
+    pdf.roundedRect(badgeX, badgeY, badgeW, badgeH, 3, 3, 'F');
+    setText([255, 255, 255]);
+    pdf.text(badgeText, badgeX + badgeW / 2, badgeY + 4.1, { align: 'center' });
+
+    y = 36;
+    setFill(greenDark);
+    pdf.rect(marginX, y, contentW, 1.4, 'F');
+    return y + 8;
+  };
+
+  const drawTableHeader = (y) => {
+    const headH = 8;
+    setFill(accent);
+    pdf.rect(marginX, y, contentW, headH, 'F');
+    setText([255, 255, 255]);
+    pdf.setFont(undefined, 'bold');
+    pdf.setFontSize(8.5);
+    pdf.text('INVOICE NO', marginX + 2, y + 5.3);
+    pdf.text('PATIENT', marginX + 32, y + 5.3);
+    pdf.text('AMOUNT', marginX + 105, y + 5.3, { align: 'right' });
+    pdf.text('DATE', marginX + 130, y + 5.3);
+    pdf.text('STATUS', rightX - 2, y + 5.3, { align: 'right' });
+    return y + headH;
+  };
+
+  // ---- First page: header + meta + summary ----
+  let y = drawHeader();
+
+  // Meta strip
+  const metaRows = [
+    { label: 'Generated On', value: generatedOn },
+    { label: 'Total Invoices', value: String(totalInvoices) },
+    { label: 'Paid', value: String(paidInvoices) },
+    { label: 'Unpaid', value: String(unpaidInvoices) },
+  ];
+  const stripH = 14;
+  setFill(greenTint);
+  setDraw(border);
+  pdf.setLineWidth(0.3);
+  pdf.roundedRect(marginX, y, contentW, stripH, 2, 2, 'FD');
+  const colW = contentW / metaRows.length;
+  metaRows.forEach((row, i) => {
+    const cx = marginX + i * colW + 4;
+    setText(muted);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(7);
+    pdf.text(String(row.label).toUpperCase(), cx, y + 5.5);
+    setText(ink);
+    pdf.setFont(undefined, 'bold');
+    pdf.setFontSize(9.5);
+    pdf.text(String(row.value), cx, y + 10.5);
+  });
+  y += stripH + 8;
+
+  // Summary panel
+  const summaryRows = [
+    { label: 'Total Amount', value: `RM ${formatPrice(totalAmount)}` },
+    { label: 'Paid Amount', value: `RM ${formatPrice(paidAmount)}` },
+    { label: 'Outstanding Amount', value: `RM ${formatPrice(outstandingAmount)}` },
+  ];
+  const panelH = 14 + summaryRows.length * 7;
+  setDraw(border);
+  pdf.setLineWidth(0.3);
+  pdf.roundedRect(marginX, y, contentW, panelH, 2, 2, 'D');
+  setFill(accent);
+  pdf.rect(marginX, y, 1.4, panelH, 'F');
+  setText(accent);
+  pdf.setFont(undefined, 'bold');
+  pdf.setFontSize(8.5);
+  pdf.text('SUMMARY', marginX + 5, y + 7);
+  summaryRows.forEach((row, i) => {
+    const iy = y + 14 + i * 7;
+    setText(muted);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(9);
+    pdf.text(row.label, marginX + 5, iy);
+    setText(i === summaryRows.length - 1 ? greenDark : ink);
+    pdf.setFont(undefined, 'bold');
+    pdf.setFontSize(9.5);
+    pdf.text(row.value, rightX - 4, iy, { align: 'right' });
+  });
+  y += panelH + 10;
+
+  // Invoice details title
+  setText(accent);
+  pdf.setFont(undefined, 'bold');
+  pdf.setFontSize(8);
+  pdf.text('INVOICE DETAILS', marginX, y);
+  y += 5;
+
+  y = drawTableHeader(y);
+
+  const rowH = 7.5;
+  invoices.forEach((invoice, index) => {
+    if (y + rowH > bottomLimit) {
+      pdf.addPage();
+      y = drawHeader();
+      y = drawTableHeader(y);
+    }
+
+    // Alternating row tint
+    if (index % 2 === 0) {
+      setFill(greenTint);
+      pdf.rect(marginX, y, contentW, rowH, 'F');
+    }
+
+    setText(ink);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(8.5);
+    pdf.text(formatInvoiceId(invoice.invoice_id), marginX + 2, y + 5);
+
+    const patientName = String(invoice.patient_name || 'N/A');
+    const truncatedPatient = pdf.splitTextToSize(patientName, 60)[0] || patientName;
+    pdf.text(truncatedPatient, marginX + 32, y + 5);
+
+    pdf.text(`RM ${formatPrice(invoice.amount)}`, marginX + 105, y + 5, { align: 'right' });
+    pdf.text(formatDate(invoice.date), marginX + 130, y + 5);
+
+    // Status as small colored badge
+    const statusText = String(invoice.status || 'N/A').toUpperCase();
+    pdf.setFont(undefined, 'bold');
+    pdf.setFontSize(7);
+    const statusW = pdf.getTextWidth(statusText) + 6;
+    const statusH = 5;
+    const statusX = rightX - 2 - statusW;
+    const statusY = y + 1.3;
+    setFill(invoice.status === 'Paid' ? accent : unpaid);
+    pdf.roundedRect(statusX, statusY, statusW, statusH, 2, 2, 'F');
+    setText([255, 255, 255]);
+    pdf.text(statusText, statusX + statusW / 2, statusY + 3.5, { align: 'center' });
+
+    setDraw(border);
+    pdf.setLineWidth(0.2);
+    pdf.line(marginX, y + rowH, rightX, y + rowH);
+    y += rowH;
+  });
+
+  // Footer on every page
+  const totalPages = pdf.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    pdf.setPage(i);
+    const footerY = pageHeight - 12;
+    setDraw(accent);
+    pdf.setLineWidth(0.5);
+    pdf.line(marginX, footerY - 4, rightX, footerY - 4);
+    setText(muted);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(7.5);
+    pdf.text(
+      `Thank you for choosing ${COMPANY_INFO.name}.  ·  Generated on ${generatedOn}`,
+      pageWidth / 2,
+      footerY,
+      { align: 'center' },
+    );
+    pdf.text(`Page ${i} of ${totalPages}`, rightX, footerY, { align: 'right' });
+  }
+
+  return pdf;
+};
