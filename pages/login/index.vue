@@ -144,7 +144,11 @@ const login = async () => {
           >
             Sign In
           </FormKit>
-          <p class="col-span-2 mt-4 text-center text-slate-500 text-sm">
+          <p class="col-span-2 mt-4 text-center text-slate-500 text-sm space-x-3">
+            <NuxtLink to="/privacy" class="text-primary hover:underline">
+              Privacy Policy
+            </NuxtLink>
+            <span class="text-slate-300">|</span>
             <NuxtLink to="/delete-account" class="text-primary hover:underline">
               Request account deletion
             </NuxtLink>

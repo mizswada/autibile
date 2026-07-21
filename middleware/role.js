@@ -56,6 +56,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     "/reset-password",
     "/register",
     "/delete-account",
+    "/privacy",
   ];
   if (publicPaths.some((path) => currentPath === path || currentPath.startsWith(`${path}/`))) {
     return;

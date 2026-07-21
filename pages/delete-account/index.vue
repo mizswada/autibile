@@ -233,7 +233,10 @@ async function submitRequest() {
         </section>
 
         <p class="mt-8 text-sm text-slate-500 text-center">
-          Autibile · Account &amp; data deletion
+          Autibile · Account &amp; data deletion ·
+          <NuxtLink to="/privacy" class="text-primary hover:underline">
+            Privacy Policy
+          </NuxtLink>
         </p>
       </div>
     </div>
