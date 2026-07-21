@@ -5,6 +5,12 @@ useHead({
   htmlAttrs: {
     lang: "en",
   },
+  meta: [
+    {
+      name: "google-site-verification",
+      content: "DEjKzbyxzZxZX3JfRnRNz3le_Iku77IjrYzE-axMHQA",
+    },
+  ],
 });
 
 // Apply role-based middleware globally

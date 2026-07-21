@@ -1,6 +1,9 @@
 // Added by: Firzana Huda 24 June 2025
 import { normalizeAgeMonthsInput } from "~/server/utils/questionnaireAge";
-import { syncAccessByAgeForQuestionnaire } from "~/server/utils/questionnaireAccess";
+import {
+  MCHATR_QUESTIONNAIRE_ID,
+  disableMchatrForOutOfRangePatients,
+} from "~/server/utils/questionnaireAccess";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -99,20 +102,19 @@ export default defineEventHandler(async (event) => {
       data
     });
 
-    // If age limits changed, sync lock/unlock for every child against the new range.
-    let ageRecompute = null;
+    // Only M-CHAT-R auto lock/unlocks children when age limits change.
+    // Other questionnaires keep access; parents just get an age warning.
+    let mchatrRecompute = null;
     const ageChanged =
       (hasMinAge && minAge !== existingQuestionnaire.min_age_months) ||
       (hasMaxAge && maxAge !== existingQuestionnaire.max_age_months);
 
-    if (ageChanged) {
+    if (parseInt(questionnaireID) === MCHATR_QUESTIONNAIRE_ID && ageChanged) {
       try {
-        ageRecompute = await syncAccessByAgeForQuestionnaire(
-          parseInt(questionnaireID),
-        );
+        mchatrRecompute = await disableMchatrForOutOfRangePatients();
       } catch (recomputeError) {
         console.error(
-          "Failed to recompute questionnaire age locks:",
+          "Failed to recompute M-CHAT-R age locks:",
           recomputeError,
         );
       }
@@ -120,11 +122,11 @@ export default defineEventHandler(async (event) => {
 
     return {
       statusCode: 200,
-      message: ageRecompute
-        ? `Questionnaire updated successfully. Disabled for ${ageRecompute.disabled} child(ren) outside the age range and unlocked for ${ageRecompute.enabled} child(ren) inside the age range.`
+      message: mchatrRecompute
+        ? `Questionnaire updated successfully. M-CHAT-R disabled for ${mchatrRecompute.disabled} child(ren) outside the age range and unlocked for ${mchatrRecompute.enabled} child(ren) inside the age range.`
         : "Questionnaire updated successfully",
       data: updated,
-      ageRecompute,
+      mchatrRecompute,
     };
 
   } catch (error) {

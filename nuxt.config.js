@@ -22,6 +22,22 @@ export default defineNuxtConfig({
   ],
   app: {
     pageTransition: { name: "page", mode: "out-in" },
+    head: {
+      title: "Autibile",
+      meta: [
+        { charset: "utf-8" },
+        { name: "viewport", content: "width=device-width, initial-scale=1" },
+        {
+          name: "description",
+          content: "Autibile",
+        },
+        {
+          name: "google-site-verification",
+          content: "DEjKzbyxzZxZX3JfRnRNz3le_Iku77IjrYzE-axMHQA",
+        },
+      ],
+      link: [{ rel: "icon", type: "image/x-icon", href: "/favicon.ico" }],
+    },
   },
   vite:{
     server:{
@@ -30,19 +46,6 @@ export default defineNuxtConfig({
         interval: 1000,
       },
     },
-  },
-  head: {
-    title: "Autibile",
-    meta: [
-      { charset: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      {
-        hid: "description",
-        name: "description",
-        content: "Autibile",
-      },
-    ],
-    link: [{ rel: "icon", type: "image/x-icon", href: "/favicon.ico" }],
   },
   css: ["~/assets/style/scss/main.scss"],
   tailwindcss: {
