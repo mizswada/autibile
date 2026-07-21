@@ -8,7 +8,7 @@ useHead({
   meta: [
     {
       name: "google-site-verification",
-      content: "DEjKzbyxzZxZX3JfRnRNz3le_Iku77IjrYzE-axMHQA",
+      content: "Ye_NPj_76H17L1-oQoUHpXWedFhZV5ubU72vqBB2iuY",
     },
   ],
 });
