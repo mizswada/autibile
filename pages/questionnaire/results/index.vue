@@ -419,6 +419,11 @@ const scoreInterpretation = computed(() => {
               Completed on {{ formatDate(selectedResponse.created_at) }}
             </div>
           </div>
+
+          <QuestionnaireCompositeScores
+            :composite-scores="selectedResponse.composite_scores"
+            :total-score="selectedResponse.total_score"
+          />
           
           <!-- Interpretation and Recommendation -->
           <div class="space-y-4">

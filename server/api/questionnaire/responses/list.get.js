@@ -1,12 +1,9 @@
 import { mapSortedAnswers } from "~/server/utils/questionnaireOrder";
+import { buildCompositeBreakdown } from "~/server/utils/questionnaireCompositeScoring";
+import { mapQuestionnaireAnswer } from "~/server/utils/formatQuestionnaireAnswer";
 
 // Added by: Firzana Huda 24 June 2025
 export default defineEventHandler(async (event) => {
-  // Helper function to clean option titles
-  const cleanOptionTitle = (optionTitle) => {
-    if (!optionTitle) return '';
-    return optionTitle.replace(/^\[(radio|checkbox|scale|text|textarea)\]/, '').trim();
-  };
 
   try {
     // Extract userID from the session context
@@ -56,7 +53,13 @@ export default defineEventHandler(async (event) => {
     });
 
     // Format the responses for the frontend
-    const formattedResponses = responses.map(response => ({
+    const formattedResponses = responses.map(response => {
+      const compositeBreakdown = buildCompositeBreakdown(
+        response.questionnaires?.composite_scoring_config,
+        response.questionnaires_questions_answers,
+      );
+
+      return {
       qr_id: response.qr_id,
       questionnaire_id: response.questionnaire_id,
       questionnaire_title: response.questionnaires?.title || 'Unknown',
@@ -64,24 +67,18 @@ export default defineEventHandler(async (event) => {
       patient_name: response.patient_id ? (response.user_patients?.fullname || 'Patient Not Found') : 'No Patient Selected',
       total_score: response.total_score || 0,
       created_at: response.created_at,
+      composite_scores: compositeBreakdown.composite_scores,
+      composite_member_question_ids:
+        compositeBreakdown.composite_member_question_ids,
       ai_analysis: response.ai_analysis_results
         ? { result: response.ai_analysis_results.ai_result, explanation: response.ai_analysis_results.ai_explanation }
         : null,
-      answers: mapSortedAnswers(response.questionnaires_questions_answers, (answer) => ({
-        answer_id: answer.answer_id,
-        question_id: answer.question_id,
-        question_order: answer.questionnaires_questions?.order ?? null,
-        question_text: answer.questionnaires_questions?.question_text_bi || 'Unknown',
-        question_text_bm: answer.questionnaires_questions?.question_text_bm || '',
-        option_id: answer.option_id,
-        option_title: answer.questionnaires_questions_action ? cleanOptionTitle(answer.questionnaires_questions_action.option_title) || '' : '',
-        option_title_bm: answer.questionnaires_questions_action?.option_title_bm || '',
-        option_value: answer.questionnaires_questions_action?.option_value || 0,
-        text_answer: answer.text_answer || '',
-        score: answer.score || 0,
-        parentID: answer.questionnaires_questions?.parentID || null
-      }))
-    }));
+      answers: mapSortedAnswers(
+        response.questionnaires_questions_answers,
+        mapQuestionnaireAnswer,
+      ),
+    };
+    });
 
     return {
       statusCode: 200,

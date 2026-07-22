@@ -802,6 +802,12 @@
             "null"
           ]
         },
+        "numeric_answer": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "created_at": {
           "type": [
             "string",

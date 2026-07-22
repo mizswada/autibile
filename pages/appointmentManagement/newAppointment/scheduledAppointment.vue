@@ -366,6 +366,8 @@ const editBlocksDueToSessions = computed(
   () => editRequiresSessionDeduction.value && createBlocksDueToSessions.value,
 );
 
+const isCancellingEdit = computed(() => parseInt(appointmentForm.value.status, 10) === 37);
+
 // Comment form
 const commentForm = ref({
   comment: "",
@@ -414,6 +416,7 @@ const { data: appointmentsData, pending: appointmentsLoading, refresh: _refreshA
           therapistDoctorComment: appt.extendedProps.therapist_doctor_comment,
           parentRate: appt.extendedProps.parent_rate || 0,
           sessionNumber: appt.extendedProps.session_number ?? null,
+          isAdminAppointment: appt.extendedProps.is_admin_appointment || false,
           rawExtendedProps: appt.extendedProps
         };
       });
@@ -785,13 +788,15 @@ const saveAppointment = async () => {
   try {
     console.log("saveAppointment called with form data:", appointmentForm.value);
     
+    const isAdmin = appointmentForm.value.therapistDoctor === 'admin';
+
     // Validate
     if (!appointmentForm.value.date || 
         !appointmentForm.value.patient || 
         !appointmentForm.value.therapistDoctor || 
         !appointmentForm.value.serviceId ||
-        !appointmentForm.value.start_time ||
-        !appointmentForm.value.duration_type) {
+        !appointmentForm.value.duration_type ||
+        (!isAdmin && !appointmentForm.value.start_time)) {
       errorMessage.value = "Please fill in all required fields";
       console.log("Validation failed - missing required fields");
       return;
@@ -802,8 +807,7 @@ const saveAppointment = async () => {
       return;
     }
     
-    // Only require time slot for non-admin appointments
-    if (appointmentForm.value.therapistDoctor !== 'admin' && !appointmentForm.value.start_time) {
+    if (!isAdmin && !appointmentForm.value.start_time) {
       errorMessage.value = "Please select a start time";
       console.log("Validation failed - missing start time for non-admin appointment");
       return;
@@ -1053,7 +1057,7 @@ const editAppointment = (id) => {
       date: originalDate,
       patient: appointment.patientId?.toString() || "",
       serviceId: appointment.serviceId?.toString() || "",
-      therapistDoctor: appointment.practitionerId?.toString() || (appointment.isAdminAppointment ? "admin" : ""),
+      therapistDoctor: isAdminAppointment(appointment) ? "admin" : (appointment.practitionerId?.toString() || ""),
       start_time: startTime,
       duration_type: durationType,
       custom_end_time: durationType === "custom" ? endTime : "",
@@ -1088,13 +1092,52 @@ const editAppointment = (id) => {
 // Save edited appointment
 const saveEditedAppointment = async () => {
   try {
-    // Validate
+    const newStatus = parseInt(appointmentForm.value.status, 10);
+
+    // Cancelling only needs a status update — no time or practitioner required
+    if (newStatus === 37) {
+      if (selectedAppointment.value?.status === 37) {
+        errorMessage.value = "This appointment is already cancelled";
+        return;
+      }
+
+      if (!confirm('Are you sure you want to cancel this appointment? One session will be added back to the patient\'s available sessions.')) {
+        return;
+      }
+
+      isLoading.value = true;
+      errorMessage.value = "";
+      successMessage.value = "";
+
+      const { data } = await useFetch('/api/appointments/update', {
+        method: 'PUT',
+        body: {
+          appointment_id: selectedAppointment.value.id,
+          status: 37
+        }
+      });
+
+      if (data.value && data.value.success) {
+        successMessage.value = "Appointment cancelled successfully! One session has been added back to the patient's available sessions.";
+        showEditModal.value = false;
+        isEditing.value = false;
+        await refreshAppointments();
+      } else {
+        errorMessage.value = data.value?.message || "Failed to cancel appointment";
+      }
+
+      return;
+    }
+
+    const isAdmin = appointmentForm.value.therapistDoctor === 'admin';
+
+    // Validate non-cancellation edits
     if (!appointmentForm.value.date || 
         !appointmentForm.value.patient || 
         !appointmentForm.value.therapistDoctor || 
         !appointmentForm.value.serviceId ||
-        !appointmentForm.value.start_time ||
-        !appointmentForm.value.duration_type) {
+        !appointmentForm.value.duration_type ||
+        (!isAdmin && !appointmentForm.value.start_time)) {
       errorMessage.value = "Please fill in all required fields";
       return;
     }
@@ -1104,7 +1147,7 @@ const saveEditedAppointment = async () => {
       return;
     }
     
-    if (!appointmentForm.value.start_time) {
+    if (!isAdmin && !appointmentForm.value.start_time) {
       errorMessage.value = "Please select a start time";
       return;
     }
@@ -1126,7 +1169,7 @@ const saveEditedAppointment = async () => {
       practitioner_id: appointmentForm.value.therapistDoctor === 'admin' ? null : appointmentForm.value.therapistDoctor,
       service_id: appointmentForm.value.serviceId,
       date: appointmentForm.value.date,
-      status: parseInt(appointmentForm.value.status),
+      status: newStatus,
       is_admin_appointment: appointmentForm.value.therapistDoctor === 'admin',
       ...buildTimePayload(),
     };
@@ -1401,6 +1444,10 @@ const deleteAppointment = async () => {
 // Function to cancel an appointment (update status to 37)
 const cancelAppointment = async () => {
   if (!selectedAppointment.value) return;
+
+  if (!confirm('Are you sure you want to cancel this appointment? One session will be added back to the patient\'s available sessions.')) {
+    return;
+  }
   
   isLoading.value = true;
   errorMessage.value = '';
@@ -2291,7 +2338,16 @@ const validatePatientData = (patient) => {
             </div>
           </div>
 
-          <div class="mt-6 flex justify-center">
+          <div class="mt-6 flex justify-center gap-3">
+            <rs-button
+              v-if="selectedAppointment.status !== 37"
+              variant="danger"
+              @click="cancelAppointment"
+              :disabled="isLoading"
+            >
+              <span v-if="isLoading">Cancelling...</span>
+              <span v-else>Cancel Appointment</span>
+            </rs-button>
             <rs-button variant="primary" @click="showDetailsModal = false">Close</rs-button>
           </div>
         </div>
@@ -2368,6 +2424,14 @@ const validatePatientData = (patient) => {
               
               <FormKit type="select" v-model="appointmentForm.serviceId" name="serviceId" label="Service" :options="serviceOptions" validation="required" />
               
+              <div v-if="isCancellingEdit" class="p-3 bg-amber-50 border border-amber-200 rounded text-sm text-amber-800">
+                <div class="flex items-start">
+                  <Icon name="material-symbols:info" size="16" class="mr-2 mt-0.5 shrink-0" />
+                  <span>Cancelling this appointment will return one session to the patient. Time and practitioner fields are not required.</span>
+                </div>
+              </div>
+
+              <template v-if="!isCancellingEdit">
               <!-- Therapist/Doctor Selection with Admin Option -->
               <div class="relative">
                 <FormKit type="select" v-model="appointmentForm.therapistDoctor" name="therapistDoctor" label="Therapist/Doctor" :options="therapistDoctorOptions" validation="required" />
@@ -2427,6 +2491,7 @@ const validatePatientData = (patient) => {
                   <span>Admin placeholder bookings may overlap. Assign a real practitioner later; overlap will be checked at assignment.</span>
                 </div>
               </div>
+              </template>
               
               <FormKit type="select" v-model="appointmentForm.status" name="status" label="Status" :options="statusOptions" validation="required" />
             </FormKit>
@@ -2438,8 +2503,17 @@ const validatePatientData = (patient) => {
               {{ errorMessage }}
             </div>
             <div class="flex justify-end gap-2">
-              <rs-button variant="secondary-outline" @click="showEditModal = false">Cancel</rs-button>
-              <rs-button variant="primary" @click="saveEditedAppointment" :disabled="isLoading || editBlocksDueToSessions">
+              <rs-button variant="secondary-outline" @click="showEditModal = false">Close</rs-button>
+              <rs-button
+                v-if="isCancellingEdit"
+                variant="danger"
+                @click="saveEditedAppointment"
+                :disabled="isLoading"
+              >
+                <span v-if="isLoading">Cancelling...</span>
+                <span v-else>Cancel Appointment</span>
+              </rs-button>
+              <rs-button v-else variant="primary" @click="saveEditedAppointment" :disabled="isLoading || editBlocksDueToSessions">
                 <span v-if="isLoading">Saving...</span>
                 <span v-else>Save Appointment</span>
               </rs-button>

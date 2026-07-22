@@ -200,6 +200,7 @@ model questionnaires_questions_answers {
   option_id                       Int?
   score                           Int?
   text_answer                     String?                          @db.VarChar(500)
+  numeric_answer                  Int?
   created_at                      DateTime?                        @db.Timestamp(0)
   questionnaires_responds         questionnaires_responds?         @relation(fields: [qr_id], references: [qr_id], onUpdate: NoAction, map: "questionnaires_questions_answers_ibfk_1")
   questionnaires_questions        questionnaires_questions?        @relation(fields: [question_id], references: [question_id], onUpdate: NoAction, map: "questionnaires_questions_answers_ibfk_2")

@@ -204,6 +204,12 @@ const scoreInterpretation = computed(() => {
   
   return null;
 });
+
+function isCompositeMember(questionId) {
+  return (response.value?.composite_member_question_ids || []).includes(
+    questionId,
+  );
+}
 </script>
 
 <template>
@@ -272,6 +278,11 @@ const scoreInterpretation = computed(() => {
               </div>
             </div>
           </div>
+
+          <QuestionnaireCompositeScores
+            :composite-scores="response.composite_scores"
+            :total-score="response.total_score"
+          />
         </div>
         
         <RsQuestionnaireForm 
@@ -313,6 +324,11 @@ const scoreInterpretation = computed(() => {
               </div>
             </div>
           </div>
+
+          <QuestionnaireCompositeScores
+            :composite-scores="response.composite_scores"
+            :total-score="response.total_score"
+          />
         </div>
         
         <!-- Score Interpretation -->
@@ -345,14 +361,20 @@ const scoreInterpretation = computed(() => {
               <div v-for="answer in group.answers" :key="answer.answer_id" class="mb-2">
                 <div class="flex justify-between">
                   <div>
-                    <!-- Show text answer if available, otherwise show option title -->
-                    <template v-if="answer.text_answer">{{ answer.text_answer }}</template>
+                    <!-- Show numeric, text, or option answer -->
+                    <template v-if="answer.numeric_answer !== null && answer.numeric_answer !== undefined">
+                      {{ answer.numeric_answer }}
+                    </template>
+                    <template v-else-if="answer.text_answer">{{ answer.text_answer }}</template>
                     <template v-else>
                       <div>{{ (answer.option_title || '').replace(/^\[(radio|checkbox|scale|text|textarea)\]/, '') }}</div>
                       <div v-if="answer.option_title_bm" class="text-sm text-gray-500 mt-1">{{ answer.option_title_bm }}</div>
                     </template>
                   </div>
-                  <div v-if="answer.option_value" class="text-blue-600 font-medium">{{ answer.option_value }} points</div>
+                  <div v-if="isCompositeMember(answer.question_id)" class="text-indigo-600 text-sm italic">
+                    Included in group score
+                  </div>
+                  <div v-else-if="answer.option_value" class="text-blue-600 font-medium">{{ answer.option_value }} points</div>
                 </div>
               </div>
             </div>
@@ -374,14 +396,20 @@ const scoreInterpretation = computed(() => {
                   <div v-for="answer in subQuestion.answers" :key="answer.answer_id" class="mb-2">
                     <div class="flex justify-between">
                       <div>
-                        <!-- Show text answer if available, otherwise show option title -->
-                        <template v-if="answer.text_answer">{{ answer.text_answer }}</template>
+                        <!-- Show numeric, text, or option answer -->
+                        <template v-if="answer.numeric_answer !== null && answer.numeric_answer !== undefined">
+                          {{ answer.numeric_answer }}
+                        </template>
+                        <template v-else-if="answer.text_answer">{{ answer.text_answer }}</template>
                         <template v-else>
                           <div>{{ (answer.option_title || '').replace(/^\[(radio|checkbox|scale|text|textarea)\]/, '') }}</div>
                           <div v-if="answer.option_title_bm" class="text-sm text-gray-500 mt-1">{{ answer.option_title_bm }}</div>
                         </template>
                       </div>
-                      <div v-if="answer.option_value" class="text-blue-600 font-medium">{{ answer.option_value }} points</div>
+                      <div v-if="isCompositeMember(answer.question_id)" class="text-indigo-600 text-sm italic">
+                    Included in group score
+                  </div>
+                  <div v-else-if="answer.option_value" class="text-blue-600 font-medium">{{ answer.option_value }} points</div>
                     </div>
                   </div>
                 </div>

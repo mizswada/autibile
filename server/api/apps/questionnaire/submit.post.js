@@ -99,6 +99,7 @@ export default defineEventHandler(async (event) => {
       const savedAnswers = await Promise.all(
         answers.map(async (answer) => {
           let score = null;
+          let numericAnswer = null;
 
           const question = await prisma.questionnaires_questions.findUnique({
             where: {
@@ -124,10 +125,11 @@ export default defineEventHandler(async (event) => {
               question?.scoring_config,
             );
 
-            score = numericValidation.ok
+            numericAnswer = numericValidation.ok
               ? numericValidation.value
               : parseInt(answer.numeric_answer);
-            numericAnswersByQuestionId[parseInt(answer.question_id)] = score;
+            score = numericAnswer;
+            numericAnswersByQuestionId[parseInt(answer.question_id)] = numericAnswer;
           }
 
           if (score !== null) {
@@ -144,6 +146,7 @@ export default defineEventHandler(async (event) => {
               question_id: parseInt(answer.question_id),
               option_id: answer.option_id ? parseInt(answer.option_id) : null,
               score: score,
+              numeric_answer: numericAnswer,
               text_answer: answer.text_answer || null,
               created_at: new Date()
             }
@@ -235,6 +238,8 @@ export default defineEventHandler(async (event) => {
                 select: { option_title: true }
               });
               answerText = option?.option_title?.replace(/^\[(radio|checkbox|scale|text|textarea)\]/, '').trim() ?? answerText;
+            } else if (a.numeric_answer !== null && a.numeric_answer !== undefined) {
+              answerText = String(a.numeric_answer);
             }
             return { question: question?.question_text_bi ?? String(a.question_id), answer: answerText };
           })

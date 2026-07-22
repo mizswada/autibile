@@ -65,6 +65,7 @@ export default defineEventHandler(async (event) => {
     const savedAnswers = await Promise.all(
       answers.map(async (answer) => {
         let score = null;
+        let numericAnswer = null;
 
         if (answer.option_id) {
           const option = await prisma.questionnaires_questions_action.findUnique(
@@ -78,9 +79,14 @@ export default defineEventHandler(async (event) => {
           if (option && option.option_value) {
             score = option.option_value;
           }
-        } else if (answer.numeric_answer) {
-          score = parseInt(answer.numeric_answer);
-          numericAnswersByQuestionId[parseInt(answer.question_id)] = score;
+        } else if (
+          answer.numeric_answer !== undefined &&
+          answer.numeric_answer !== null &&
+          answer.numeric_answer !== ""
+        ) {
+          numericAnswer = parseInt(answer.numeric_answer);
+          score = numericAnswer;
+          numericAnswersByQuestionId[parseInt(answer.question_id)] = numericAnswer;
         }
 
         if (score !== null) {
@@ -96,6 +102,7 @@ export default defineEventHandler(async (event) => {
             question_id: parseInt(answer.question_id),
             option_id: answer.option_id ? parseInt(answer.option_id) : null,
             score: score,
+            numeric_answer: numericAnswer,
             text_answer: answer.text_answer || null,
             created_at: new Date(),
           },

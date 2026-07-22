@@ -193,6 +193,44 @@ export function computeCompositeScores(config, answersByQuestionId) {
   return result;
 }
 
+// Rebuild composite group breakdown from a saved response (history / detail views).
+export function buildCompositeBreakdown(compositeScoringConfigRaw, storedAnswers) {
+  const config = parseCompositeScoringConfig(compositeScoringConfigRaw);
+  if (!config) {
+    return {
+      composite_scores: [],
+      composite_member_question_ids: [],
+    };
+  }
+
+  const answersByQuestionId = {};
+  for (const answer of storedAnswers || []) {
+    const questionId = answer.question_id;
+    if (questionId == null) continue;
+
+    const rawValue =
+      answer.numeric_answer ??
+      answer.score ??
+      answer.option_value ??
+      answer.questionnaires_questions_action?.option_value;
+    const value = toFiniteNumber(rawValue);
+    if (value !== null) {
+      answersByQuestionId[questionId] = value;
+    }
+  }
+
+  const composite = computeCompositeScores(config, answersByQuestionId);
+
+  return {
+    composite_scores: composite.groups.map((group) => ({
+      ...group,
+      average: Math.round(group.average * 100) / 100,
+      weighted_sum: Math.round(group.weighted_sum * 100) / 100,
+    })),
+    composite_member_question_ids: [...composite.memberQuestionIds],
+  };
+}
+
 // Validates a config coming from the admin UI before persisting it.
 // Returns { ok, message, config } where config is the normalized object.
 export function validateCompositeScoringConfig(rawConfig) {
