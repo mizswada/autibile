@@ -19,6 +19,16 @@ const showDeleteModal = ref(false);
 const pendingDeleteData = ref(null);
 const isDeleting = ref(false);
 
+// Set password (admin reset for forgotten passwords)
+const showPasswordModal = ref(false);
+const passwordTarget = ref(null);
+const passwordForm = ref({
+  password: '',
+  confirmPassword: '',
+});
+const passwordError = ref('');
+const isSavingPassword = ref(false);
+
 const form = ref({
   fullName: '',
   email: '',
@@ -133,6 +143,70 @@ async function performDelete() {
     showDeleteModal.value = false;
     pendingDeleteData.value = null;
     isDeleting.value = false;
+  }
+}
+
+function openPasswordModal(row) {
+  const original = getOriginalData(row.username);
+  if (!original?.userID) {
+    alert('Unable to set password: user ID not found.');
+    return;
+  }
+
+  passwordTarget.value = original;
+  passwordForm.value = { password: '', confirmPassword: '' };
+  passwordError.value = '';
+  showPasswordModal.value = true;
+}
+
+function cancelPasswordModal() {
+  showPasswordModal.value = false;
+  passwordTarget.value = null;
+  passwordForm.value = { password: '', confirmPassword: '' };
+  passwordError.value = '';
+  isSavingPassword.value = false;
+}
+
+async function savePassword() {
+  passwordError.value = '';
+
+  if (!passwordForm.value.password || !passwordForm.value.confirmPassword) {
+    passwordError.value = 'Please fill in both password fields';
+    return;
+  }
+
+  if (passwordForm.value.password.length < 8) {
+    passwordError.value = 'Password must be at least 8 characters long';
+    return;
+  }
+
+  if (passwordForm.value.password !== passwordForm.value.confirmPassword) {
+    passwordError.value = 'Passwords do not match';
+    return;
+  }
+
+  isSavingPassword.value = true;
+  try {
+    const result = await $fetch('/api/admin/resetPassword', {
+      method: 'PUT',
+      body: {
+        userID: passwordTarget.value.userID,
+        password: passwordForm.value.password,
+        confirmPassword: passwordForm.value.confirmPassword,
+      },
+    });
+
+    if (result.statusCode === 200) {
+      alert(`Password updated for ${passwordTarget.value.fullName || passwordTarget.value.username}. Share the new password with them securely.`);
+      cancelPasswordModal();
+    } else {
+      passwordError.value = result.message || 'Failed to update password';
+    }
+  } catch (err) {
+    console.error('Password reset error:', err);
+    passwordError.value = err.data?.message || err.message || 'An error occurred while updating password';
+  } finally {
+    isSavingPassword.value = false;
   }
 }
 
@@ -396,6 +470,15 @@ watch(() => showModal.value, (newVal) => {
             >
               <Icon name="material-symbols:edit" size="22" />
             </span>
+
+            <!-- Set Password Icon -->
+            <span
+              class="relative group cursor-pointer"
+              title="Set new password"
+              @click="() => openPasswordModal(row.value)"
+            >
+              <Icon name="material-symbols:key-outline" size="22" />
+            </span>
             
             <!-- Delete Icon -->
             <span
@@ -408,6 +491,50 @@ watch(() => showModal.value, (newVal) => {
         </template>
       </rs-table>
     </rs-card>
+
+    <rs-modal
+      title="Set New Password"
+      ok-title="Save Password"
+      cancel-title="Cancel"
+      :ok-callback="savePassword"
+      :cancel-callback="cancelPasswordModal"
+      v-model="showPasswordModal"
+      :overlay-close="false"
+    >
+      <p class="mb-4 text-sm text-gray-600">
+        Set a new password for
+        <span class="font-semibold">{{ passwordTarget?.fullName || passwordTarget?.username }}</span>
+        ({{ passwordTarget?.username }}). Share it with them securely after saving.
+      </p>
+
+      <FormKit
+        type="password"
+        v-model="passwordForm.password"
+        name="password"
+        label="New Password"
+        placeholder="Enter new password"
+        validation="required|length:8"
+        :validation-messages="{ length: 'Password must be at least 8 characters long' }"
+      />
+      <FormKit
+        type="password"
+        v-model="passwordForm.confirmPassword"
+        name="confirmPassword"
+        label="Confirm Password"
+        placeholder="Re-enter new password"
+        validation="required|confirm:password"
+        :validation-messages="{ confirm: 'Passwords do not match' }"
+      />
+
+      <div v-if="passwordError" class="mt-3 p-3 bg-red-100 border border-red-400 text-red-700 rounded text-sm">
+        {{ passwordError }}
+      </div>
+
+      <div v-if="isSavingPassword" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
+        <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
+        <span>Updating password...</span>
+      </div>
+    </rs-modal>
 
     <rs-modal
       :title="isEdit ? 'Practitioner Details' : 'Add Practitioner'"

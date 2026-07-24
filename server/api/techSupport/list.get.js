@@ -1,36 +1,33 @@
 export default defineEventHandler(async (event) => {
   try {
-   
     const techSupport = await prisma.tech_supports.findMany({
       select: {
         techSupport_ID: true,
         techSupport_name: true,
         techSupport_email: true,
         techSupport_phone: true,
-        techSupport_status: true,       
+        techSupport_status: true,
       },
       where: {
-        deleted_at: null
+        deleted_at: null,
       },
       orderBy: {
-        techSupport_ID: 'asc'
-      }
+        techSupport_ID: "asc",
+      },
     });
- 
+
     if (!techSupport || techSupport.length === 0) {
       return [];
     }
- 
-    // Transform the data to match the expected format
-    const transformedTechSupport = techSupport.map((techSupport, index) => ({
+
+    return techSupport.map((item, index) => ({
       no: index + 1,
-      name: techSupport.techSupport_name,
-      email: techSupport.techSupport_email,
-      phoneNumber: techSupport.techSupport_phone,
-      status:techSupport.techSupport_status,
+      id: item.techSupport_ID,
+      techSupport_name: item.techSupport_name,
+      techSupport_email: item.techSupport_email,
+      techSupport_phone: item.techSupport_phone,
+      techSupport_status: item.techSupport_status,
     }));
- 
-    return transformedTechSupport;
   } catch (error) {
     console.log(error);
     return {

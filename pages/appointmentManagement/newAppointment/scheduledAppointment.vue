@@ -2,19 +2,21 @@
 import { ref, onMounted, watch, computed } from 'vue';
 import { useUserStore } from '@/stores/user';
 import { useFetch, useLazyFetch } from '#app';
-// Import core FullCalendar package first
-import '@fullcalendar/core';
-import FullCalendar from '@fullcalendar/vue3';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
-import listPlugin from '@fullcalendar/list';
-import interactionPlugin from '@fullcalendar/interaction';
 import Loading from '@/components/Loading.vue';
 
+// FullCalendar is browser-only. Use the client plugin (same as pages/ui/component/calendar.vue)
+// instead of importing it here — top-level imports break SSR on hard reload.
+definePageMeta({
+  ssr: false,
+  title: "Appointments Management",
+});
+
+const { $FullCalendar } = useNuxtApp();
+const FullCalendar = $FullCalendar;
 const userStore = useUserStore();
 
 const calendarOptions = ref({
-  plugins: [dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin],
+  ...($FullCalendar?.options || {}),
   initialView: 'dayGridMonth',
   headerToolbar: {
     left: "prev,next title",
@@ -83,11 +85,11 @@ const fetchAppointments = async () => {
     return;
   }
 
-  const appointments = data.value.data || [];
+  const appointments = data.value?.data || [];
   
   // Filter out cancelled appointments (status 37)
   const activeAppointments = appointments.filter(appt => 
-    appt.extendedProps.status !== 37
+    appt.extendedProps?.status !== 37
   );
   
   calendarOptions.value.events = activeAppointments.map(appt => ({
