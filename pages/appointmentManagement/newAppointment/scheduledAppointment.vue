@@ -187,7 +187,6 @@ const errorMessage = ref("");
 const successMessage = ref("");
 
 // Appointments data
-const appointments = ref([]);
 const rawData = ref([]);
 
 // Modal state
@@ -386,6 +385,77 @@ const statusOptions = ref([
   { label: "Completed", value: "41" }
 ]);
 
+const listFilter = ref('all');
+
+function buildTableRows(rawAppointments) {
+  return rawAppointments.map((appt, index) => {
+    const visibleData = {
+      no: index + 1,
+      patientName: appt.patientName,
+      practitionerName: appt.practitionerName,
+      serviceName: appt.serviceName,
+      date: appt.date,
+      timeSlot: appt.timeSlot,
+      status: appt.status,
+      action: 'edit',
+    };
+
+    Object.defineProperty(visibleData, 'id', {
+      value: appt.id,
+      enumerable: false,
+    });
+
+    return visibleData;
+  });
+}
+
+function getAppointmentDateTime(appt) {
+  if (!appt) return null;
+
+  if (appt.originalDate) {
+    const fromOriginal = new Date(appt.originalDate);
+    if (!Number.isNaN(fromOriginal.getTime())) {
+      return fromOriginal;
+    }
+  }
+
+  if (appt.startTime && appt.originalDate) {
+    const datePart = String(appt.originalDate).split('T')[0];
+    const fromParts = new Date(`${datePart}T${appt.startTime}:00`);
+    if (!Number.isNaN(fromParts.getTime())) {
+      return fromParts;
+    }
+  }
+
+  const parsedDate = new Date(appt.date);
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+}
+
+function isUpcomingAppointment(appt) {
+  if (!appt || Number(appt.status) === 37) return false;
+
+  const appointmentDateTime = getAppointmentDateTime(appt);
+  if (!appointmentDateTime) return false;
+
+  return appointmentDateTime >= new Date();
+}
+
+const filteredListAppointments = computed(() => {
+  let source = rawData.value;
+
+  if (listFilter.value === 'next') {
+    source = [...rawData.value]
+      .filter(isUpcomingAppointment)
+      .sort((a, b) => {
+        const dateA = getAppointmentDateTime(a)?.getTime() ?? 0;
+        const dateB = getAppointmentDateTime(b)?.getTime() ?? 0;
+        return dateA - dateB;
+      });
+  }
+
+  return buildTableRows(source);
+});
+
 // Fetch appointments with a custom refresh function to ensure data is properly updated
 const { data: appointmentsData, pending: appointmentsLoading, refresh: _refreshAppointments } = useLazyFetch('/api/appointments/list', {
   immediate: true,
@@ -425,28 +495,7 @@ const { data: appointmentsData, pending: appointmentsLoading, refresh: _refreshA
       
       rawData.value = rawAppointments;
       
-      // Create the table data from raw data with index as No.
-      return rawAppointments.map((appt, index) => {
-        // Create a new object without the id property in the visible data
-        const visibleData = {
-          no: index + 1,
-          patientName: appt.patientName,
-          practitionerName: appt.practitionerName,
-          serviceName: appt.serviceName,
-          date: appt.date,
-          timeSlot: appt.timeSlot,
-          status: appt.status,
-          action: 'edit'
-        };
-        
-        // Add id as a non-enumerable property so it's accessible for actions but not displayed
-        Object.defineProperty(visibleData, 'id', {
-          value: appt.id,
-          enumerable: false
-        });
-        
-        return visibleData;
-      });
+      return buildTableRows(rawAppointments);
     }
     return [];
   }
@@ -457,13 +506,6 @@ const refreshAppointments = async () => {
   await _refreshAppointments();
   await fetchAppointments();
 };
-
-// Set appointments from the fetched data
-watch(appointmentsData, (newData) => {
-  if (newData) {
-    appointments.value = newData;
-  }
-});
 
 // Fetch options from API
 const { data: optionsData, pending: optionsLoading } = useLazyFetch('/api/appointments/options', {
@@ -1876,6 +1918,28 @@ const validatePatientData = (patient) => {
               {{ errorMessage }}
             </div>
 
+            <!-- List filters -->
+            <div v-if="!appointmentsLoading" class="mb-4 flex flex-wrap gap-4 items-center">
+              <div class="flex items-center space-x-2">
+                <label class="text-sm font-medium text-gray-700">Filter:</label>
+                <select
+                  v-model="listFilter"
+                  class="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">All Appointments</option>
+                  <option value="next">Next Appointments</option>
+                </select>
+              </div>
+
+              <div
+                v-if="listFilter === 'next'"
+                class="text-sm text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-200"
+              >
+                <Icon name="material-symbols:schedule" class="mr-1" size="16" />
+                Showing upcoming appointments sorted by nearest date &amp; time
+              </div>
+            </div>
+
             <!-- Loading indicator -->
             <div v-if="appointmentsLoading" class="flex justify-center my-8">
               <div class="text-center">
@@ -1885,14 +1949,19 @@ const validatePatientData = (patient) => {
             </div>
 
             <!-- No appointments message -->
-            <div v-else-if="appointments.length === 0" class="text-center py-8 text-gray-500">
-              No appointments found. Click "Add Appointment" to create a new one.
+            <div v-else-if="filteredListAppointments.length === 0" class="text-center py-8 text-gray-500">
+              <template v-if="listFilter === 'next'">
+                No upcoming appointments found.
+              </template>
+              <template v-else>
+                No appointments found. Click "Add Appointment" to create a new one.
+              </template>
             </div>
 
             <!-- Appointment Table -->
             <rs-table
               v-else
-              :data="appointments"
+              :data="filteredListAppointments"
               :columns="columns"
               :options="{ variant: 'default', striped: true, borderless: true, hover: true }"
               :options-advanced="{ sortable: true, responsive: true, filterable: false }"
