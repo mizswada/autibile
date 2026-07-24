@@ -211,10 +211,10 @@ const deleteAPI = async (apiURL) => {
                     Code Editor
                   </rs-button>
                   <div class="flex gap-2">
-                    <rs-button @click="openModalEdit(api.url)">
+                    <rs-button title="Edit API" @click="openModalEdit(api.url)">
                       <Icon name="material-symbols:edit-outline-rounded" />
                     </rs-button>
-                    <rs-button @click="deleteAPI(api.url)">
+                    <rs-button title="Delete API" @click="deleteAPI(api.url)">
                       <Icon name="carbon:trash-can" />
                     </rs-button>
                   </div>

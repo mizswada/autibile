@@ -117,11 +117,11 @@ const formatSold = (n) => {
           <div
             class="product-action my-4 flex flex-col-reverse md:flex-row items-start md:items-center gap-4"
           >
-            <rs-button class="w-full md:w-fit">
+            <rs-button class="w-full md:w-fit" title="Add to Cart">
               <Icon class="mr-2" name="ph:shopping-cart"></Icon>
               <span class="text-white">Add to Cart</span>
             </rs-button>
-            <rs-button variant="primary-outline" class="w-full md:w-fit">
+            <rs-button variant="primary-outline" class="w-full md:w-fit" title="Add to Wishlist">
               <Icon class="mr-2" name="ph:heart-light"></Icon>
               <span>Wishlist</span>
             </rs-button>

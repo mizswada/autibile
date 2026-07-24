@@ -509,21 +509,23 @@ watch(
               <template v-slot:visible="data">
                 <div class="flex items-center">
                   <Icon
-                    name="mdi:eye-outline"
-                    class="text-primary"
+                    name="material-symbols:visibility-outline-rounded"
+                    class="table-action-icon table-action-icon--primary"
                     size="22"
+                    title="Menu Visible"
                     v-if="data.value.visible"
                   />
                   <Icon
-                    name="mdi:eye-off-outline"
-                    class="text-primary/20"
+                    name="material-symbols:visibility-off-outline-rounded"
+                    class="table-action-icon table-action-icon--neutral opacity-40"
                     size="22"
+                    title="Menu Hidden"
                     v-else
                   />
                 </div>
               </template>
               <template v-slot:action="data">
-                <div class="flex items-center">
+                <div class="table-action-group">
                   <template
                     v-if="
                       !systemPages.some((path) =>
@@ -533,14 +535,16 @@ watch(
                   >
                     <Icon
                       name="material-symbols:edit-outline-rounded"
-                      class="text-primary hover:text-primary/90 cursor-pointer mr-1"
+                      class="table-action-icon table-action-icon--primary"
                       size="22"
+                      title="Edit Menu"
                       @click="openModalEdit(data.value)"
                     ></Icon>
                     <Icon
-                      name="material-symbols:close-rounded"
-                      class="text-primary hover:text-primary/90 cursor-pointer"
+                      name="material-symbols:delete-outline"
+                      class="table-action-icon table-action-icon--danger"
                       size="22"
+                      title="Delete Menu"
                       @click="deleteMenu(data.value)"
                     ></Icon>
                   </template>

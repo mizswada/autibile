@@ -1278,7 +1278,7 @@ async function performDelete() {
 <template>
   <div>
     <div class="flex items-center mb-4">
-      <button @click="goBack" class="mr-2 p-2 rounded hover:bg-gray-100">
+      <button @click="goBack" class="mr-2 p-2 rounded hover:bg-gray-100" title="Go Back">
         <Icon name="material-symbols:arrow-back" />
       </button>
       <h1 class="text-2xl font-bold">Questions Management</h1>
@@ -1387,6 +1387,7 @@ async function performDelete() {
                         @click="toggleSubQuestions(question.id)"
                         class="mr-2 text-gray-500 hover:text-gray-700 flex items-center"
                         :class="{'rotate-90': showingSubQuestions[question.id]}"
+                        title="Expand Sub-questions"
                       >
                         <Icon name="material-symbols:chevron-right" size="20" />
                         <span class="text-xs ml-1 bg-gray-200 px-1.5 py-0.5 rounded-full">{{ question.sub_questions_count }}</span>
@@ -1507,6 +1508,7 @@ async function performDelete() {
                           @click="toggleNestedSubQuestions(subQuestion.id)"
                           class="mr-2 text-gray-500 hover:text-gray-700 flex items-center"
                           :class="{'rotate-90': showingSubQuestions[subQuestion.id]}"
+                          title="Expand Sub-questions"
                         >
                           <Icon name="material-symbols:chevron-right" size="20" />
                           <span class="text-xs ml-1 bg-gray-300 px-1.5 py-0.5 rounded-full">{{ subQuestion.sub_questions_count }}</span>
@@ -1623,6 +1625,7 @@ async function performDelete() {
                               @click="toggleDeepNestedSubQuestions(nestedSubQuestion.id)"
                               class="mr-2 text-gray-500 hover:text-gray-700 flex items-center"
                               :class="{'rotate-90': showingDeepNestedSubQuestions[nestedSubQuestion.id]}"
+                              title="Expand Sub-questions"
                             >
                               <Icon name="material-symbols:chevron-right" size="20" />
                               <span class="text-xs ml-1 bg-gray-400 px-1.5 py-0.5 rounded-full">{{ nestedSubQuestion.sub_questions_count }}</span>

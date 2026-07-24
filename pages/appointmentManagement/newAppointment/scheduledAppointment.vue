@@ -1933,32 +1933,33 @@ const validatePatientData = (patient) => {
               
               <!-- Actions column -->
               <template v-slot:action="row">
-                <div class="flex justify-center items-center space-x-3 text-gray-600">
+                <div class="table-action-group">
                   <!-- Edit Icon -->
-                  <span
-                    class="relative group cursor-pointer"
+                  <Icon
+                    name="material-symbols:edit-outline-rounded"
+                    class="table-action-icon table-action-icon--primary"
+                    size="22"
+                    title="Edit Appointment"
                     @click="() => editAppointment(row.value.id)"
-                  >
-                    <Icon name="material-symbols:edit" size="22" />
-                  </span>
+                  />
 
                   <!-- View Icon -->
-                  <span
-                    class="relative group cursor-pointer"
+                  <Icon
+                    name="material-symbols:visibility-outline-rounded"
+                    class="table-action-icon table-action-icon--primary"
+                    size="22"
+                    title="View Appointment Details"
                     @click="() => viewAppointmentDetails(row.value)"
-                  >
-                    <Icon name="material-symbols:visibility" size="22" />
-                  </span>
-
-
+                  />
 
                   <!-- Delete Icon -->
-                  <span
-                    class="relative group cursor-pointer"
+                  <Icon
+                    name="material-symbols:delete-outline"
+                    class="table-action-icon table-action-icon--danger"
+                    size="22"
+                    title="Delete Appointment"
                     @click="() => confirmDeleteAppointment(row.value.id)"
-                  >
-                    <Icon name="material-symbols:delete" size="22" class="text-red-500" />
-                  </span>
+                  />
                 </div>
               </template>
             </rs-table>
@@ -2048,7 +2049,7 @@ const validatePatientData = (patient) => {
           <!-- Header -->
           <div class="flex justify-between items-center p-6 border-b border-gray-200">
             <h2 class="text-xl font-bold">Book New Appointment</h2>
-            <button @click="showModal = false" class="text-gray-500 hover:text-gray-700">
+            <button @click="showModal = false" class="text-gray-500 hover:text-gray-700" title="Close">
               <Icon name="material-symbols:close" size="24" />
             </button>
           </div>
@@ -2077,6 +2078,7 @@ const validatePatientData = (patient) => {
                       type="button"
                       @click="clearPatientSelection"
                       class="text-gray-400 hover:text-gray-600"
+                      title="Clear Selection"
                     >
                       <Icon name="material-symbols:close" size="20" />
                     </button>
@@ -2217,7 +2219,7 @@ const validatePatientData = (patient) => {
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold">Appointment Details</h2>
-            <button @click="showDetailsModal = false" class="text-gray-500 hover:text-gray-700">
+            <button @click="showDetailsModal = false" class="text-gray-500 hover:text-gray-700" title="Close">
               <Icon name="material-symbols:close" size="24" />
             </button>
           </div>
@@ -2360,7 +2362,7 @@ const validatePatientData = (patient) => {
         <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold">Confirm Delete</h2>
-            <button @click="showDeleteModal = false" class="text-gray-500 hover:text-gray-700">
+            <button @click="showDeleteModal = false" class="text-gray-500 hover:text-gray-700" title="Close">
               <Icon name="material-symbols:close" size="24" />
             </button>
           </div>
@@ -2383,7 +2385,7 @@ const validatePatientData = (patient) => {
           <!-- Header -->
           <div class="flex justify-between items-center p-6 border-b border-gray-200">
             <h2 class="text-xl font-bold">Edit Appointment</h2>
-            <button @click="showEditModal = false" class="text-gray-500 hover:text-gray-700">
+            <button @click="showEditModal = false" class="text-gray-500 hover:text-gray-700" title="Close">
               <Icon name="material-symbols:close" size="24" />
             </button>
           </div>
@@ -2529,7 +2531,7 @@ const validatePatientData = (patient) => {
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold">Add Comment</h2>
-            <button @click="showCommentModal = false" class="text-gray-500 hover:text-gray-700">
+            <button @click="showCommentModal = false" class="text-gray-500 hover:text-gray-700" title="Close">
               <Icon name="material-symbols:close" size="24" />
             </button>
           </div>
@@ -2554,7 +2556,7 @@ const validatePatientData = (patient) => {
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold">Rate Appointment</h2>
-            <button @click="showRatingModal = false" class="text-gray-500 hover:text-gray-700">
+            <button @click="showRatingModal = false" class="text-gray-500 hover:text-gray-700" title="Close">
               <Icon name="material-symbols:close" size="24" />
             </button>
           </div>
@@ -2568,6 +2570,7 @@ const validatePatientData = (patient) => {
                 @click="ratingForm.rating = i" 
                 class="focus:outline-none"
                 type="button"
+                :title="`Rate ${i} star${i > 1 ? 's' : ''}`"
               >
                 <Icon 
                   :name="i <= ratingForm.rating ? 'material-symbols:star' : 'material-symbols:star-outline'" 
@@ -2598,7 +2601,7 @@ const validatePatientData = (patient) => {
         <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold">Confirm Delete</h2>
-            <button @click="showDeleteModal = false" class="text-gray-500 hover:text-gray-700">
+            <button @click="showDeleteModal = false" class="text-gray-500 hover:text-gray-700" title="Close">
               <Icon name="material-symbols:close" size="24" />
             </button>
           </div>

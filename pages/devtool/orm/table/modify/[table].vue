@@ -318,6 +318,7 @@ const submitModifyTable = async () => {
           <template v-slot:actions="data">
             <div class="flex justify-center items-center gap-2">
               <rs-button
+                title="Add Field"
                 @click="addNewField(tableData.indexOf(data.value))"
                 type="button"
                 class="p-1 w-6 h-6"
@@ -325,6 +326,7 @@ const submitModifyTable = async () => {
                 <Icon name="ph:plus" />
               </rs-button>
               <rs-button
+                title="Move Field Up"
                 @click="sortField(data.value.actions.id, 'up')"
                 type="button"
                 class="p-1 w-6 h-6"
@@ -333,6 +335,7 @@ const submitModifyTable = async () => {
                 <Icon name="ph:arrow-up" />
               </rs-button>
               <rs-button
+                title="Move Field Down"
                 @click="sortField(data.value.actions.id, 'down')"
                 type="button"
                 class="p-1 w-6 h-6"
@@ -343,6 +346,7 @@ const submitModifyTable = async () => {
                 <Icon name="ph:arrow-down" />
               </rs-button>
               <rs-button
+                title="Remove Field"
                 @click="removeField(data.value.actions.id)"
                 type="button"
                 class="p-1 w-6 h-6"

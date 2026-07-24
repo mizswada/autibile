@@ -619,6 +619,7 @@ function removeFile() {
             <rs-button 
               variant="ghost" 
               size="sm" 
+              title="Remove File"
               @click="removeFile"
               class="text-red-500 hover:text-red-700"
             >

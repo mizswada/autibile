@@ -486,18 +486,6 @@ function navigateToQuestions(questionnaireId) {
 .toggle-checkbox:checked::before {
   transform: translateX(20px);
 }
-
-/* Action icon styles */
-.action-icon {
-  cursor: pointer;
-  padding: 1px;
-  border-radius: 1px;
-  transition: all 0.2s ease;
-}
-.action-icon:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-  transform: scale(1.1);
-}
 </style>
 
 <template>
@@ -568,10 +556,10 @@ function navigateToQuestions(questionnaireId) {
             />
           </div> -->
           
-          <!-- Standardized action icons -->
+        <div class="table-action-group">
           <Icon
             name="material-symbols:edit-outline-rounded"
-            class="action-icon text-gray-600 hover:text-gray-800"
+            class="table-action-icon table-action-icon--primary"
             size="22"
             @click="openEditQuestionnaireModal(q)"
             :title="isProtectedQuestionnaire(q.id) ? 'Edit Age Limits' : 'Edit Questionnaire'"
@@ -579,7 +567,7 @@ function navigateToQuestions(questionnaireId) {
           
           <Icon
             name="material-symbols:list-alt-outline"
-            class="action-icon text-blue-500 hover:text-blue-600"
+            class="table-action-icon table-action-icon--neutral"
             size="22"
             @click="router.push(`/questionnaire/questions/${q.id}`)"
             title="Manage Questions"
@@ -587,7 +575,7 @@ function navigateToQuestions(questionnaireId) {
           
           <Icon
             name="material-symbols:analytics-outline"
-            class="action-icon text-purple-500 hover:text-purple-600"
+            class="table-action-icon table-action-icon--neutral"
             size="22"
             @click="router.push(`/questionnaire/thresholds/${q.id}`)"
             title="Manage Scoring Thresholds"
@@ -595,7 +583,7 @@ function navigateToQuestions(questionnaireId) {
 
           <Icon
             name="material-symbols:functions"
-            class="action-icon text-teal-500 hover:text-teal-600"
+            class="table-action-icon table-action-icon--neutral"
             size="22"
             @click="router.push(`/questionnaire/composite-scoring/${q.id}`)"
             title="Configure Composite Scoring"
@@ -604,7 +592,7 @@ function navigateToQuestions(questionnaireId) {
           <Icon
             v-if="!isProtectedQuestionnaire(q.id)"
             name="material-symbols:delete-outline"
-            class="action-icon text-red-500 hover:text-red-700"
+            class="table-action-icon table-action-icon--danger"
             size="22"
             @click="confirmDelete(q)"
             title="Delete Questionnaire"

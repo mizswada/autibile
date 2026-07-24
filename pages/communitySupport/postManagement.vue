@@ -222,16 +222,17 @@ function clearMessages() {
               </div>
             </td>
             <td class="px-4 py-2 border-b">
-              <div class="flex gap-2">
-                <rs-button size="sm" @click="openEditModal(post)">
-                  <Icon name="material-symbols:edit-outline-rounded" />
+              <div class="table-action-group">
+                <rs-button size="sm" title="Edit Post" @click="openEditModal(post)">
+                  <Icon name="material-symbols:edit-outline-rounded" size="22" />
                 </rs-button>
                 <rs-button
                   size="sm"
                   variant="danger"
+                  title="Delete Post"
                   @click="confirmDelete(post)"
                 >
-                  <Icon name="material-symbols:delete-outline" />
+                  <Icon name="material-symbols:delete-outline" size="22" />
                 </rs-button>
               </div>
             </td>

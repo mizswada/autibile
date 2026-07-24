@@ -843,7 +843,7 @@ watch(() => newOption.value.option_type, (newType, oldType) => {
   <div>
     <!-- Header -->
     <div class="flex items-center mb-4">
-      <button @click="goBack" class="mr-2 p-2 rounded hover:bg-gray-100">
+      <button @click="goBack" class="mr-2 p-2 rounded hover:bg-gray-100" title="Go Back">
         <Icon name="ic:outline-arrow-back" />
       </button>
       <h1 class="text-2xl font-bold">Question Answer Management</h1>
@@ -1042,7 +1042,8 @@ watch(() => newOption.value.option_type, (newType, oldType) => {
                        {{ option.conditional_sub_questions_ids && JSON.parse(option.conditional_sub_questions_ids).length > 0 ? `Triggers Sub-Questions (Value: ${option.value})` : 'No Sub-Questions' }}
                      </span>
                      <button @click="openConditionalLogicModal(option)"
-                             class="ml-2 p-1 rounded-full text-purple-600 hover:bg-purple-100 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                             class="ml-2 p-1 rounded-full text-purple-600 hover:bg-purple-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                             title="Configure Conditional Logic">
                        <Icon name="ic:outline-filter-list" class="w-5 h-5" />
                      </button>
                      <div v-if="option.conditional_sub_questions_ids" class="mt-1 text-xs text-gray-500">

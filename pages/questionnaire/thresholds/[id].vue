@@ -214,7 +214,7 @@ function getScoreRangeDisplay(threshold) {
 <template>
   <div>
     <div class="flex items-center mb-4">
-      <button @click="goBack" class="mr-2 p-2 rounded hover:bg-gray-100">
+      <button @click="goBack" class="mr-2 p-2 rounded hover:bg-gray-100" title="Go Back">
         <Icon name="material-symbols:arrow-back" />
       </button>
       <h1 class="text-2xl font-bold">Scoring Thresholds Management</h1>

@@ -219,6 +219,7 @@ function isCompositeMember(questionId) {
         <button 
           @click="goBack"
           class="mr-3 flex items-center text-black hover:text-gray-800"
+          title="Go Back"
         >
           <Icon name="material-symbols:arrow-back" class="mr-1" />
         </button>

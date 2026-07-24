@@ -79,6 +79,7 @@ const computedKey = computed(() => {
           <template #prefix>
             <button
               class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 hover:dark:bg-slate-900 h-full rounded-l-md p-3 flex justify-center items-center"
+              title="Generate Key"
               @click="generateKey"
             >
               <Icon name="ic:round-refresh" size="19"></Icon>
@@ -198,6 +199,7 @@ const computedKey = computed(() => {
           <template #suffix>
             <button
               class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 hover:dark:bg-slate-900 h-full rounded-r-md p-3 flex justify-center items-center"
+              title="Generate Key"
               @click="generateKey"
             >
               <Icon name="ic:round-refresh" size="19"></Icon>

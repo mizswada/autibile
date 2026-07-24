@@ -377,12 +377,12 @@ function getOriginalData(childIC, parentUsername) {
 
         <!-- SLOT for action column -->
         <template v-slot:action="row">
-          <div class="flex justify-center items-center space-x-4">
+          <div class="table-action-group">
             <Icon
               name="material-symbols:quiz-outline"
-              class="text-blue-600 hover:text-blue-700 cursor-pointer"
+              class="table-action-icon table-action-icon--primary"
               size="22"
-              title="Questionnaire access"
+              title="Questionnaire Access"
               @click="() => {
                 const original = getOriginalData(row.value.childIC, row.value.parentUsername);
                 if (original) openQuestionnaireAccessModal(original);
@@ -390,8 +390,9 @@ function getOriginalData(childIC, parentUsername) {
             />
             <Icon
               name="material-symbols:edit-outline-rounded"
-              class="text-primary hover:text-primary/90 cursor-pointer"
+              class="table-action-icon table-action-icon--primary"
               size="22"
+              title="Edit Child"
               @click="() => {
                 const original = getOriginalData(row.value.childIC, row.value.parentUsername);
                 if (original) {
@@ -404,8 +405,9 @@ function getOriginalData(childIC, parentUsername) {
             />
             <Icon
               name="material-symbols:delete-outline"
-              class="text-red-500 hover:text-red-600 cursor-pointer"
+              class="table-action-icon table-action-icon--danger"
               size="22"
+              title="Remove Child"
               @click="() => {
                 const original = getOriginalData(row.value.childIC, row.value.parentUsername);
                 if (original) {

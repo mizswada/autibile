@@ -194,18 +194,20 @@ onMounted(() => {
               variant="outline" 
               size="sm" 
               class="flex-1 bg-primary text-white"
+              title="Edit Package"
               @click="() => $router.push(`/payment/editPackage/${pkg.package_id}`)"
             >
-              <NuxtIcon name="ic:outline-edit" class="mr-1" />
+              <Icon name="material-symbols:edit-outline-rounded" size="22" class="mr-1" />
               Edit
             </rs-button>
             <rs-button 
               variant="outline" 
               size="sm" 
               class="flex-1 bg-primary text-white"
+              title="View Package"
               @click="() => $router.push(`/payment/viewPackage/${pkg.package_id}`)"
             >
-              <NuxtIcon name="ic:outline-visibility" class="mr-1" />
+              <Icon name="material-symbols:visibility-outline-rounded" size="22" class="mr-1" />
               View
             </rs-button>
           </div>

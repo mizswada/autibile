@@ -211,11 +211,12 @@ onMounted(fetchContacts)
           </rs-badge>
         </template>
         <template v-slot:action="data">
-          <div class="flex justify-center items-center">
+          <div class="table-action-group">
             <Icon
               name="material-symbols:edit-outline-rounded"
-              class="text-primary hover:text-primary/90 cursor-pointer"
+              class="table-action-icon table-action-icon--primary"
               size="22"
+              title="Edit Tech Support"
               @click="openEditModal(data.value)"
             ></Icon>
           </div>

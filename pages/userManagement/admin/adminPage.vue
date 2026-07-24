@@ -221,35 +221,38 @@ async function performDelete() {
         advanced
       >
         <template v-slot:action="row">
-          <div class="flex justify-center items-center space-x-3 text-gray-600">
+          <div class="table-action-group">
             <!-- View Icon -->
-            <span
-              class="relative group cursor-pointer"
+            <Icon
+              name="material-symbols:visibility-outline-rounded"
+              class="table-action-icon table-action-icon--primary"
+              size="22"
+              title="View Administrator Details"
               @click="() => viewAdminDetails(row.value)"
-            >
-              <Icon name="material-symbols:visibility" size="22" />
-            </span>
+            />
 
             <!-- Edit Icon -->
-            <span
-              class="relative group cursor-pointer"
+            <Icon
+              name="material-symbols:edit-outline-rounded"
+              class="table-action-icon table-action-icon--primary"
+              size="22"
+              title="Edit Administrator"
               @click="() => {
                 const original = getOriginalData(row.value.username);
                 if (original) {
                   $router.push({ path: '/userManagement/admin/editAdmin', query: { userID: original.userID } });
                 }
               }"
-            >
-              <Icon name="material-symbols:edit" size="22" />
-            </span>
+            />
             
             <!-- Delete Icon -->
-            <span
-              class="relative group cursor-pointer text-red-500 hover:text-red-700"
+            <Icon
+              name="material-symbols:delete-outline"
+              class="table-action-icon table-action-icon--danger"
+              size="22"
+              title="Delete Administrator"
               @click="() => confirmDelete(row.value)"
-            >
-              <Icon name="material-symbols:delete-outline" size="22" />
-            </span>
+            />
           </div>
         </template>
 

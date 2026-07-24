@@ -909,8 +909,9 @@ async function downloadReferralLetter(referral) {
                           <button
                             @click="$router.push(`/questionnaire/results/${q.qr_id}?patientId=${patientId}`)"
                             class="text-purple-600 hover:text-purple-800 font-medium flex items-center"
+                            title="View Screening Details"
                           >
-                            <Icon name="material-symbols:visibility" class="mr-1" />
+                            <Icon name="material-symbols:visibility-outline-rounded" size="22" class="mr-1" />
                             View Details
                           </button>
                         </td>
@@ -982,18 +983,18 @@ async function downloadReferralLetter(referral) {
                         <td class="px-6 py-4 text-sm text-gray-900">{{ referral.recipient || referral.referrals_recepient }}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">{{ formatDateOnly(referral.date || referral.referrals_date) }}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">
-                          <div class="flex space-x-2">
-                            <rs-button variant="outline" size="sm" @click="openReferralModal(referral)">
-                              <Icon name="material-symbols:visibility" size="16" />
+                          <div class="table-action-group">
+                            <rs-button variant="outline" size="sm" title="View Referral" @click="openReferralModal(referral)">
+                              <Icon name="material-symbols:visibility-outline-rounded" size="22" />
                             </rs-button>
-                            <rs-button variant="outline" size="sm" @click="editReferral(referral)">
-                              <Icon name="material-symbols:edit" size="16" />
+                            <rs-button variant="outline" size="sm" title="Edit Referral" @click="editReferral(referral)">
+                              <Icon name="material-symbols:edit-outline-rounded" size="22" />
                             </rs-button>
-                            <rs-button variant="outline" size="sm" @click="deleteReferral(referral.id)">
-                              <Icon name="material-symbols:delete" size="16" class="text-red-500" />
+                            <rs-button variant="outline" size="sm" title="Delete Referral" @click="deleteReferral(referral.id)">
+                              <Icon name="material-symbols:delete-outline" size="22" />
                             </rs-button>
-                            <rs-button variant="outline" size="sm" @click="downloadReferralLetter(referral)">
-                              <Icon name="material-symbols:download" size="16" />
+                            <rs-button variant="outline" size="sm" title="Download Referral Letter" @click="downloadReferralLetter(referral)">
+                              <Icon name="material-symbols:download-outline" size="22" />
                             </rs-button>
                           </div>
                         </td>

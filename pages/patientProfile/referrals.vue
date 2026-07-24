@@ -387,15 +387,15 @@ function downloadReferralPdf(referral) {
             <div class="flex items-center space-x-3">
               <h3 class="text-lg font-semibold text-gray-900">{{ referral.recipient }}</h3>
             </div>
-            <div class="flex space-x-2">
-              <rs-button variant="outline" size="sm" @click="editReferral(referral)">
-                <Icon name="material-symbols:edit" size="16" />
+            <div class="table-action-group">
+              <rs-button variant="outline" size="sm" title="Edit Referral" @click="editReferral(referral)">
+                <Icon name="material-symbols:edit-outline-rounded" size="22" />
               </rs-button>
-              <rs-button variant="outline" size="sm" @click="deleteReferral(referral.id)">
-                <Icon name="material-symbols:delete" size="16" class="text-red-500" />
+              <rs-button variant="outline" size="sm" title="Delete Referral" @click="deleteReferral(referral.id)">
+                <Icon name="material-symbols:delete-outline" size="22" />
               </rs-button>
-              <rs-button variant="outline" size="sm" @click="downloadReferralPdf(referral)">
-                <Icon name="material-symbols:download" size="16" />
+              <rs-button variant="outline" size="sm" title="Download Referral Letter" @click="downloadReferralPdf(referral)">
+                <Icon name="material-symbols:download-outline" size="22" />
               </rs-button>
             </div>
           </div>

@@ -357,19 +357,21 @@ function groupRoleByUser() {
               </template>
               <template v-slot:action="data">
                 <div
-                  class="flex justify-center items-center"
+                  class="table-action-group"
                   v-if="data.value.role?.value != '1'"
                 >
                   <Icon
                     name="material-symbols:edit-outline-rounded"
-                    class="text-primary hover:text-primary/90 cursor-pointer mr-1"
+                    class="table-action-icon table-action-icon--primary"
                     size="22"
+                    title="Edit Role"
                     @click="openModal(data.value, 'edit')"
                   ></Icon>
                   <Icon
-                    name="material-symbols:close-rounded"
-                    class="text-primary hover:text-primary/90 cursor-pointer"
+                    name="material-symbols:delete-outline"
+                    class="table-action-icon table-action-icon--danger"
                     size="22"
+                    title="Delete Role"
                     @click="openModalDelete(data.value)"
                   ></Icon>
                 </div>

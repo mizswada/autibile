@@ -204,17 +204,19 @@ onMounted(fetchCentres)
             </a>
           </template>
           <template v-slot:action="data" class="flex justify-center items-center">
-            <div class="flex justify-center items-center">
+            <div class="table-action-group">
               <Icon
                 name="material-symbols:edit-outline-rounded"
-                class="text-primary hover:text-primary/90 cursor-pointer mr-3"
+                class="table-action-icon table-action-icon--primary"
                 size="22"
+                title="Edit Centre"
                 @click="openModal(data.value, 'edit')"
               ></Icon>
               <Icon
-                name="material-symbols:close-rounded"
-                class="text-primary hover:text-primary/90 cursor-pointer"
+                name="material-symbols:delete-outline"
+                class="table-action-icon table-action-icon--danger"
                 size="22"
+                title="Delete Centre"
                 @click="openModalDelete(data.value)"
               ></Icon>
             </div>

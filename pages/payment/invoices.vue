@@ -219,17 +219,19 @@ onMounted(() => {
                     <rs-button 
                       variant="outline" 
                       size="sm"
+                      title="View Invoice"
                       @click="() => $router.push(`/payment/viewInvoice/${invoice.invoice_id}`)"
                     >
-                      <NuxtIcon name="ic:outline-visibility" class="mr-1" />
+                      <Icon name="material-symbols:visibility-outline-rounded" size="22" class="mr-1" />
                       View
                     </rs-button>
                     <rs-button 
                       variant="outline" 
                       size="sm"
+                      title="Edit Invoice"
                       @click="() => $router.push(`/payment/editInvoice/${invoice.invoice_id}`)"
                     >
-                      <NuxtIcon name="ic:outline-edit" class="mr-1" />
+                      <Icon name="material-symbols:edit-outline-rounded" size="22" class="mr-1" />
                       Edit
                     </rs-button>
                   </div>

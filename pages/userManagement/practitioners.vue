@@ -462,31 +462,33 @@ watch(() => showModal.value, (newVal) => {
         </template>
         
         <template #action="row">
-          <div class="flex gap-2">
+          <div class="table-action-group">
             <!-- Edit Icon -->
-            <span
-              class="relative group cursor-pointer"
+            <Icon
+              name="material-symbols:edit-outline-rounded"
+              class="table-action-icon table-action-icon--primary"
+              size="22"
+              title="Edit Practitioner"
               @click="() => openEditModal(row.value)"
-            >
-              <Icon name="material-symbols:edit" size="22" />
-            </span>
+            />
 
             <!-- Set Password Icon -->
-            <span
-              class="relative group cursor-pointer"
-              title="Set new password"
+            <Icon
+              name="material-symbols:key-outline"
+              class="table-action-icon table-action-icon--primary"
+              size="22"
+              title="Set New Password"
               @click="() => openPasswordModal(row.value)"
-            >
-              <Icon name="material-symbols:key-outline" size="22" />
-            </span>
+            />
             
             <!-- Delete Icon -->
-            <span
-              class="relative group cursor-pointer text-red-500 hover:text-red-700"
+            <Icon
+              name="material-symbols:delete-outline"
+              class="table-action-icon table-action-icon--danger"
+              size="22"
+              title="Delete Practitioner"
               @click="() => confirmDelete(row.value)"
-            >
-              <Icon name="material-symbols:delete-outline" size="22" />
-            </span>
+            />
           </div>
         </template>
       </rs-table>

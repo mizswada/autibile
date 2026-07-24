@@ -70,14 +70,14 @@ const searchTemplate = () => {
             <div class="thumbnail-wrapper relative">
               <div class="button-list absolute bottom-3 right-3 flex z-10">
                 <nuxt-link :to="val.img" target="_blank">
-                  <rs-button class="!py-2 !px-3 rounded-r-none">
+                  <rs-button class="!py-2 !px-3 rounded-r-none" title="View Full Size">
                     <Icon name="material-symbols:fullscreen-rounded"></Icon>
                   </rs-button>
                 </nuxt-link>
                 <nuxt-link
                   :to="`/devtool/content-editor/template/view/${val.id}`"
                 >
-                  <rs-button class="!py-2 !px-3 rounded-l-none">
+                  <rs-button class="!py-2 !px-3 rounded-l-none" title="Preview Template">
                     <Icon name="material-symbols:preview"></Icon>
                   </rs-button>
                 </nuxt-link>

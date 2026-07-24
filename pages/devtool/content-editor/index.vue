@@ -184,14 +184,14 @@ const confirmModal = async () => {
                 <!-- <nuxt-link
                   :to="`/devtool/content-editor/canvas?page=${page.name}`"
                 >
-                  <rs-button variant="primary" class="!py-2 !px-3">
+                  <rs-button variant="primary" class="!py-2 !px-3" title="Open Canvas Editor">
                     <Icon name="ph:paint-brush-broad"></Icon>
                   </rs-button>
                 </nuxt-link> -->
                 <nuxt-link
                   :to="`/devtool/content-editor/code?page=${page.name}`"
                 >
-                  <rs-button variant="primary" class="!py-2 !px-3">
+                  <rs-button variant="primary" class="!py-2 !px-3" title="Open Code Editor">
                     <Icon
                       name="material-symbols:code-blocks-outline-rounded"
                     ></Icon>
@@ -201,6 +201,7 @@ const confirmModal = async () => {
               <rs-button
                 variant="primary-text"
                 class="!py-2 !px-3"
+                title="Import Template"
                 @click="importTemplate(page.name)"
               >
                 <Icon name="mdi:import"></Icon>

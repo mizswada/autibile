@@ -195,16 +195,18 @@ onMounted(fetchPatients);
                       @click="$router.push(`/diaryReport/view/${patient.childID}`)" 
                       color="primary"
                       size="sm"
+                      title="View Diary Report"
                     >
-                      <Icon name="material-symbols:visibility" class="mr-1" />
+                      <Icon name="material-symbols:visibility-outline-rounded" size="22" class="mr-1" />
                       View
                     </rs-button>
                     <rs-button 
                       @click="$router.push(`/patientProfile?patientId=${patient.childID}`)" 
                       color="secondary"
                       size="sm"
+                      title="View Patient Profile"
                     >
-                      <Icon name="material-symbols:person" class="mr-1" />
+                      <Icon name="material-symbols:person-outline" size="22" class="mr-1" />
                       Profile
                     </rs-button>
                     <!-- <rs-button 

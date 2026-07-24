@@ -30,3 +30,24 @@
 .table-footer-page {
   @apply flex justify-center gap-x-2;
 }
+
+/* Table row action icons */
+.table-action-group {
+  @apply flex justify-center items-center gap-3;
+}
+
+.table-action-icon {
+  @apply cursor-pointer transition-colors;
+}
+
+.table-action-icon--primary {
+  @apply text-primary hover:text-primary/90;
+}
+
+.table-action-icon--danger {
+  @apply text-red-500 hover:text-red-700;
+}
+
+.table-action-icon--neutral {
+  @apply text-gray-600 hover:text-gray-800;
+}

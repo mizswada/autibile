@@ -553,20 +553,21 @@ const pageNumbers = computed(() => {
                   </rs-badge>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <div class="flex space-x-2">
-                    <rs-button variant="text" @click="viewInvoiceDetails(invoice)">
-                      <Icon name="mdi:eye" />
+                  <div class="table-action-group">
+                    <rs-button variant="text" title="View Invoice Details" @click="viewInvoiceDetails(invoice)">
+                      <Icon name="material-symbols:visibility-outline-rounded" size="22" />
                     </rs-button>
-                    <rs-button 
-                      variant="text" 
+                    <rs-button
+                      variant="text"
+                      title="Download Invoice"
                       @click="downloadInvoice(invoice.invoice_id)"
                       :loading="isGeneratingPdf"
                       :disabled="isGeneratingPdf"
                     >
-                      <Icon name="mdi:download" />
+                      <Icon name="material-symbols:download-outline" size="22" />
                     </rs-button>
-                    <rs-button variant="text" @click="printInvoice(invoice)">
-                      <Icon name="mdi:printer" />
+                    <rs-button variant="text" title="Print Invoice" @click="printInvoice(invoice)">
+                      <Icon name="material-symbols:print-outline" size="22" />
                     </rs-button>
                   </div>
                 </td>
@@ -668,21 +669,22 @@ const pageNumbers = computed(() => {
                   </rs-badge>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <div class="flex space-x-2">
-                    <rs-button variant="text" size="sm" @click="viewPaymentDetails(payment)">
-                      <Icon name="ic:outline-visibility" />
+                  <div class="table-action-group">
+                    <rs-button variant="text" size="sm" title="View Payment Details" @click="viewPaymentDetails(payment)">
+                      <Icon name="material-symbols:visibility-outline-rounded" size="22" />
                     </rs-button>
-                    <rs-button 
-                      variant="text" 
+                    <rs-button
+                      variant="text"
                       size="sm"
+                      title="Download Receipt"
                       @click="downloadReceipt(payment.payment_id)"
                       :loading="isGeneratingReceipt"
                       :disabled="isGeneratingReceipt"
                     >
-                      <Icon name="mdi:download" />
+                      <Icon name="material-symbols:download-outline" size="22" />
                     </rs-button>
-                    <rs-button variant="text" size="sm" @click="printReceipt(payment)">
-                      <Icon name="mdi:printer" />
+                    <rs-button variant="text" size="sm" title="Print Receipt" @click="printReceipt(payment)">
+                      <Icon name="material-symbols:print-outline" size="22" />
                     </rs-button>
                   </div>
                 </td>

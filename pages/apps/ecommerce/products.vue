@@ -158,6 +158,7 @@ const pages = computed(() => {
     <!-- Filter n Categories -->
     <div class="filter-top-wrapper flex pb-4">
       <rs-button
+        title="Toggle Filters"
         @click="showFilter ? (showFilter = false) : (showFilter = true)"
       >
         <Icon size="1.25rem" name="ic:outline-filter-alt"></Icon>
@@ -364,6 +365,7 @@ const pages = computed(() => {
         <rs-button
           variant="primary-outline"
           class="rounded-full !p-1 w-8 h-8"
+          title="Next Page"
           @click="nextPage"
           :disabled="currentPage == totalPage"
         >

@@ -192,6 +192,7 @@ const computedtype = computed(() => {
           <template #suffix>
             <button
               class="h-full rounded-r-md p-2 flex justify-center items-center"
+              title="Toggle Password Visibility"
               @click="toggleType"
             >
               <Icon

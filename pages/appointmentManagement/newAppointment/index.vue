@@ -872,22 +872,24 @@ const saveRating = async () => {
           
           <!-- Actions column -->
           <template v-slot:action="row">
-            <div class="flex justify-center items-center space-x-3 text-gray-600">
+            <div class="table-action-group">
               <!-- Edit Icon -->
-              <span
-                class="relative group cursor-pointer"
+              <Icon
+                name="material-symbols:edit-outline-rounded"
+                class="table-action-icon table-action-icon--primary"
+                size="22"
+                title="Edit Appointment"
                 @click="() => editAppointment(getOriginalData(row.value.id))"
-              >
-                <Icon name="material-symbols:edit" size="22" />
-              </span>
+              />
 
               <!-- View Icon -->
-              <span
-                class="relative group cursor-pointer"
+              <Icon
+                name="material-symbols:visibility-outline-rounded"
+                class="table-action-icon table-action-icon--primary"
+                size="22"
+                title="View Appointment Details"
                 @click="() => viewAppointmentDetails(getOriginalData(row.value.id))"
-              >
-                <Icon name="material-symbols:visibility" size="22" />
-              </span>
+              />
             </div>
           </template>
         </rs-table>
@@ -898,7 +900,7 @@ const saveRating = async () => {
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold">Book New Appointment</h2>
-            <button @click="showModal = false" class="text-gray-500 hover:text-gray-700">
+            <button @click="showModal = false" class="text-gray-500 hover:text-gray-700" title="Close">
               <Icon name="material-symbols:close" size="24" />
             </button>
           </div>
@@ -952,7 +954,7 @@ const saveRating = async () => {
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold">Appointment Details</h2>
-            <button @click="showDetailsModal = false" class="text-gray-500 hover:text-gray-700">
+            <button @click="showDetailsModal = false" class="text-gray-500 hover:text-gray-700" title="Close">
               <Icon name="material-symbols:close" size="24" />
             </button>
           </div>
@@ -1068,7 +1070,7 @@ const saveRating = async () => {
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold">Edit Appointment</h2>
-            <button @click="showEditModal = false" class="text-gray-500 hover:text-gray-700">
+            <button @click="showEditModal = false" class="text-gray-500 hover:text-gray-700" title="Close">
               <Icon name="material-symbols:close" size="24" />
             </button>
           </div>
@@ -1122,7 +1124,7 @@ const saveRating = async () => {
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold">Add Comment</h2>
-            <button @click="showCommentModal = false" class="text-gray-500 hover:text-gray-700">
+            <button @click="showCommentModal = false" class="text-gray-500 hover:text-gray-700" title="Close">
               <Icon name="material-symbols:close" size="24" />
             </button>
           </div>
@@ -1146,7 +1148,7 @@ const saveRating = async () => {
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold">Rate Appointment</h2>
-            <button @click="showRatingModal = false" class="text-gray-500 hover:text-gray-700">
+            <button @click="showRatingModal = false" class="text-gray-500 hover:text-gray-700" title="Close">
               <Icon name="material-symbols:close" size="24" />
             </button>
           </div>
@@ -1160,6 +1162,7 @@ const saveRating = async () => {
                 @click="ratingForm.rating = i" 
                 class="focus:outline-none"
                 type="button"
+                :title="`Rate ${i} star${i > 1 ? 's' : ''}`"
               >
                 <Icon 
                   :name="i <= ratingForm.rating ? 'material-symbols:star' : 'material-symbols:star-outline'" 

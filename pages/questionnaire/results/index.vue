@@ -318,20 +318,20 @@ const scoreInterpretation = computed(() => {
               <td class="px-6 py-4">{{ response.total_score }}</td>
               <td class="px-6 py-4">{{ formatDate(response.created_at) }}</td>
               <td class="px-6 py-4">
-                <div class="flex space-x-3">
+                <div class="table-action-group">
                   <button 
                     @click="viewResponseDetails(response.qr_id)"
-                    class="text-blue-600 hover:text-blue-800 flex items-center"
+                    class="table-action-icon table-action-icon--neutral flex items-center"
                     title="View Details"
                   >
-                    <Icon name="material-symbols:info-outline-rounded" class="mr-1" />
+                    <Icon name="material-symbols:info-outline-rounded" size="22" />
                   </button>
                   <button 
                     @click="viewResponse(response.qr_id)"
-                    class="text-green-600 hover:text-green-800 flex items-center"
+                    class="table-action-icon table-action-icon--primary flex items-center"
                     title="View Autism Screening and Answers"
                   >
-                    <Icon name="material-symbols:visibility" class="mr-1" />
+                    <Icon name="material-symbols:visibility-outline-rounded" size="22" />
                   </button>
                 </div>
               </td>

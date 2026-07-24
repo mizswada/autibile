@@ -397,6 +397,7 @@ function togglePasswordVisibility() {
               <button 
                 type="button" 
                 class="absolute right-3 top-9 text-gray-500"
+                title="Toggle Password Visibility"
                 @click="togglePasswordVisibility"
               >
                 <Icon 

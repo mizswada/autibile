@@ -442,7 +442,7 @@ onMounted(loadPatientDetails);
 <template>
   <div>
     <div class="flex items-center mb-6">
-      <button @click="router.push('/diaryReport')" class="mr-2 p-2 rounded hover:bg-gray-100">
+      <button @click="router.push('/diaryReport')" class="mr-2 p-2 rounded hover:bg-gray-100" title="Go Back">
         <Icon name="material-symbols:arrow-back" />
       </button>
       <h1 class="text-2xl font-bold">Patient Diary Report</h1>
