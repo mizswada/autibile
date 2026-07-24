@@ -7,6 +7,7 @@ const loading = ref(false)
 const error = ref('')
 const successMessage = ref('')
 const showModal = ref(false)
+const isEdit = ref(false)
 const editId = ref(null)
 const form = ref({
   techSupport_name: '',
@@ -21,6 +22,15 @@ function normalizeStatus(status) {
   return String(status || '').toUpperCase() === 'ACTIVE' ? 'Active' : 'Inactive'
 }
 
+function resetForm() {
+  form.value = {
+    techSupport_name: '',
+    techSupport_email: '',
+    techSupport_phone: '',
+    techSupport_status: 'Active',
+  }
+}
+
 async function fetchContacts() {
   loading.value = true
   try {
@@ -31,7 +41,6 @@ async function fetchContacts() {
       tableKey.value += 1
       error.value = ''
     } else {
-      // Keep existing rows if refresh fails — do not wipe the table
       error.value = data?.message || 'Failed to load tech support contacts'
     }
   } catch (e) {
@@ -39,6 +48,15 @@ async function fetchContacts() {
   } finally {
     loading.value = false
   }
+}
+
+function openAddModal() {
+  resetForm()
+  isEdit.value = false
+  editId.value = null
+  showModal.value = true
+  error.value = ''
+  successMessage.value = ''
 }
 
 function openEditModal(contact) {
@@ -54,6 +72,7 @@ function openEditModal(contact) {
     techSupport_phone: contact.techSupport_phone || contact.contact || '',
     techSupport_status: normalizeStatus(contact.techSupport_status || contact.status),
   }
+  isEdit.value = true
   editId.value = id
   showModal.value = true
   error.value = ''
@@ -61,11 +80,6 @@ function openEditModal(contact) {
 }
 
 async function saveContact() {
-  if (!editId.value) {
-    error.value = 'Unable to save: missing tech support ID'
-    return
-  }
-
   if (
     !form.value.techSupport_name.trim() ||
     !form.value.techSupport_email.trim() ||
@@ -76,29 +90,43 @@ async function saveContact() {
     return
   }
 
+  if (isEdit.value && !editId.value) {
+    error.value = 'Unable to save: missing tech support ID'
+    return
+  }
+
   try {
-    const res = await $fetch(`/api/techSupport/update?id=${editId.value}`, {
-      method: 'PUT',
-      body: {
-        techSupport_name: form.value.techSupport_name.trim(),
-        techSupport_email: form.value.techSupport_email.trim(),
-        techSupport_phone: form.value.techSupport_phone.trim(),
-        techSupport_status: form.value.techSupport_status,
-      },
-    })
+    const body = {
+      techSupport_name: form.value.techSupport_name.trim(),
+      techSupport_email: form.value.techSupport_email.trim(),
+      techSupport_phone: form.value.techSupport_phone.trim(),
+      techSupport_status: form.value.techSupport_status,
+    }
+
+    const res = isEdit.value
+      ? await $fetch(`/api/techSupport/update?id=${editId.value}`, {
+          method: 'PUT',
+          body,
+        })
+      : await $fetch('/api/techSupport/add', {
+          method: 'POST',
+          body,
+        })
 
     if (res.statusCode === 200) {
       showModal.value = false
-      successMessage.value = 'Tech support contact updated successfully!'
+      successMessage.value = isEdit.value
+        ? 'Tech support contact updated successfully!'
+        : 'Tech support contact added successfully!'
       await fetchContacts()
       setTimeout(() => {
         successMessage.value = ''
       }, 3000)
     } else {
-      error.value = res.message || 'Failed to update tech support contact'
+      error.value = res.message || 'Failed to save tech support contact'
     }
   } catch (e) {
-    error.value = e.data?.message || e.message || 'Failed to update tech support contact'
+    error.value = e.data?.message || e.message || 'Failed to save tech support contact'
   }
 }
 
@@ -118,6 +146,13 @@ onMounted(fetchContacts)
     </div>
 
     <div class="card p-4 mt-4">
+      <div class="flex justify-end mb-4">
+        <rs-button @click="openAddModal">
+          <Icon name="material-symbols:add" class="mr-1" />
+          Add New Tech Support
+        </rs-button>
+      </div>
+
       <div v-if="loading && supportContacts.length === 0" class="flex justify-center my-8">
         <div class="flex flex-col items-center">
           <Icon name="line-md:loading-twotone-loop" size="48" class="text-primary mb-2" />
@@ -146,7 +181,15 @@ onMounted(fetchContacts)
           {{ data.value.no }}
         </template>
         <template v-slot:supportType="data">
-          {{ data.value.techSupport_name || data.value.supportType }}
+          <div class="flex items-center gap-2">
+            <span>{{ data.value.techSupport_name || data.value.supportType }}</span>
+            <rs-badge
+              v-if="data.value.isDefault || data.value.id === 1"
+              variant="info"
+            >
+              Default
+            </rs-badge>
+          </div>
         </template>
         <template v-slot:contact="data">
           <div>
@@ -185,7 +228,7 @@ onMounted(fetchContacts)
     </div>
 
     <rs-modal
-      title="Edit Tech Support"
+      :title="isEdit ? 'Edit Tech Support' : 'Add New Tech Support'"
       ok-title="Save"
       cancel-title="Cancel"
       :ok-callback="saveContact"
