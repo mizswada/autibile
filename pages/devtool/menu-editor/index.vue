@@ -508,20 +508,26 @@ watch(
               </template>
               <template v-slot:visible="data">
                 <div class="flex items-center">
-                  <Icon
-                    name="material-symbols:visibility-outline-rounded"
-                    class="table-action-icon table-action-icon--primary"
-                    size="22"
-                    title="Menu Visible"
+                  <span
                     v-if="data.value.visible"
-                  />
-                  <Icon
-                    name="material-symbols:visibility-off-outline-rounded"
-                    class="table-action-icon table-action-icon--neutral opacity-40"
-                    size="22"
-                    title="Menu Hidden"
+                    class="table-action-icon table-action-icon--primary inline-flex"
+                    title="Menu Visible"
+                  >
+                    <Icon
+                      name="material-symbols:visibility-outline-rounded"
+                      size="22"
+                    />
+                  </span>
+                  <span
                     v-else
-                  />
+                    class="table-action-icon table-action-icon--neutral opacity-40 inline-flex"
+                    title="Menu Hidden"
+                  >
+                    <Icon
+                      name="material-symbols:visibility-off-outline-rounded"
+                      size="22"
+                    />
+                  </span>
                 </div>
               </template>
               <template v-slot:action="data">
@@ -533,20 +539,22 @@ watch(
                       ) && data.value.parentMenu != 'admin'
                     "
                   >
-                    <Icon
-                      name="material-symbols:edit-outline-rounded"
+                    <button
+                      type="button"
                       class="table-action-icon table-action-icon--primary"
-                      size="22"
                       title="Edit Menu"
                       @click="openModalEdit(data.value)"
-                    ></Icon>
-                    <Icon
-                      name="material-symbols:delete-outline"
+                    >
+                      <Icon name="material-symbols:edit-outline-rounded" size="22" />
+                    </button>
+                    <button
+                      type="button"
                       class="table-action-icon table-action-icon--danger"
-                      size="22"
                       title="Delete Menu"
                       @click="deleteMenu(data.value)"
-                    ></Icon>
+                    >
+                      <Icon name="material-symbols:delete-outline" size="22" />
+                    </button>
                   </template>
                   <div v-else class="text-gray-400">-</div>
                 </div>

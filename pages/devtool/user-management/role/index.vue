@@ -360,20 +360,22 @@ function groupRoleByUser() {
                   class="table-action-group"
                   v-if="data.value.role?.value != '1'"
                 >
-                  <Icon
-                    name="material-symbols:edit-outline-rounded"
+                  <button
+                    type="button"
                     class="table-action-icon table-action-icon--primary"
-                    size="22"
                     title="Edit Role"
                     @click="openModal(data.value, 'edit')"
-                  ></Icon>
-                  <Icon
-                    name="material-symbols:delete-outline"
+                  >
+                    <Icon name="material-symbols:edit-outline-rounded" size="22" />
+                  </button>
+                  <button
+                    type="button"
                     class="table-action-icon table-action-icon--danger"
-                    size="22"
                     title="Delete Role"
                     @click="openModalDelete(data.value)"
-                  ></Icon>
+                  >
+                    <Icon name="material-symbols:delete-outline" size="22" />
+                  </button>
                 </div>
                 <div class="flex justify-center items-center" v-else>-</div>
               </template>

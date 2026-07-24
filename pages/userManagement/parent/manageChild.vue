@@ -378,20 +378,20 @@ function getOriginalData(childIC, parentUsername) {
         <!-- SLOT for action column -->
         <template v-slot:action="row">
           <div class="table-action-group">
-            <Icon
-              name="material-symbols:quiz-outline"
+            <button
+              type="button"
               class="table-action-icon table-action-icon--primary"
-              size="22"
               title="Questionnaire Access"
               @click="() => {
                 const original = getOriginalData(row.value.childIC, row.value.parentUsername);
                 if (original) openQuestionnaireAccessModal(original);
               }"
-            />
-            <Icon
-              name="material-symbols:edit-outline-rounded"
+            >
+              <Icon name="material-symbols:quiz-outline" size="22" />
+            </button>
+            <button
+              type="button"
               class="table-action-icon table-action-icon--primary"
-              size="22"
               title="Edit Child"
               @click="() => {
                 const original = getOriginalData(row.value.childIC, row.value.parentUsername);
@@ -402,11 +402,12 @@ function getOriginalData(childIC, parentUsername) {
                   });
                 }
               }"
-            />
-            <Icon
-              name="material-symbols:delete-outline"
+            >
+              <Icon name="material-symbols:edit-outline-rounded" size="22" />
+            </button>
+            <button
+              type="button"
               class="table-action-icon table-action-icon--danger"
-              size="22"
               title="Remove Child"
               @click="() => {
                 const original = getOriginalData(row.value.childIC, row.value.parentUsername);
@@ -414,7 +415,9 @@ function getOriginalData(childIC, parentUsername) {
                   confirmRemoveChild(original);
                 }
               }"
-            />
+            >
+              <Icon name="material-symbols:delete-outline" size="22" />
+            </button>
           </div>
         </template>
       </rs-table>

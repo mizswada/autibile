@@ -198,20 +198,22 @@ onMounted(async () => {
         </template>
         <template v-slot:action="data">
           <div class="table-action-group">
-            <Icon
-              name="material-symbols:edit-outline-rounded"
+            <button
+              type="button"
               class="table-action-icon table-action-icon--primary"
-              size="22"
               title="Edit FAQ"
               @click="openEditModal(data.value)"
-            ></Icon>
-            <Icon
-              name="material-symbols:delete-outline"
+            >
+              <Icon name="material-symbols:edit-outline-rounded" size="22" />
+            </button>
+            <button
+              type="button"
               class="table-action-icon table-action-icon--danger"
-              size="22"
               title="Delete FAQ"
               @click="confirmDelete(data.value.id, data.value.faq_question)"
-            ></Icon>
+            >
+              <Icon name="material-symbols:delete-outline" size="22" />
+            </button>
           </div>
         </template>
       </rs-table>

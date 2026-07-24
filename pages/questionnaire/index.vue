@@ -557,53 +557,59 @@ function navigateToQuestions(questionnaireId) {
           </div> -->
           
         <div class="table-action-group">
-          <Icon
-            name="material-symbols:edit-outline-rounded"
+          <button
+            type="button"
             class="table-action-icon table-action-icon--primary"
-            size="22"
-            @click="openEditQuestionnaireModal(q)"
             :title="isProtectedQuestionnaire(q.id) ? 'Edit Age Limits' : 'Edit Questionnaire'"
-          />
+            @click="openEditQuestionnaireModal(q)"
+          >
+            <Icon name="material-symbols:edit-outline-rounded" size="22" />
+          </button>
           
-          <Icon
-            name="material-symbols:list-alt-outline"
-            class="table-action-icon table-action-icon--neutral"
-            size="22"
-            @click="router.push(`/questionnaire/questions/${q.id}`)"
+          <button
+            type="button"
+            class="table-action-icon table-action-icon--info"
             title="Manage Questions"
-          />
+            @click="router.push(`/questionnaire/questions/${q.id}`)"
+          >
+            <Icon name="material-symbols:list-alt-outline" size="22" />
+          </button>
           
-          <Icon
-            name="material-symbols:analytics-outline"
-            class="table-action-icon table-action-icon--neutral"
-            size="22"
-            @click="router.push(`/questionnaire/thresholds/${q.id}`)"
+          <button
+            type="button"
+            class="table-action-icon table-action-icon--purple"
             title="Manage Scoring Thresholds"
-          />
-
-          <Icon
-            name="material-symbols:functions"
-            class="table-action-icon table-action-icon--neutral"
-            size="22"
-            @click="router.push(`/questionnaire/composite-scoring/${q.id}`)"
-            title="Configure Composite Scoring"
-          />
-          
-          <Icon
-            v-if="!isProtectedQuestionnaire(q.id)"
-            name="material-symbols:delete-outline"
-            class="table-action-icon table-action-icon--danger"
-            size="22"
-            @click="confirmDelete(q)"
-            title="Delete Questionnaire"
-          />
+            @click="router.push(`/questionnaire/thresholds/${q.id}`)"
+          >
+            <Icon name="material-symbols:analytics-outline" size="22" />
+          </button>
 
           <button
-            class="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600"
-            @click="router.push(`/questionnaire/take/${q.id}`)"
-            title="Take Autism Screening"
+            type="button"
+            class="table-action-icon table-action-icon--amber"
+            title="Configure Composite Scoring"
+            @click="router.push(`/questionnaire/composite-scoring/${q.id}`)"
           >
-            View
+            <Icon name="material-symbols:functions" size="22" />
+          </button>
+          
+          <button
+            v-if="!isProtectedQuestionnaire(q.id)"
+            type="button"
+            class="table-action-icon table-action-icon--danger"
+            title="Delete Questionnaire"
+            @click="confirmDelete(q)"
+          >
+            <Icon name="material-symbols:delete-outline" size="22" />
+          </button>
+
+          <button
+            type="button"
+            class="table-action-icon table-action-icon--success"
+            title="Take Autism Screening"
+            @click="router.push(`/questionnaire/take/${q.id}`)"
+          >
+            <Icon name="material-symbols:play-circle-outline" size="22" />
           </button>
         </div>
       </div>

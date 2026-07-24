@@ -874,22 +874,24 @@ const saveRating = async () => {
           <template v-slot:action="row">
             <div class="table-action-group">
               <!-- Edit Icon -->
-              <Icon
-                name="material-symbols:edit-outline-rounded"
+              <button
+                type="button"
                 class="table-action-icon table-action-icon--primary"
-                size="22"
                 title="Edit Appointment"
                 @click="() => editAppointment(getOriginalData(row.value.id))"
-              />
+              >
+                <Icon name="material-symbols:edit-outline-rounded" size="22" />
+              </button>
 
               <!-- View Icon -->
-              <Icon
-                name="material-symbols:visibility-outline-rounded"
+              <button
+                type="button"
                 class="table-action-icon table-action-icon--primary"
-                size="22"
                 title="View Appointment Details"
                 @click="() => viewAppointmentDetails(getOriginalData(row.value.id))"
-              />
+              >
+                <Icon name="material-symbols:visibility-outline-rounded" size="22" />
+              </button>
             </div>
           </template>
         </rs-table>

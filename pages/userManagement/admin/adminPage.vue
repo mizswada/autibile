@@ -223,19 +223,19 @@ async function performDelete() {
         <template v-slot:action="row">
           <div class="table-action-group">
             <!-- View Icon -->
-            <Icon
-              name="material-symbols:visibility-outline-rounded"
+            <button
+              type="button"
               class="table-action-icon table-action-icon--primary"
-              size="22"
               title="View Administrator Details"
               @click="() => viewAdminDetails(row.value)"
-            />
+            >
+              <Icon name="material-symbols:visibility-outline-rounded" size="22" />
+            </button>
 
             <!-- Edit Icon -->
-            <Icon
-              name="material-symbols:edit-outline-rounded"
+            <button
+              type="button"
               class="table-action-icon table-action-icon--primary"
-              size="22"
               title="Edit Administrator"
               @click="() => {
                 const original = getOriginalData(row.value.username);
@@ -243,16 +243,19 @@ async function performDelete() {
                   $router.push({ path: '/userManagement/admin/editAdmin', query: { userID: original.userID } });
                 }
               }"
-            />
+            >
+              <Icon name="material-symbols:edit-outline-rounded" size="22" />
+            </button>
             
             <!-- Delete Icon -->
-            <Icon
-              name="material-symbols:delete-outline"
+            <button
+              type="button"
               class="table-action-icon table-action-icon--danger"
-              size="22"
               title="Delete Administrator"
               @click="() => confirmDelete(row.value)"
-            />
+            >
+              <Icon name="material-symbols:delete-outline" size="22" />
+            </button>
           </div>
         </template>
 

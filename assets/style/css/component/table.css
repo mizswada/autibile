@@ -40,6 +40,10 @@
   @apply cursor-pointer transition-colors;
 }
 
+button.table-action-icon {
+  @apply border-0 bg-transparent p-0 inline-flex items-center justify-center;
+}
+
 .table-action-icon--primary {
   @apply text-primary hover:text-primary/90;
 }
@@ -50,4 +54,20 @@
 
 .table-action-icon--neutral {
   @apply text-gray-600 hover:text-gray-800;
+}
+
+.table-action-icon--info {
+  @apply text-blue-600 hover:text-blue-800;
+}
+
+.table-action-icon--purple {
+  @apply text-purple-600 hover:text-purple-800;
+}
+
+.table-action-icon--amber {
+  @apply text-amber-600 hover:text-amber-800;
+}
+
+.table-action-icon--success {
+  @apply text-green-600 hover:text-green-800;
 }

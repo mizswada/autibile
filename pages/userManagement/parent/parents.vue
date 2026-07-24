@@ -316,19 +316,19 @@ async function savePassword() {
         <template v-slot:action="row">
           <div class="table-action-group">
             <!-- View Icon -->
-            <Icon
-              name="material-symbols:visibility-outline-rounded"
+            <button
+              type="button"
               class="table-action-icon table-action-icon--primary"
-              size="22"
               title="View Parent Details"
               @click="() => viewParentDetails(row.value)"
-            />
+            >
+              <Icon name="material-symbols:visibility-outline-rounded" size="22" />
+            </button>
 
             <!-- Edit Icon -->
-            <Icon
-              name="material-symbols:edit-outline-rounded"
+            <button
+              type="button"
               class="table-action-icon table-action-icon--primary"
-              size="22"
               title="Edit Parent"
               @click="() => {
                 const original = getOriginalData(row.value.username);
@@ -336,13 +336,14 @@ async function savePassword() {
                   $router.push({ path: '/userManagement/parent/editParent', query: { parentID: original.parentID } });
                 }
               }"
-            />
+            >
+              <Icon name="material-symbols:edit-outline-rounded" size="22" />
+            </button>
 
             <!-- Add Child Icon -->
-            <Icon
-              name="material-symbols:group-add-outline"
+            <button
+              type="button"
               class="table-action-icon table-action-icon--primary"
-              size="22"
               title="Add Child"
               @click="() => {
                 const original = getOriginalData(row.value.username);
@@ -353,25 +354,29 @@ async function savePassword() {
                   });
                 }
               }"
-            />
+            >
+              <Icon name="material-symbols:group-add-outline" size="22" />
+            </button>
             
             <!-- Set Password Icon -->
-            <Icon
-              name="material-symbols:key-outline"
+            <button
+              type="button"
               class="table-action-icon table-action-icon--primary"
-              size="22"
               title="Set New Password"
               @click="() => openPasswordModal(row.value)"
-            />
+            >
+              <Icon name="material-symbols:key-outline" size="22" />
+            </button>
 
             <!-- Delete Icon -->
-            <Icon
-              name="material-symbols:delete-outline"
+            <button
+              type="button"
               class="table-action-icon table-action-icon--danger"
-              size="22"
               title="Delete Parent"
               @click="() => confirmDelete(row.value)"
-            />
+            >
+              <Icon name="material-symbols:delete-outline" size="22" />
+            </button>
           </div>
         </template>
 
