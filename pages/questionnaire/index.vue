@@ -608,6 +608,7 @@ function navigateToQuestions(questionnaireId) {
         </div>
       </div>
     </div>
+    </div>
 
     <!-- Add a help section explaining the workflow -->
     <div class="card p-4 mb-6 bg-blue-50 border border-blue-200">
