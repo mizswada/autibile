@@ -2,11 +2,11 @@
 import { ref, onMounted } from 'vue'
 
 const supportContacts = ref([])
+const tableKey = ref(0)
 const loading = ref(false)
 const error = ref('')
 const successMessage = ref('')
 const showModal = ref(false)
-const isEdit = ref(false)
 const editId = ref(null)
 const form = ref({
   techSupport_name: '',
@@ -15,38 +15,57 @@ const form = ref({
   techSupport_status: 'Active',
 })
 
+const tableFields = ['no', 'supportType', 'contact', 'status', 'action']
+
 function normalizeStatus(status) {
   return String(status || '').toUpperCase() === 'ACTIVE' ? 'Active' : 'Inactive'
 }
 
 async function fetchContacts() {
   loading.value = true
-  error.value = ''
   try {
     const data = await $fetch('/api/techSupport/list')
-    supportContacts.value = Array.isArray(data) ? data : []
+
+    if (Array.isArray(data)) {
+      supportContacts.value = data
+      tableKey.value += 1
+      error.value = ''
+    } else {
+      // Keep existing rows if refresh fails — do not wipe the table
+      error.value = data?.message || 'Failed to load tech support contacts'
+    }
   } catch (e) {
-    error.value = 'Failed to load tech support contacts'
-    supportContacts.value = []
+    error.value = e.data?.message || e.message || 'Failed to load tech support contacts'
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
 
 function openEditModal(contact) {
-  form.value = {
-    techSupport_name: contact.techSupport_name || '',
-    techSupport_email: contact.techSupport_email || '',
-    techSupport_phone: contact.techSupport_phone || '',
-    techSupport_status: normalizeStatus(contact.techSupport_status),
+  const id = contact?.id ?? contact?.techSupport_ID
+  if (!id) {
+    error.value = 'Unable to edit: missing tech support ID'
+    return
   }
-  isEdit.value = true
-  editId.value = contact.id
+
+  form.value = {
+    techSupport_name: contact.techSupport_name || contact.supportType || '',
+    techSupport_email: contact.techSupport_email || '',
+    techSupport_phone: contact.techSupport_phone || contact.contact || '',
+    techSupport_status: normalizeStatus(contact.techSupport_status || contact.status),
+  }
+  editId.value = id
   showModal.value = true
   error.value = ''
   successMessage.value = ''
 }
 
 async function saveContact() {
+  if (!editId.value) {
+    error.value = 'Unable to save: missing tech support ID'
+    return
+  }
+
   if (
     !form.value.techSupport_name.trim() ||
     !form.value.techSupport_email.trim() ||
@@ -61,9 +80,9 @@ async function saveContact() {
     const res = await $fetch(`/api/techSupport/update?id=${editId.value}`, {
       method: 'PUT',
       body: {
-        techSupport_name: form.value.techSupport_name,
-        techSupport_email: form.value.techSupport_email,
-        techSupport_phone: form.value.techSupport_phone,
+        techSupport_name: form.value.techSupport_name.trim(),
+        techSupport_email: form.value.techSupport_email.trim(),
+        techSupport_phone: form.value.techSupport_phone.trim(),
         techSupport_status: form.value.techSupport_status,
       },
     })
@@ -99,9 +118,18 @@ onMounted(fetchContacts)
     </div>
 
     <div class="card p-4 mt-4">
+      <div v-if="loading && supportContacts.length === 0" class="flex justify-center my-8">
+        <div class="flex flex-col items-center">
+          <Icon name="line-md:loading-twotone-loop" size="48" class="text-primary mb-2" />
+          <span>Loading tech support contacts...</span>
+        </div>
+      </div>
+
       <rs-table
+        v-else-if="supportContacts.length > 0"
+        :key="tableKey"
         :data="supportContacts"
-        :field="['no', 'supportType', 'contact', 'status', 'action']"
+        :field="tableFields"
         :options="{
           variant: 'default',
           striped: true,
@@ -118,7 +146,7 @@ onMounted(fetchContacts)
           {{ data.value.no }}
         </template>
         <template v-slot:supportType="data">
-          {{ data.value.techSupport_name }}
+          {{ data.value.techSupport_name || data.value.supportType }}
         </template>
         <template v-slot:contact="data">
           <div>
@@ -135,8 +163,8 @@ onMounted(fetchContacts)
           </div>
         </template>
         <template v-slot:status="data">
-          <rs-badge :variant="String(data.value.techSupport_status).toUpperCase() === 'ACTIVE' ? 'success' : 'danger'">
-            {{ data.value.techSupport_status }}
+          <rs-badge :variant="String(data.value.techSupport_status || data.value.status).toUpperCase() === 'ACTIVE' ? 'success' : 'danger'">
+            {{ data.value.techSupport_status || data.value.status }}
           </rs-badge>
         </template>
         <template v-slot:action="data">
@@ -150,6 +178,10 @@ onMounted(fetchContacts)
           </div>
         </template>
       </rs-table>
+
+      <div v-else class="text-center text-gray-500 py-8">
+        No tech support contacts found.
+      </div>
     </div>
 
     <rs-modal

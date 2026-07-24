@@ -1,5 +1,3 @@
-import { DateTime } from "luxon";
-
 export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
@@ -13,10 +11,12 @@ export default defineEventHandler(async (event) => {
       techSupport_status,
     } = body;
 
-    if (!id) {
+    const techSupportId = parseInt(id, 10);
+
+    if (!id || Number.isNaN(techSupportId)) {
       return {
         statusCode: 400,
-        message: "Missing tech support ID",
+        message: "Missing or invalid tech support ID",
       };
     }
 
@@ -34,14 +34,14 @@ export default defineEventHandler(async (event) => {
 
     const updatedTechSupport = await prisma.tech_supports.update({
       where: {
-        techSupport_ID: parseInt(id),
+        techSupport_ID: techSupportId,
       },
       data: {
-        techSupport_name,
-        techSupport_email,
-        techSupport_phone,
-        techSupport_status,
-        updated_at: DateTime.now().toISO(),
+        techSupport_name: String(techSupport_name).trim(),
+        techSupport_email: String(techSupport_email).trim(),
+        techSupport_phone: String(techSupport_phone).trim(),
+        techSupport_status: String(techSupport_status).trim(),
+        updated_at: new Date(),
       },
     });
 
@@ -55,13 +55,19 @@ export default defineEventHandler(async (event) => {
     return {
       statusCode: 200,
       message: "Tech support contact updated successfully",
-      data: updatedTechSupport,
+      data: {
+        id: updatedTechSupport.techSupport_ID,
+        techSupport_name: updatedTechSupport.techSupport_name,
+        techSupport_email: updatedTechSupport.techSupport_email,
+        techSupport_phone: updatedTechSupport.techSupport_phone,
+        techSupport_status: updatedTechSupport.techSupport_status,
+      },
     };
   } catch (error) {
     console.log(error);
     return {
       statusCode: 500,
-      message: "Server error",
+      message: error?.message || "Server error",
     };
   }
 });

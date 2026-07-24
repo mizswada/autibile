@@ -20,8 +20,13 @@ export default defineEventHandler(async (event) => {
       return [];
     }
 
+    // Keep field order aligned with rs-table :field so Object.values indexing works.
     return techSupport.map((item, index) => ({
       no: index + 1,
+      supportType: item.techSupport_name,
+      contact: item.techSupport_phone,
+      status: item.techSupport_status,
+      action: "edit",
       id: item.techSupport_ID,
       techSupport_name: item.techSupport_name,
       techSupport_email: item.techSupport_email,
