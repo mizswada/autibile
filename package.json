@@ -38,7 +38,6 @@
     "@fullcalendar/interaction": "^5.11.3",
     "@fullcalendar/list": "^5.11.3",
     "@fullcalendar/luxon2": "^5.11.3",
-    "@fullcalendar/scrollgrid": "^5.11.3",
     "@fullcalendar/timegrid": "^5.11.3",
     "@fullcalendar/vue3": "^5.11.2",
     "@kiwicom/eslint-config": "^12.7.3",
