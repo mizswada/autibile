@@ -532,29 +532,28 @@ export default defineNuxtConfig({
     },
   },
   security: {
-    // GLOBAL SECURITY OPTIONS
-
-    // Allow 200 requests per hour (the Twitter search limit). Also understands
-    // 'second', 'minute', 'day', or a number of milliseconds
-    rateLimiter: {
-      tokensPerInterval: 200,
-      interval: "minute",
-      fireImmediately: false,
-      throwError: true, // optional
-    },
+    // SPA loads many _nuxt chunks per navigation; a global per-IP limit causes 429 for normal use.
+    rateLimiter: false,
     headers: false,
   },
   routeRules: {
+    "/api/**": {
+      security: {
+        rateLimiter: false,
+      },
+    },
     "/api/devtool/**": {
       security: {
         xssValidator: false,
         requestSizeLimiter: false,
+        rateLimiter: false,
       },
     },
     // Prompt templates and config JSON may contain < > (e.g. JSON examples); nuxt-security XSS would return 400
     "/api/apps/settings/**": {
       security: {
         xssValidator: false,
+        rateLimiter: false,
       },
     },
   },

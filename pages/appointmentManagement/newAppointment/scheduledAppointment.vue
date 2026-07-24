@@ -76,35 +76,38 @@ const calendarOptions = ref({
   }
 });
 
-const fetchAppointments = async () => {
-  const { data, error } = await useFetch('/api/appointments/list');
-
-  if (error.value) {
-    console.error('Error fetching appointments:', error.value);
-    isPageLoading.value = false; // Set loading to false even on error
-    return;
-  }
-
-  const appointments = data.value?.data || [];
-  
-  // Filter out cancelled appointments (status 37)
-  const activeAppointments = appointments.filter(appt => 
-    appt.extendedProps?.status !== 37
+const syncCalendarEventsFromRawData = () => {
+  const activeAppointments = rawData.value.filter(
+    (appt) => Number(appt.status) !== 37,
   );
-  
-  calendarOptions.value.events = activeAppointments.map(appt => ({
+
+  calendarOptions.value.events = activeAppointments.map((appt) => ({
     id: appt.id,
-    title: appt.title,
-    start: appt.start,
-    end: appt.end,
+    title: appt.patientName,
+    start: appt.originalDate || appt.date,
+    end: appt.originalDate || appt.date,
     allDay: false,
-    backgroundColor: getStatusColor(appt.extendedProps.status),
-    borderColor: getStatusColor(appt.extendedProps.status),
+    backgroundColor: getStatusColor(appt.status),
+    borderColor: getStatusColor(appt.status),
     textColor: '#fff',
-    extendedProps: appt.extendedProps,
+    extendedProps: {
+      patient_name: appt.patientName,
+      practitioner_name: appt.practitionerName,
+      service_name: appt.serviceName,
+      time_slot: appt.timeSlot,
+      status: appt.status,
+      patient_id: appt.patientId,
+      practitioner_id: appt.practitionerId,
+      service_id: appt.serviceId,
+      slot_ID: appt.slotId,
+      parent_comment: appt.parentComment,
+      therapist_doctor_comment: appt.therapistDoctorComment,
+      parent_rate: appt.parentRate,
+      session_number: appt.sessionNumber,
+      is_admin_appointment: appt.isAdminAppointment,
+    },
   }));
-  
-  // Set page loading to false after appointments are loaded
+
   isPageLoading.value = false;
 };
 
@@ -169,12 +172,10 @@ function getStatusColor(status) {
 }
 
 onMounted(() => {
-  fetchAppointments();
-  
-  // Set a timeout to prevent infinite loading
+  // Calendar events load when user opens the calendar tab (see activeTab watch).
   setTimeout(() => {
     isPageLoading.value = false;
-  }, 10000); // 10 second timeout
+  }, 10000);
 });
 
 const currentUserId = userStore.userID || 1; // fallback to 1 if not set
@@ -501,11 +502,22 @@ const { data: appointmentsData, pending: appointmentsLoading, refresh: _refreshA
   }
 });
 
-// Create an enhanced refresh function that updates both list and calendar
+// Refresh list data; sync calendar from list when that tab is active.
 const refreshAppointments = async () => {
   await _refreshAppointments();
-  await fetchAppointments();
+  if (activeTab.value === 'calendar' || userStore.isDoctor) {
+    applyCalendarFilter();
+  }
 };
+
+watch(
+  () => appointmentsData.value,
+  (newData) => {
+    if (newData && (activeTab.value === 'calendar' || userStore.isDoctor)) {
+      applyCalendarFilter();
+    }
+  },
+);
 
 // Fetch options from API
 const { data: optionsData, pending: optionsLoading } = useLazyFetch('/api/appointments/options', {
@@ -1431,7 +1443,7 @@ const showDeleteModal = ref(false);
 // Watch for activeTab changes to refresh the calendar when switching to calendar view
 watch(() => activeTab.value, (newTab) => {
   if (newTab === 'calendar') {
-    fetchAppointments();
+    applyCalendarFilter();
   }
 });
 
@@ -1582,8 +1594,7 @@ const formatAppointmentDate = (dateString) => {
 // Function to apply calendar filter
 const applyCalendarFilter = () => {
   if (calendarFilter.value === 'all') {
-    // Show all appointments
-    fetchAppointments();
+    syncCalendarEventsFromRawData();
   } else if (calendarFilter.value === 'admin') {
     // Show only admin appointments
     const adminAppointments = rawData.value.filter(appt => isAdminAppointment(appt));
