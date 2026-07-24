@@ -1,9 +1,8 @@
 export default defineEventHandler(async (event) => {
   try {
-    // Raw SQL avoids Prisma DateTime issues with MySQL zero-dates.
-    // Prefer non-deleted rows; if none match (e.g. deleted_at = 0000-00-00),
-    // fall back to all rows so the admin page matches SELECT *.
-    let techSupport = await prisma.$queryRaw`
+    // Avoid comparing deleted_at to '0000-00-00' — MySQL strict mode throws 1525.
+    // Do not SELECT deleted_at either, so zero-dates in that column don't break the query.
+    const techSupport = await prisma.$queryRaw`
       SELECT
         techSupport_ID,
         techSupport_name,
@@ -11,23 +10,8 @@ export default defineEventHandler(async (event) => {
         techSupport_phone,
         techSupport_status
       FROM tech_supports
-      WHERE deleted_at IS NULL
-         OR deleted_at = '0000-00-00 00:00:00'
       ORDER BY techSupport_ID ASC
     `;
-
-    if (!techSupport || techSupport.length === 0) {
-      techSupport = await prisma.$queryRaw`
-        SELECT
-          techSupport_ID,
-          techSupport_name,
-          techSupport_email,
-          techSupport_phone,
-          techSupport_status
-        FROM tech_supports
-        ORDER BY techSupport_ID ASC
-      `;
-    }
 
     if (!techSupport || techSupport.length === 0) {
       return [];
