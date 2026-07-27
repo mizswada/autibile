@@ -59,6 +59,61 @@ async function fetchConfig() {
   }
 }
 
+function convertLegacyUpToBands(bands) {
+  const sorted = [...bands].sort((a, b) => {
+    const aUp =
+      a.upTo === '' || a.upTo === null || a.upTo === undefined
+        ? Infinity
+        : Number(a.upTo);
+    const bUp =
+      b.upTo === '' || b.upTo === null || b.upTo === undefined
+        ? Infinity
+        : Number(b.upTo);
+    return aUp - bUp;
+  });
+
+  let previousBound = 0;
+  return sorted.map((band) => {
+    const hasMax =
+      band.upTo !== '' && band.upTo !== null && band.upTo !== undefined;
+    const max = hasMax ? Number(band.upTo) : '';
+    const converted = {
+      min: previousBound,
+      max,
+      score: band.score ?? 0,
+    };
+    if (hasMax) previousBound = Number(band.upTo);
+    return converted;
+  });
+}
+
+function normalizeIncomingBands(bands) {
+  if (!Array.isArray(bands) || bands.length === 0) {
+    return [
+      { min: 0, max: 1, score: 0 },
+      { min: 1, max: 2, score: 1 },
+      { min: 2, max: '', score: 2 },
+    ];
+  }
+
+  const hasMinMax = bands.some(
+    (b) =>
+      Object.prototype.hasOwnProperty.call(b || {}, 'min') ||
+      Object.prototype.hasOwnProperty.call(b || {}, 'max'),
+  );
+
+  if (hasMinMax) {
+    return bands.map((b) => ({
+      min: b.min ?? 0,
+      max: b.max === null || b.max === undefined ? '' : b.max,
+      score: b.score ?? 0,
+    }));
+  }
+
+  // Legacy Average < upTo bands → min/max ranges
+  return convertLegacyUpToBands(bands);
+}
+
 function normalizeIncomingGroup(group) {
   return {
     label: group.label ?? '',
@@ -67,9 +122,7 @@ function normalizeIncomingGroup(group) {
     members: Array.isArray(group.members) && group.members.length > 0
       ? group.members.map((m) => ({ question_id: m.question_id ?? '', weight: m.weight ?? 1 }))
       : [{ question_id: '', weight: 1 }],
-    bands: Array.isArray(group.bands) && group.bands.length > 0
-      ? group.bands.map((b) => ({ upTo: b.upTo ?? '', score: b.score ?? 0 }))
-      : [{ upTo: '', score: 0 }],
+    bands: normalizeIncomingBands(group.bands),
     preview: {},
   };
 }
@@ -87,7 +140,9 @@ function addGroup() {
     exclude_members_from_raw_sum: true,
     members: [{ question_id: '', weight: 1 }],
     bands: [
-      { upTo: '', score: 0 },
+      { min: 0, max: 1, score: 0 },
+      { min: 1, max: 2, score: 1 },
+      { min: 2, max: '', score: 2 },
     ],
     preview: {},
   });
@@ -107,27 +162,65 @@ function removeMember(group, index) {
 }
 
 function addBand(group) {
-  group.bands.push({ upTo: '', score: 0 });
+  const last = group.bands[group.bands.length - 1];
+  const nextMin =
+    last && last.max !== '' && last.max !== null && last.max !== undefined
+      ? Number(last.max)
+      : last
+        ? Number(last.min) || 0
+        : 0;
+
+  group.bands.push({ min: nextMin, max: '', score: 0 });
+}
+
+function formatBandRange(band) {
+  const min = band.min === '' || band.min === null || band.min === undefined
+    ? 0
+    : Number(band.min);
+  const hasMax =
+    band.max !== '' && band.max !== null && band.max !== undefined;
+
+  if (!hasMax) {
+    return `Average ≥ ${min}`;
+  }
+
+  const max = Number(band.max);
+  if (min === max) {
+    return `Average = ${min}`;
+  }
+  if (min === 0) {
+    return `Average ≤ ${max}`;
+  }
+  return `${min} - ${max}`;
 }
 
 function removeBand(group, index) {
   group.bands.splice(index, 1);
 }
 
-// --- Live preview (mirrors server-side band logic) ---
+// --- Live preview (mirrors server-side inclusive min/max band logic) ---
 function mapAverageToBandScore(average, bands) {
   const sorted = [...bands]
     .filter((b) => b.score !== '' && b.score !== null && b.score !== undefined)
     .map((b) => ({
-      upTo: b.upTo === '' || b.upTo === null || b.upTo === undefined ? Infinity : Number(b.upTo),
+      min:
+        b.min === '' || b.min === null || b.min === undefined
+          ? 0
+          : Number(b.min),
+      max:
+        b.max === '' || b.max === null || b.max === undefined
+          ? null
+          : Number(b.max),
       score: Number(b.score),
     }))
-    .sort((a, b) => a.upTo - b.upTo);
+    .sort((a, b) => a.min - b.min);
 
   if (sorted.length === 0) return null;
 
   for (const band of sorted) {
-    if (average < band.upTo) return band.score;
+    const withinMin = average >= band.min;
+    const withinMax = band.max === null || average <= band.max;
+    if (withinMin && withinMax) return band.score;
   }
   return sorted[sorted.length - 1].score;
 }
@@ -179,7 +272,14 @@ function buildPayloadGroups() {
     bands: group.bands
       .filter((b) => b.score !== '' && b.score !== null && b.score !== undefined)
       .map((b) => ({
-        upTo: b.upTo === '' || b.upTo === null || b.upTo === undefined ? null : Number(b.upTo),
+        min:
+          b.min === '' || b.min === null || b.min === undefined
+            ? 0
+            : Number(b.min),
+        max:
+          b.max === '' || b.max === null || b.max === undefined
+            ? null
+            : Number(b.max),
         score: Number(b.score),
       })),
   }));
@@ -197,6 +297,17 @@ function validateBeforeSave(payloadGroups) {
     }
     if (g.bands.length === 0) {
       return `${label}: add at least one score band`;
+    }
+    for (const band of g.bands) {
+      if (!Number.isFinite(band.min)) {
+        return `${label}: each band needs a numeric minimum`;
+      }
+      if (band.max !== null && !Number.isFinite(band.max)) {
+        return `${label}: each band maximum must be a number`;
+      }
+      if (band.max !== null && band.max < band.min) {
+        return `${label}: band maximum must be ≥ minimum`;
+      }
     }
     for (const m of g.members) {
       if (!Number.isFinite(m.weight)) {
@@ -285,7 +396,8 @@ function goBack() {
         </p>
         <p class="text-sm text-gray-600">
           Example (Screen Time): weights 5, 5, 2, 2 with divisor 7 gives
-          <em>(Q1×5 + Q2×5 + Q3×2 + Q4×2) ÷ 7</em>. Bands then map the average to 0, 1 or 2.
+          <em>(Q1×5 + Q2×5 + Q3×2 + Q4×2) ÷ 7</em>. Score bands then map that average
+          by range (e.g. 0–1 → 0, 1–2 → 1, 2+ → 2), like scoring thresholds.
         </p>
       </div>
 
@@ -378,38 +490,77 @@ function goBack() {
               <Icon name="material-symbols:add" class="mr-1" /> Add band
             </rs-button>
           </div>
-          <p class="text-xs text-gray-500 mb-2">
-            A band applies when the average is below its "up to" value. Leave "up to" empty for
-            the highest band (catch-all). Bands are evaluated from lowest to highest automatically.
+          <p class="text-xs text-gray-500 mb-3">
+            Same idea as scoring thresholds: each band covers an average range
+            (minimum to maximum, inclusive). Leave maximum empty for no upper limit.
+            The first matching band (lowest minimum) wins.
           </p>
-          <div
-            v-for="(band, bIndex) in group.bands"
-            :key="bIndex"
-            class="flex gap-2 items-center mb-2"
-          >
-            <span class="text-sm text-gray-600 w-24">Average &lt;</span>
-            <input
-              v-model="band.upTo"
-              type="number"
-              step="any"
-              placeholder="up to (empty = ∞)"
-              class="w-40 border border-gray-300 rounded px-3 py-2"
-            />
-            <span class="text-sm text-gray-600">→ score</span>
-            <input
-              v-model="band.score"
-              type="number"
-              step="any"
-              placeholder="score"
-              class="w-28 border border-gray-300 rounded px-3 py-2"
-            />
-            <button
-              @click="removeBand(group, bIndex)"
-              class="text-red-500 hover:text-red-700 p-2"
-              title="Remove band"
-            >
-              <Icon name="material-symbols:close" size="20" />
-            </button>
+
+          <div class="overflow-x-auto border border-gray-200 rounded">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    Average range
+                  </th>
+                  <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    Minimum
+                  </th>
+                  <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    Maximum
+                  </th>
+                  <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    Score
+                  </th>
+                  <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                <tr v-for="(band, bIndex) in group.bands" :key="bIndex">
+                  <td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
+                    {{ formatBandRange(band) }}
+                  </td>
+                  <td class="px-3 py-2">
+                    <input
+                      v-model="band.min"
+                      type="number"
+                      step="any"
+                      placeholder="Min"
+                      class="w-28 border border-gray-300 rounded px-3 py-2"
+                    />
+                  </td>
+                  <td class="px-3 py-2">
+                    <input
+                      v-model="band.max"
+                      type="number"
+                      step="any"
+                      placeholder="No upper limit"
+                      class="w-36 border border-gray-300 rounded px-3 py-2"
+                    />
+                  </td>
+                  <td class="px-3 py-2">
+                    <input
+                      v-model="band.score"
+                      type="number"
+                      step="any"
+                      placeholder="Score"
+                      class="w-28 border border-gray-300 rounded px-3 py-2"
+                    />
+                  </td>
+                  <td class="px-3 py-2 text-right">
+                    <button
+                      @click="removeBand(group, bIndex)"
+                      class="text-red-500 hover:text-red-700 p-2"
+                      title="Remove band"
+                    >
+                      <Icon name="material-symbols:close" size="20" />
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 

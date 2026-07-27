@@ -22,10 +22,12 @@
 //       ],
 //       "divisor": 7,
 //       "bands": [
-//         { "upTo": 2, "score": 0 },   // average < 2         -> 0
-//         { "upTo": 4, "score": 1 },   // 2 <= average < 4    -> 1
-//         { "score": 2 }               // average >= 4        -> 2 (catch-all)
+//         { "min": 0, "max": 2, "score": 0 },   // 0 <= average <= 2 -> 0
+//         { "min": 2, "max": 4, "score": 1 },   // 2 <= average <= 4 -> 1
+//         { "min": 4, "max": null, "score": 2 } // average >= 4      -> 2
 //       ],
+//       // Legacy upTo bands are still accepted and converted on load:
+//       // { "upTo": 2, "score": 0 } => { "min": 0, "max": 2, "score": 0 }
 //       "exclude_members_from_raw_sum": true
 //     }
 //   ]
@@ -57,15 +59,87 @@ function normalizeBand(rawBand) {
   const score = toFiniteNumber(rawBand.score);
   if (score === null) return null;
 
+  // Preferred format: min/max range (same idea as scoring thresholds).
+  const hasMinMaxShape =
+    Object.prototype.hasOwnProperty.call(rawBand, "min") ||
+    Object.prototype.hasOwnProperty.call(rawBand, "max");
+
+  if (hasMinMaxShape) {
+    const minRaw =
+      rawBand.min === undefined || rawBand.min === null || rawBand.min === ""
+        ? 0
+        : toFiniteNumber(rawBand.min);
+    if (minRaw === null) return null;
+
+    const hasMax =
+      rawBand.max !== undefined && rawBand.max !== null && rawBand.max !== "";
+    const max = hasMax ? toFiniteNumber(rawBand.max) : null;
+    if (hasMax && max === null) return null;
+
+    return {
+      min: minRaw,
+      // null max = no upper limit (catch-all)
+      max,
+      score,
+    };
+  }
+
+  // Legacy format: upTo (exclusive upper bound). Converted later as a group.
   const hasUpTo =
     rawBand.upTo !== undefined && rawBand.upTo !== null && rawBand.upTo !== "";
   const upTo = hasUpTo ? toFiniteNumber(rawBand.upTo) : null;
+  if (hasUpTo && upTo === null) return null;
 
   return {
-    // A null upTo means "no upper bound" (catch-all band).
     upTo,
     score,
+    _legacyUpTo: true,
   };
+}
+
+function convertLegacyUpToBands(bands) {
+  const sorted = [...bands].sort((a, b) => {
+    const aUp = a.upTo === null || a.upTo === undefined ? Infinity : a.upTo;
+    const bUp = b.upTo === null || b.upTo === undefined ? Infinity : b.upTo;
+    return aUp - bUp;
+  });
+
+  let previousBound = 0;
+  return sorted.map((band) => {
+    const max =
+      band.upTo === null || band.upTo === undefined ? null : band.upTo;
+    const converted = {
+      min: previousBound,
+      max,
+      score: band.score,
+    };
+    if (max !== null) {
+      previousBound = max;
+    }
+    return converted;
+  });
+}
+
+function normalizeBands(rawBands) {
+  const bands = Array.isArray(rawBands)
+    ? rawBands.map(normalizeBand).filter(Boolean)
+    : [];
+
+  if (bands.length === 0) return [];
+
+  const allLegacy = bands.every((band) => band._legacyUpTo);
+  if (allLegacy) {
+    return convertLegacyUpToBands(bands);
+  }
+
+  // Drop any unexpected legacy markers and keep min/max bands only.
+  return bands
+    .filter((band) => !band._legacyUpTo)
+    .map((band) => ({
+      min: band.min,
+      max: band.max ?? null,
+      score: band.score,
+    }));
 }
 
 function normalizeGroup(rawGroup) {
@@ -75,9 +149,7 @@ function normalizeGroup(rawGroup) {
     ? rawGroup.members.map(normalizeMember).filter(Boolean)
     : [];
 
-  const bands = Array.isArray(rawGroup.bands)
-    ? rawGroup.bands.map(normalizeBand).filter(Boolean)
-    : [];
+  const bands = normalizeBands(rawGroup.bands);
 
   if (members.length === 0 || bands.length === 0) return null;
 
@@ -128,24 +200,27 @@ export function parseCompositeScoringConfig(raw) {
   return { composite_groups };
 }
 
-// Maps an average to a band score. Bands are matched by ascending `upTo`
-// (null/no upper bound is treated as the highest catch-all band), and the first
-// band whose upper bound the average falls under wins (average < upTo).
+// Maps an average to a band score using inclusive min/max ranges
+// (same idea as questionnaire scoring thresholds).
+// First matching band wins when sorted by ascending min.
 function mapAverageToBandScore(average, bands) {
   const sorted = [...bands].sort((a, b) => {
-    const aUp = a.upTo === null ? Infinity : a.upTo;
-    const bUp = b.upTo === null ? Infinity : b.upTo;
-    return aUp - bUp;
+    const aMin = a.min ?? 0;
+    const bMin = b.min ?? 0;
+    return aMin - bMin;
   });
 
   for (const band of sorted) {
-    const upperBound = band.upTo === null ? Infinity : band.upTo;
-    if (average < upperBound) {
+    const min = band.min ?? 0;
+    const max = band.max;
+    const withinMin = average >= min;
+    const withinMax = max === null || max === undefined || average <= max;
+    if (withinMin && withinMax) {
       return band.score;
     }
   }
 
-  // Fallback: highest band's score (covers averages equal to the last bound).
+  // Fallback: highest band's score.
   return sorted[sorted.length - 1].score;
 }
 
@@ -293,6 +368,33 @@ export function validateCompositeScoringConfig(rawConfig) {
       if (toFiniteNumber(band?.score) === null) {
         return { ok: false, message: `${label}: each band needs a numeric score` };
       }
+
+      const hasMinMaxShape =
+        Object.prototype.hasOwnProperty.call(band || {}, "min") ||
+        Object.prototype.hasOwnProperty.call(band || {}, "max");
+
+      if (hasMinMaxShape) {
+        const minRaw =
+          band.min === undefined || band.min === null || band.min === ""
+            ? 0
+            : toFiniteNumber(band.min);
+        if (minRaw === null) {
+          return { ok: false, message: `${label}: band minimum must be a number` };
+        }
+        const hasMax =
+          band.max !== undefined && band.max !== null && band.max !== "";
+        if (hasMax && toFiniteNumber(band.max) === null) {
+          return { ok: false, message: `${label}: band maximum must be a number` };
+        }
+        if (hasMax && toFiniteNumber(band.max) < minRaw) {
+          return {
+            ok: false,
+            message: `${label}: band maximum must be greater than or equal to minimum`,
+          };
+        }
+        continue;
+      }
+
       const hasUpTo =
         band?.upTo !== undefined && band?.upTo !== null && band?.upTo !== "";
       if (hasUpTo && toFiniteNumber(band.upTo) === null) {
