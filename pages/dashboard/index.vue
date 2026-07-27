@@ -60,7 +60,7 @@ const hasError = computed(() => error.value || dashboardData.value?.statusCode =
               </div>
               <div class="flex-1 truncate">
                 <span class="block font-semibold text-xl leading-tight">{{ totalUsers }}</span>
-                <span class="text-base font-semibold text-gray-500">Total Users</span>
+                <span class="text-base font-semibold text-gray-500">Total Active Users</span>
               </div>
             </div>
           </rs-card>
