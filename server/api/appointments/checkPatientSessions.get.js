@@ -1,4 +1,5 @@
 import prisma from "~/server/utils/prisma";
+import { findActivePatient, isActiveStatus } from "~/server/utils/activeEntities";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -14,28 +15,23 @@ export default defineEventHandler(async (event) => {
     }
     
     // Get patient information including available sessions
-    const patient = await prisma.user_patients.findUnique({
-      where: {
-        patient_id: parseInt(patient_id),
-        deleted_at: null
-      },
-      select: {
-        patient_id: true,
-        fullname: true,
-        available_session: true,
-        status: true
-      }
+    const patient = await findActivePatient(prisma, patient_id, {
+      patient_id: true,
+      fullname: true,
+      available_session: true,
+      status: true,
     });
     
     if (!patient) {
       return {
         success: false,
-        message: 'Patient not found'
+        message: 'Patient not found or inactive'
       };
     }
     
     const availableSessions = patient.available_session || 0;
-    const canBookAppointment = availableSessions > 0;
+    const canBookAppointment =
+      availableSessions > 0 && isActiveStatus(patient.status);
     
     return {
       success: true,

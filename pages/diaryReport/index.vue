@@ -13,12 +13,12 @@ const searchQuery = ref('');
 async function fetchPatients() {
   isLoading.value = true;
   try {
-    const response = await fetch('/api/parents/manageChild/listChild');
+    const response = await fetch('/api/parents/manageChild/listChild?activeOnly=true');
     const result = await response.json();
     
     if (result.statusCode === 200 && result.data) {
       // Get parent details to fetch full names
-      const parentsResponse = await fetch('/api/parents/listParents');
+      const parentsResponse = await fetch('/api/parents/listParents?activeOnly=true');
       const parentsResult = await parentsResponse.json();
       
       if (parentsResult.statusCode === 200 && parentsResult.data) {

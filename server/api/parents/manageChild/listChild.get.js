@@ -1,4 +1,8 @@
 import {
+  ACTIVE_STATUS,
+  activeParentWhere,
+} from "~/server/utils/activeEntities";
+import {
   calculateAgeInMonths,
   evaluateAgeAgainstLimits,
   formatAgeRange,
@@ -10,6 +14,19 @@ export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
     const parentID = query.parentID ? parseInt(query.parentID) : null;
+    const activeOnly =
+      query.activeOnly === "true" ||
+      query.activeOnly === "1" ||
+      query.activeOnly === true;
+
+    const parentFilter = activeOnly
+      ? activeParentWhere()
+      : { deleted_at: null };
+
+    const childFilter = {
+      deleted_at: null,
+      ...(activeOnly ? { status: ACTIVE_STATUS } : {}),
+    };
 
     let relations;
 
@@ -18,9 +35,8 @@ export default defineEventHandler(async (event) => {
       relations = await prisma.user_parent_patient.findMany({
         where: { 
           parent_id: parentID,
-          user_parents: {
-            deleted_at: null // Only include active parents
-          }
+          user_parents: parentFilter,
+          user_patients: childFilter,
         },
         include: {
           user_patients: true,
@@ -35,9 +51,8 @@ export default defineEventHandler(async (event) => {
       // Get all children with their parent
       relations = await prisma.user_parent_patient.findMany({
         where: {
-          user_parents: {
-            deleted_at: null // Only include active parents
-          }
+          user_parents: parentFilter,
+          user_patients: childFilter,
         },
         include: {
           user_patients: true,
@@ -89,6 +104,7 @@ export default defineEventHandler(async (event) => {
         childID: c.patient_id,
         parentID: r.parent_id,
         parentUsername: p.user?.userUsername || '', // <-- add parent username here
+        parentStatus: p.parent_status || '',
         parentCity: p.parent_city || '',
         fullname: c.fullname || '',
         nickname: c.nickname,

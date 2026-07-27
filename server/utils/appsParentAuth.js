@@ -1,4 +1,8 @@
 import jwt from "jsonwebtoken";
+import {
+  ACTIVE_STATUS,
+  activeParentWhere,
+} from "~/server/utils/activeEntities";
 
 const ENV = useRuntimeConfig();
 
@@ -34,6 +38,7 @@ export async function getParentAuthContext(event) {
     },
     include: {
       user_parents: {
+        where: activeParentWhere(),
         select: {
           parent_id: true,
         },
@@ -48,7 +53,13 @@ export async function getParentAuthContext(event) {
 
   const parentId = user.user_parents[0].parent_id;
   const parentChildren = await prisma.user_parent_patient.findMany({
-    where: { parent_id: parentId },
+    where: {
+      parent_id: parentId,
+      user_patients: {
+        deleted_at: null,
+        status: ACTIVE_STATUS,
+      },
+    },
     select: { patient_id: true },
   });
 

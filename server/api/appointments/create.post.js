@@ -1,5 +1,9 @@
 import prisma from "~/server/utils/prisma";
 import {
+  findActivePatient,
+  findActivePractitioner,
+} from "~/server/utils/activeEntities";
+import {
   computeEndTime,
   findOverlappingAppointment,
   parseAppointmentDate,
@@ -62,20 +66,24 @@ export default defineEventHandler(async (event) => {
         }
       }
 
-      const patient = await tx.user_patients.findUnique({
-        where: {
-          patient_id: parseInt(patient_id, 10),
-          deleted_at: null,
-        },
-        select: {
-          patient_id: true,
-          fullname: true,
-          available_session: true,
-        },
+      const patient = await findActivePatient(tx, patient_id, {
+        patient_id: true,
+        fullname: true,
+        available_session: true,
       });
 
       if (!patient) {
-        throw new Error("Patient not found");
+        throw new Error("Patient not found or inactive");
+      }
+
+      if (!is_admin_appointment) {
+        const practitioner = await findActivePractitioner(tx, practitioner_id, {
+          practitioner_id: true,
+        });
+
+        if (!practitioner) {
+          throw new Error("Practitioner not found or inactive");
+        }
       }
 
       const availableSessions = patient.available_session || 0;

@@ -22,6 +22,51 @@ export default defineEventHandler(async (event) => {
     }
   
     try {
+      const existingChild = await prisma.user_patients.findFirst({
+        where: {
+          patient_id: parseInt(childID),
+          deleted_at: null,
+        },
+        select: { status: true },
+      });
+
+      if (!existingChild) {
+        return { statusCode: 404, message: 'Child not found' };
+      }
+
+      if (
+        status &&
+        status !== existingChild.status
+      ) {
+        const parentLinks = await prisma.user_parent_patient.findMany({
+          where: { patient_id: parseInt(childID) },
+          include: {
+            user_parents: {
+              select: {
+                parent_status: true,
+                deleted_at: true,
+              },
+            },
+          },
+        });
+
+        const hasInactiveParent = parentLinks.some(
+          (link) =>
+            link.user_parents &&
+            (link.user_parents.deleted_at ||
+              String(link.user_parents.parent_status || '').toLowerCase() !==
+                'active'),
+        );
+
+        if (hasInactiveParent) {
+          return {
+            statusCode: 400,
+            message:
+              'Cannot change child status while the parent account is inactive',
+          };
+        }
+      }
+
       // Function to convert OKU card string to number
       const convertOKUCard = (okuCard) => {
         if (okuCard === 'Yes') return 1;

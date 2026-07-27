@@ -13,6 +13,10 @@ export default defineEventHandler(async (event) => {
       const children = await prisma.user_parent_patient.findMany({
         where: {
           parent_id: parseInt(parentID),
+          user_patients: {
+            deleted_at: null,
+            status: "Active",
+          },
         },
         include: {
           user_patients: {
@@ -41,7 +45,9 @@ export default defineEventHandler(async (event) => {
       });
 
       // Transform the data to match expected format
-      const transformedChildren = children.map(child => ({
+      const transformedChildren = children
+        .filter((child) => child.user_patients)
+        .map(child => ({
         patient_id: child.user_patients.patient_id,
         patient_name: child.user_patients.fullname,
         patient_dob: child.user_patients.dob,

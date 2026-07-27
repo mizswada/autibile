@@ -29,6 +29,13 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    if (String(user.userStatus || "").toLowerCase() !== "active") {
+      return {
+        statusCode: 403,
+        message: "This account is inactive. Please contact an administrator.",
+      };
+    }
+
     const hashedPassword = sha256(password).toString();
     if (user.userPassword !== hashedPassword) {
       return {

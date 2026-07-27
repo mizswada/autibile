@@ -6,6 +6,7 @@ export default defineEventHandler(async (event) => {
       const parents = await prisma.user_parents.findMany({
         where: {
           deleted_at: null,
+          parent_status: "Active",
           parent_id: parseInt(parentID)
         },
         orderBy: { created_at: 'desc' },
@@ -41,7 +42,8 @@ export default defineEventHandler(async (event) => {
           user_parent_patient: {
             where: {
               user_patients: {
-                deleted_at: null // Only include active children
+                deleted_at: null,
+                status: "Active",
               }
             },
             include: {

@@ -1,5 +1,9 @@
 import prisma from "~/server/utils/prisma";
 import {
+  findActivePatient,
+  findActivePractitioner,
+} from "~/server/utils/activeEntities";
+import {
   attachAppointmentTimes,
   computeEndTime,
   findOverlappingAppointment,
@@ -159,19 +163,49 @@ export default defineEventHandler(async (event) => {
     const releaseOld = wasReserved && (!willBeReserved || patientChanged);
     const acquireNew = willBeReserved && (!wasReserved || patientChanged);
 
+    // Validate reassignment targets before mutating session balances
+    if (patientChanged || (patient_id && patient_id !== existingPatientId)) {
+      const targetPatient = await findActivePatient(prisma, newPatientId, {
+        patient_id: true,
+      });
+      if (!targetPatient) {
+        return {
+          success: false,
+          message: "Patient not found or inactive",
+        };
+      }
+    }
+
+    if (!willBeAdmin && effectivePractitionerId) {
+      const practitionerChanged =
+        updateData.practitioner_id !== undefined &&
+        updateData.practitioner_id !== existingAppointment.practitioner_id;
+
+      if (practitionerChanged || is_admin_appointment === false) {
+        const practitioner = await findActivePractitioner(
+          prisma,
+          effectivePractitionerId,
+          { practitioner_id: true },
+        );
+        if (!practitioner) {
+          return {
+            success: false,
+            message: "Practitioner not found or inactive",
+          };
+        }
+      }
+    }
+
     const appointmentResult = await prisma.$transaction(async (tx) => {
       if (acquireNew) {
-        const targetPatient = await tx.user_patients.findUnique({
-          where: { patient_id: newPatientId },
-          select: {
-            patient_id: true,
-            fullname: true,
-            available_session: true,
-          },
+        const targetPatient = await findActivePatient(tx, newPatientId, {
+          patient_id: true,
+          fullname: true,
+          available_session: true,
         });
 
         if (!targetPatient) {
-          throw new Error("Patient not found");
+          throw new Error("Patient not found or inactive");
         }
 
         const availableSessions = targetPatient.available_session || 0;

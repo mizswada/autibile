@@ -13,43 +13,93 @@ export default defineEventHandler(async (event) => {
     const id = parseInt(parentID);
     const currentDate = new Date();
 
-    // 1. Find all child IDs linked to this parent
-    const links = await prisma.user_parent_patient.findMany({
-      where: { parent_id: id },
-      select: { patient_id: true },
+    const parent = await prisma.user_parents.findFirst({
+      where: {
+        parent_id: id,
+        deleted_at: null,
+      },
+      select: {
+        parent_id: true,
+        user_id: true,
+      },
     });
 
-    const childIDs = links.map(link => link.patient_id);
-
-    // 2. Soft delete children by setting deleted_at
-    if (childIDs.length > 0) {
-      await prisma.user_patients.updateMany({
-        where: { 
-          patient_id: { in: childIDs },
-          deleted_at: null // Only update records that haven't been deleted yet
-        },
-        data: { 
-          deleted_at: currentDate,
-          status: 'INACTIVE'
-        }
-      });
+    if (!parent) {
+      return {
+        statusCode: 404,
+        message: 'Parent not found or already deleted',
+      };
     }
 
-    // 3. Soft delete the parent
-    await prisma.user_parents.update({
-      where: { 
-        parent_id: id,
-        deleted_at: null // Only update if not already deleted
-      },
-      data: { 
-        deleted_at: currentDate,
-        parent_status: 'INACTIVE'
-      }
-    });
+    await prisma.$transaction(async (tx) => {
+      // 1. Find all child IDs linked to this parent
+      const links = await tx.user_parent_patient.findMany({
+        where: { parent_id: id },
+        select: { patient_id: true },
+      });
 
-    // 4. Delete the relationships in user_parent_patient
-    await prisma.user_parent_patient.deleteMany({
-      where: { parent_id: id }
+      const childIDs = links.map((link) => link.patient_id);
+
+      // 2. Soft delete children by setting deleted_at
+      if (childIDs.length > 0) {
+        const children = await tx.user_patients.findMany({
+          where: {
+            patient_id: { in: childIDs },
+            deleted_at: null,
+          },
+          select: { user_id: true },
+        });
+
+        await tx.user_patients.updateMany({
+          where: {
+            patient_id: { in: childIDs },
+            deleted_at: null,
+          },
+          data: {
+            deleted_at: currentDate,
+            status: 'Inactive',
+          },
+        });
+
+        const childUserIDs = children
+          .map((child) => child.user_id)
+          .filter((userId) => userId != null);
+
+        if (childUserIDs.length > 0) {
+          await tx.user.updateMany({
+            where: { userID: { in: childUserIDs } },
+            data: {
+              userStatus: 'Inactive',
+              userModifiedDate: currentDate,
+            },
+          });
+        }
+      }
+
+      // 3. Soft delete the parent
+      await tx.user_parents.update({
+        where: { parent_id: id },
+        data: {
+          deleted_at: currentDate,
+          parent_status: 'Inactive',
+        },
+      });
+
+      // 4. Deactivate linked login account
+      if (parent.user_id) {
+        await tx.user.update({
+          where: { userID: parent.user_id },
+          data: {
+            userStatus: 'Inactive',
+            userModifiedDate: currentDate,
+          },
+        });
+      }
+
+      // 5. Delete the relationships in user_parent_patient
+      await tx.user_parent_patient.deleteMany({
+        where: { parent_id: id },
+      });
     });
 
     return {
@@ -61,7 +111,7 @@ export default defineEventHandler(async (event) => {
     return {
       statusCode: 500,
       message: 'Internal server error',
-      error: error.message
+      error: error.message,
     };
   }
 });

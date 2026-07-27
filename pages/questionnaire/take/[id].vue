@@ -200,7 +200,7 @@ async function fetchQuestionnaireData() {
 
 async function fetchPatients() {
   try {
-    const res = await fetch('/api/parents/manageChild/listChild');
+    const res = await fetch('/api/parents/manageChild/listChild?activeOnly=true');
     const result = await res.json();
 
     if (res.ok && result.data) {

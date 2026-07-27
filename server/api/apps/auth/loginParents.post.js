@@ -28,6 +28,10 @@ export default defineEventHandler(async (event) => {
       },
       include: {
         user_parents: {
+          where: {
+            deleted_at: null,
+            parent_status: "Active",
+          },
           select: {
             parent_id: true,
           },
@@ -37,7 +41,7 @@ export default defineEventHandler(async (event) => {
     
     //console.log('user',user);
 
-    if (!user) {
+    if (!user || !user.user_parents?.length) {
       return {
         statusCode: 404,
         message: "Parents does not exist",
@@ -96,10 +100,14 @@ export default defineEventHandler(async (event) => {
       },
     });
     
-    // Get all patient IDs from the parent's children through user_parent_patient junction table
+    // Get active children only (exclude soft-deleted / Inactive)
     const patientData = await prisma.user_parent_patient.findMany({
       where: {
         parent_id: parentId,
+        user_patients: {
+          deleted_at: null,
+          status: "Active",
+        },
       },
       include: {
         user_patients: {

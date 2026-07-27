@@ -40,7 +40,7 @@ onMounted(async () => {
 async function fetchPatients() {
   isLoading.value = true;
   try {
-    const response = await fetch('/api/parents/manageChild/listChild');
+    const response = await fetch('/api/parents/manageChild/listChild?activeOnly=true');
     const result = await response.json();
     
     if (result.statusCode === 200 && result.data) {
@@ -57,7 +57,7 @@ async function fetchPatients() {
 
 async function fetchParents() {
   try {
-    const response = await fetch('/api/parents/listParents');
+    const response = await fetch('/api/parents/listParents?activeOnly=true');
     const result = await response.json();
     
     if (result.statusCode === 200 && result.data) {

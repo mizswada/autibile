@@ -1,3 +1,4 @@
+import { findActivePatient } from "~/server/utils/activeEntities";
 import { getMchatrEligibility } from "~/server/utils/questionnaireAccess";
 
 export default defineEventHandler(async (event) => {
@@ -20,15 +21,14 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    const patient = await prisma.user_patients.findUnique({
-      where: { patient_id: parseInt(patientId) },
-      select: { patient_id: true },
+    const patient = await findActivePatient(prisma, patientId, {
+      patient_id: true,
     });
 
     if (!patient) {
       return {
         statusCode: 404,
-        message: "Patient not found",
+        message: "Patient not found or inactive",
       };
     }
 

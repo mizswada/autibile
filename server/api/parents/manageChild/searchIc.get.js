@@ -12,6 +12,7 @@ export default defineEventHandler(async (event) => {
       const users = await prisma.user_patients.findMany({
         where: {
           patient_ic: icNumber,
+          deleted_at: null,
         },
         select: {
           patient_id: true,

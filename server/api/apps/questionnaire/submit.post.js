@@ -1,3 +1,4 @@
+import { findActivePatient } from "~/server/utils/activeEntities";
 import {
   assertCanSubmit,
   lockAfterSubmit,
@@ -24,6 +25,16 @@ export default defineEventHandler(async (event) => {
       }
 
       if (patientId) {
+        const patient = await findActivePatient(prisma, patientId, {
+          patient_id: true,
+        });
+        if (!patient) {
+          return {
+            statusCode: 404,
+            message: "Patient not found or inactive",
+          };
+        }
+
         const accessCheck = await assertCanSubmit(
           parseInt(patientId),
           parseInt(questionnaireId),

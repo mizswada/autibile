@@ -1,3 +1,5 @@
+import { findActivePatient } from "~/server/utils/activeEntities";
+
 export default defineEventHandler(async (event) => {
   try {
     // Extract userID from the session context for authorization
@@ -73,8 +75,21 @@ export default defineEventHandler(async (event) => {
       });
 
       if (matchingPackage && currentInvoice.patient_id) {
+        const activePatient = await findActivePatient(
+          prisma,
+          currentInvoice.patient_id,
+          { patient_id: true, available_session: true },
+        );
+
+        if (!activePatient) {
+          return {
+            statusCode: 400,
+            message: "Cannot mark invoice as Paid: patient is inactive or deleted",
+          };
+        }
+
         // Add available sessions to the patient
-        const currentSessions = currentInvoice.user_patients?.available_session || 0;
+        const currentSessions = activePatient.available_session || 0;
         const newSessions = currentSessions + (matchingPackage.avail_session || 0);
 
         // Update patient's available sessions

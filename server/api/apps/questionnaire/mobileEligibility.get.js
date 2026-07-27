@@ -24,9 +24,11 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    const patient = await prisma.user_patients.findUnique({
+    const patient = await prisma.user_patients.findFirst({
       where: {
         patient_id: parseInt(patientID),
+        deleted_at: null,
+        status: "Active",
       },
       select: {
         patient_id: true,
@@ -38,7 +40,7 @@ export default defineEventHandler(async (event) => {
     if (!patient) {
       return {
         statusCode: 404,
-        message: "Patient not found",
+        message: "Patient not found or inactive",
       };
     }
 

@@ -117,12 +117,13 @@ export default defineEventHandler(async (event) => {
       });
 
       const totalParents = await prisma.user_parents.count({
-        where: { deleted_at: null },
+        where: { deleted_at: null, parent_status: 'Active' },
       });
 
       const totalDoctors = await prisma.user_practitioners.count({
         where: {
           deleted_at: null,
+          status: 'Active',
           type: 'Doctor',
         },
       });
@@ -130,6 +131,7 @@ export default defineEventHandler(async (event) => {
       const totalTherapists = await prisma.user_practitioners.count({
         where: {
           deleted_at: null,
+          status: 'Active',
           type: 'Therapist',
         },
       });
@@ -145,7 +147,7 @@ export default defineEventHandler(async (event) => {
     } else if (isDoctor) {
       // Doctor gets limited statistics
       const totalPatients = await prisma.user_patients.count({
-        where: { deleted_at: null },
+        where: { deleted_at: null, status: 'Active' },
       });
 
       const totalAppointments = await prisma.appointments.count({

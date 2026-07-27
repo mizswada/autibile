@@ -18,12 +18,37 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    // Update only the status field in user_practitioners table
-    const updated = await prisma.user_practitioners.update({
+    const practitioner = await prisma.user_practitioners.findUnique({
       where: { practitioner_id: practitionerID },
-      data: {
-        status: status,
-      },
+      select: { user_id: true },
+    });
+
+    if (!practitioner) {
+      return {
+        statusCode: 404,
+        message: 'Practitioner not found',
+      };
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const practitionerUpdate = await tx.user_practitioners.update({
+        where: { practitioner_id: practitionerID },
+        data: {
+          status: status,
+        },
+      });
+
+      if (practitioner.user_id) {
+        await tx.user.update({
+          where: { userID: practitioner.user_id },
+          data: {
+            userStatus: status,
+            userModifiedDate: new Date(),
+          },
+        });
+      }
+
+      return practitionerUpdate;
     });
 
     return {

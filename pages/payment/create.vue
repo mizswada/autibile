@@ -94,7 +94,7 @@ onMounted(async () => {
 
 async function fetchPatients() {
   try {
-    const response = await $fetch('/api/parents/manageChild/listChild');
+    const response = await $fetch('/api/parents/manageChild/listChild?activeOnly=true');
     if (response.statusCode === 200) {
       patients.value = response.data;
     } else {

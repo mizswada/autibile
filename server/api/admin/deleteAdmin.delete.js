@@ -13,13 +13,13 @@ export default defineEventHandler(async (event) => {
     const id = parseInt(userID);
     const currentDate = new Date();
 
-    // Update user status to inactive
+    // Soft delete: deactivate login account
     await prisma.user.update({
       where: { 
         userID: id,
       },
       data: { 
-        userStatus: 'INACTIVE',
+        userStatus: 'Inactive',
         userModifiedDate: currentDate
       }
     });

@@ -29,7 +29,8 @@ export default defineEventHandler(async (event) => {
         user_practitioners: {
           some: { 
             type: "Therapist",
-            status: "Active"
+            status: "Active",
+            deleted_at: null,
           },
         },
       },

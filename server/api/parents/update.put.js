@@ -45,6 +45,9 @@ export default defineEventHandler(async (event) => {
     }
 
 
+    const nextStatus = body.status || parentRecord.parent_status || '';
+    const now = new Date();
+
     // Update user_parents table
     const updatedParent = await prisma.user_parents.update({
       where: { parent_id: parseInt(parentID) },
@@ -66,10 +69,64 @@ export default defineEventHandler(async (event) => {
         parent_add3: body.addressLine3 || '',
         parent_city: body.city || '',
         parent_postcode: body.postcode || '',
-        parent_status: body.status || '',
-        updated_at: new Date(),
+        parent_status: nextStatus,
+        updated_at: now,
       },
     });
+
+    if (body.status && ['Active', 'Inactive'].includes(body.status) && userID) {
+      await prisma.user.update({
+        where: { userID: userID },
+        data: {
+          userStatus: body.status,
+          userModifiedDate: now,
+        },
+      });
+    }
+
+    // When parent is set Inactive via edit form, cascade to children
+    if (body.status === 'Inactive') {
+      const links = await prisma.user_parent_patient.findMany({
+        where: { parent_id: parseInt(parentID) },
+        select: {
+          patient_id: true,
+          user_patients: {
+            select: { user_id: true, deleted_at: true },
+          },
+        },
+      });
+
+      const childIDs = links
+        .filter((link) => link.user_patients && !link.user_patients.deleted_at)
+        .map((link) => link.patient_id);
+
+      if (childIDs.length > 0) {
+        await prisma.user_patients.updateMany({
+          where: {
+            patient_id: { in: childIDs },
+            deleted_at: null,
+          },
+          data: {
+            status: 'Inactive',
+            update_at: now,
+          },
+        });
+
+        const childUserIDs = links
+          .map((link) => link.user_patients?.user_id)
+          .filter((userId) => userId != null);
+
+        if (childUserIDs.length > 0) {
+          await prisma.user.updateMany({
+            where: { userID: { in: childUserIDs } },
+            data: {
+              userStatus: 'Inactive',
+              userModifiedDate: now,
+            },
+          });
+        }
+      }
+    }
 
     return {
       statusCode: 200,

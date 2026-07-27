@@ -53,9 +53,11 @@ export default defineEventHandler(async (event) => {
     let questionnaireAccess = null;
 
     if (patientID) {
-      patientInfo = await prisma.user_patients.findUnique({
+      patientInfo = await prisma.user_patients.findFirst({
         where: {
           patient_id: parseInt(patientID),
+          deleted_at: null,
+          status: "Active",
         },
         select: {
           patient_id: true,

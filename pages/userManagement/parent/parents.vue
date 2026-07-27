@@ -408,6 +408,14 @@ async function savePassword() {
       this parent (Username: {{ pendingToggleData?.username }})?
     </p>
 
+    <p
+      v-if="pendingToggleData?.status === 'Active'"
+      class="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-3"
+    >
+      Deactivating this parent will also set all linked children to Inactive.
+      Child status cannot be changed until the parent is active again.
+    </p>
+
     <div v-if="isTogglingStatus" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
       <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
       <span>Updating status...</span>

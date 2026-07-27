@@ -1,4 +1,5 @@
 import prisma from "~/server/utils/prisma";
+import { findActivePractitioner } from "~/server/utils/activeEntities";
 import {
   getAvailableEndTimesForStart,
   getAvailableStartTimes,
@@ -30,6 +31,17 @@ export default defineEventHandler(async (event) => {
 
     let existingAppointments = [];
     if (!isAdminBooking && practitioner_id) {
+      const practitioner = await findActivePractitioner(prisma, practitioner_id, {
+        practitioner_id: true,
+      });
+
+      if (!practitioner) {
+        return {
+          success: false,
+          message: "Practitioner not found or inactive",
+        };
+      }
+
       existingAppointments = await getPractitionerAppointmentsForDate(
         prisma,
         practitioner_id,

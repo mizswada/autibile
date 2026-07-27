@@ -1,3 +1,5 @@
+import { findActivePatient } from "~/server/utils/activeEntities";
+
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event);
@@ -17,6 +19,17 @@ export default defineEventHandler(async (event) => {
       return {
         statusCode: 400,
         message: "Missing required field: patientID",
+      };
+    }
+
+    const patient = await findActivePatient(prisma, patientID, {
+      patient_id: true,
+    });
+
+    if (!patient) {
+      return {
+        statusCode: 404,
+        message: "Patient not found or inactive",
       };
     }
 

@@ -40,7 +40,7 @@ async function fetchQuestionnaires() {
 
 async function fetchPatients() {
   try {
-    const res = await fetch('/api/parents/manageChild/listChild');
+    const res = await fetch('/api/parents/manageChild/listChild?activeOnly=true');
     const result = await res.json();
     
     if (res.ok && result.data) {
@@ -117,7 +117,7 @@ async function viewResponseDetails(responseId) {
 async function fetchPatientDetails(patientId) {
   try {
     // Fetch all patients and find the matching one
-    const res = await fetch('/api/parents/manageChild/listChild');
+    const res = await fetch('/api/parents/manageChild/listChild?activeOnly=true');
     const result = await res.json();
     
     if (res.ok && result.data) {

@@ -1,4 +1,9 @@
 import prisma from "~/server/utils/prisma";
+import {
+  activeParentWhere,
+  activePatientWhere,
+  activePractitionerWhere,
+} from "~/server/utils/activeEntities";
 import { requireAdmin } from "~/server/utils/reports/guard";
 
 /**
@@ -16,12 +21,12 @@ export default defineEventHandler(async (event) => {
     const [patients, practitioners, services, centers, parents, questionnaires] =
       await Promise.all([
       prisma.user_patients.findMany({
-        where: { deleted_at: null },
+        where: activePatientWhere(),
         select: { patient_id: true, fullname: true, patient_ic: true },
         orderBy: { fullname: "asc" },
       }),
       prisma.user_practitioners.findMany({
-        where: { deleted_at: null },
+        where: activePractitionerWhere(),
         include: { user: { select: { userFullName: true } } },
         orderBy: { practitioner_id: "asc" },
       }),
@@ -36,7 +41,7 @@ export default defineEventHandler(async (event) => {
         orderBy: { center_name: "asc" },
       }),
       prisma.user_parents.findMany({
-        where: { deleted_at: null },
+        where: activeParentWhere(),
         include: { user: { select: { userFullName: true } } },
         orderBy: { parent_id: "asc" },
       }),

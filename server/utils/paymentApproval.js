@@ -19,6 +19,7 @@ export async function creditPackageSessions(invoice, patientId) {
     where: {
       patient_id: patientId,
       deleted_at: null,
+      status: "Active",
     },
     select: {
       available_session: true,

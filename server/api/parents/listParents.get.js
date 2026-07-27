@@ -20,9 +20,16 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    const query = getQuery(event);
+    const activeOnly =
+      query.activeOnly === "true" ||
+      query.activeOnly === "1" ||
+      query.activeOnly === true;
+
     const parents = await prisma.user_parents.findMany({
       where: {
-        deleted_at: null // Filter out soft-deleted records
+        deleted_at: null, // Filter out soft-deleted records
+        ...(activeOnly ? { parent_status: "Active" } : {}),
       },
       orderBy: { created_at: 'desc' },
       include: {

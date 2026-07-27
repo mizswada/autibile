@@ -1,3 +1,5 @@
+import { findActivePatient } from "~/server/utils/activeEntities";
+
 export default defineEventHandler(async (event) => {
   try {
     // Extract userID from the session context for authorization
@@ -55,18 +57,13 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    // Verify patient exists
-    const patientExists = await prisma.user_patients.findFirst({
-      where: {
-        patient_id: patientIdValue,
-        deleted_at: null,
-      },
-    });
+    // Verify patient exists and is active
+    const patientExists = await findActivePatient(prisma, patientIdValue);
 
     if (!patientExists) {
       return {
         statusCode: 404,
-        message: "Patient not found",
+        message: "Patient not found or inactive",
       };
     }
 

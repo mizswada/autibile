@@ -65,7 +65,21 @@ function showMessage(msg, type = 'success') {
   setTimeout(() => (message.value = ''), 3000);
 }
 
+function isParentActive(child) {
+  return String(child?.parentStatus || '').toLowerCase() === 'active';
+}
+
 function confirmToggleStatus(child) {
+  if (!child) return;
+
+  if (!isParentActive(child)) {
+    showMessage(
+      'Cannot change child status while the parent account is inactive. Activate the parent first.',
+      'error',
+    );
+    return;
+  }
+
   pendingToggleChild.value = child;
   showConfirmToggleModal.value = true;
 }
@@ -84,7 +98,11 @@ async function performToggleStatus() {
     const res = await fetch('/api/parents/manageChild/updateStatusChild', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ childID: child.childID, status: newStatus }),
+      body: JSON.stringify({
+        childID: child.childID,
+        parentID: child.parentID,
+        status: newStatus,
+      }),
     });
 
     const result = await res.json();
@@ -284,6 +302,7 @@ onMounted(async () => {
         childID: p.childID,
         childIC: p.icNumber, // ensure your API returns ic field as 'ic'
         parentUsername: p.parentUsername,
+        parentStatus: p.parentStatus || '',
         fullname: p.fullname || '',
         // nickname: p.nickname,
         gender: p.gender,
@@ -361,6 +380,10 @@ function getOriginalData(childIC, parentUsername) {
             type="checkbox"
             class="toggle-checkbox"
             :checked="row.value.status === 'Active'"
+            :disabled="!isParentActive(getOriginalData(row.value.childIC, row.value.parentUsername))"
+            :title="!isParentActive(getOriginalData(row.value.childIC, row.value.parentUsername))
+              ? 'Parent is inactive — activate the parent first'
+              : 'Toggle child status'"
             @click.prevent="confirmToggleStatus(getOriginalData(row.value.childIC, row.value.parentUsername))"
           />
         </template>
@@ -694,6 +717,10 @@ function getOriginalData(childIC, parentUsername) {
 }
 .toggle-checkbox:checked::before {
   transform: translateX(20px);
+}
+.toggle-checkbox:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 </style>
 

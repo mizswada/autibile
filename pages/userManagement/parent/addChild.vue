@@ -178,7 +178,21 @@ async function saveChild() {
   }
 }
 
+function isParentActive(child) {
+  return String(child?.parentStatus || '').toLowerCase() === 'active';
+}
+
 function confirmToggleStatus(child) {
+  if (!child) return;
+
+  if (!isParentActive(child)) {
+    showMessage(
+      'Cannot change child status while the parent account is inactive. Activate the parent first.',
+      'error',
+    );
+    return;
+  }
+
   pendingToggleChild.value = child;
   showConfirmToggleModal.value = true;
 }
@@ -197,7 +211,11 @@ async function performToggleStatus() {
     const res = await fetch('/api/parents/manageChild/updateStatusChild', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ childID: child.childID, status: newStatus }),
+      body: JSON.stringify({
+        childID: child.childID,
+        parentID: parentID.value || child.parentID,
+        status: newStatus,
+      }),
     });
 
     const result = await res.json();
@@ -365,6 +383,10 @@ function closeSearchICForm() {
                 type="checkbox"
                 class="toggle-checkbox"
                 :checked="child.status === 'Active'"
+                :disabled="!isParentActive(child)"
+                :title="!isParentActive(child)
+                  ? 'Parent is inactive — activate the parent first'
+                  : 'Toggle child status'"
                 @click.prevent="confirmToggleStatus(child)"
               />
             </td>
@@ -560,5 +582,9 @@ function closeSearchICForm() {
 }
 .toggle-checkbox:checked::before {
   transform: translateX(20px);
+}
+.toggle-checkbox:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 </style>
