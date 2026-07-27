@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "~/server/utils/prisma";
 import {
   computeEndTime,
   findOverlappingAppointment,
@@ -8,8 +8,6 @@ import {
 } from "~/server/utils/appointmentTime";
 
 export default defineEventHandler(async (event) => {
-  const prisma = new PrismaClient();
-
   try {
     const body = await readBody(event);
 

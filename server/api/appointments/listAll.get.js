@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "~/server/utils/prisma";
 import {
   formatAppointmentCalendarEvent,
   buildSessionNumberMap,
@@ -6,8 +6,6 @@ import {
 
 export default defineEventHandler(async (event) => {
   try {
-    const prisma = new PrismaClient();
-
     const { userID, roles } = event.context.user || {};
     if (!userID) {
       return {

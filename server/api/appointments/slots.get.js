@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "~/server/utils/prisma";
 import {
   getAvailableEndTimesForStart,
   getAvailableStartTimes,
@@ -8,7 +8,6 @@ import {
 
 export default defineEventHandler(async (event) => {
   try {
-    const prisma = new PrismaClient();
     const query = getQuery(event);
     const {
       date,

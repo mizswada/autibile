@@ -1,8 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from "~/server/utils/prisma";
 
 export default defineEventHandler(async (event) => {
   try {
-    const prisma = new PrismaClient();
     const body = await readBody(event);
     
     // Extract only parent feedback data from request body

@@ -1,8 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from "~/server/utils/prisma";
 
 export default defineEventHandler(async (event) => {
   try {
-    const prisma = new PrismaClient();
     
     // Get all active patients
     const patients = await prisma.user_patients.findMany({

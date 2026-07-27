@@ -1,6 +1,5 @@
 // Added by: Firzana Huda
-import { PrismaClient } from '@prisma/client'
-const prisma = new PrismaClient()
+import prisma from "~/server/utils/prisma";
 import sha256 from "crypto-js/sha256.js"
 
 export default defineEventHandler(async (event) => {

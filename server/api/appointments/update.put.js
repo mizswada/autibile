@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "~/server/utils/prisma";
 import {
   attachAppointmentTimes,
   computeEndTime,
@@ -11,7 +11,6 @@ import {
 
 export default defineEventHandler(async (event) => {
   try {
-    const prisma = new PrismaClient();
     const body = await readBody(event);
 
     const {

@@ -1,14 +1,9 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "~/server/utils/prisma";
 import {
   calculateAgeInMonths,
   evaluateAgeAgainstLimits,
   formatAgeRange,
 } from "~/server/utils/questionnaireAge";
-
-const prisma = globalThis.prisma ?? new PrismaClient();
-if (process.env.NODE_ENV !== "production") {
-  globalThis.prisma = prisma;
-}
 
 const MCHATR_QUESTIONNAIRE_ID = 1;
 const MCHATR_F_QUESTIONNAIRE_ID = 2;

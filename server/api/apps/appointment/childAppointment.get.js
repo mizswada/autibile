@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "~/server/utils/prisma";
 import {
   formatAppointmentCalendarEvent,
   buildSessionNumberMap,
@@ -6,8 +6,6 @@ import {
 
 export default defineEventHandler(async (event) => {
   try {
-    const prisma = new PrismaClient();
-
     const query = getQuery(event);
     const { date, patient_id, practitioner_id, status } = query;
 

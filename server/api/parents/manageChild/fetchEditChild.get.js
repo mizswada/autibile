@@ -1,5 +1,5 @@
 // Added by: Firzana Huda 24 June 2025
-import { PrismaClient } from '@prisma/client';
+import prisma from "~/server/utils/prisma";
 
 export default defineEventHandler(async (event) => {
     const { childID } = getQuery(event);
@@ -9,7 +9,6 @@ export default defineEventHandler(async (event) => {
     }
   
     try {
-      const prisma = new PrismaClient();
       const child = await prisma.user_patients.findUnique({
         where: { patient_id: parseInt(childID) },
         select: {
