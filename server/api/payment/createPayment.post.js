@@ -1,4 +1,4 @@
-import { findActivePatient } from "~/server/utils/activeEntities";
+import { findLinkedActivePatient } from "~/server/utils/activeEntities";
 import { approvePaymentAndInvoice } from "~/server/utils/paymentApproval";
 
 export default defineEventHandler(async (event) => {
@@ -97,13 +97,13 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    // Verify patient exists and is active
-    const patient = await findActivePatient(prisma, patientIdValue);
+    // Verify patient exists, is active, and linked to an active parent
+    const patient = await findLinkedActivePatient(prisma, patientIdValue);
 
     if (!patient) {
       return {
         statusCode: 404,
-        message: "Patient not found or inactive",
+        message: "Patient not found, inactive, or not linked to an active parent",
       };
     }
 

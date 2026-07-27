@@ -1,5 +1,8 @@
 import prisma from "~/server/utils/prisma";
-import { findActivePatient, isActiveStatus } from "~/server/utils/activeEntities";
+import {
+  findLinkedActivePatient,
+  isActiveStatus,
+} from "~/server/utils/activeEntities";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -15,7 +18,7 @@ export default defineEventHandler(async (event) => {
     }
     
     // Get patient information including available sessions
-    const patient = await findActivePatient(prisma, patient_id, {
+    const patient = await findLinkedActivePatient(prisma, patient_id, {
       patient_id: true,
       fullname: true,
       available_session: true,
@@ -25,7 +28,8 @@ export default defineEventHandler(async (event) => {
     if (!patient) {
       return {
         success: false,
-        message: 'Patient not found or inactive'
+        message:
+          'Patient not found, inactive, or not linked to an active parent',
       };
     }
     

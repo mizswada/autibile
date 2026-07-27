@@ -96,10 +96,8 @@ export default defineEventHandler(async (event) => {
         });
       }
 
-      // 5. Delete the relationships in user_parent_patient
-      await tx.user_parent_patient.deleteMany({
-        where: { parent_id: id },
-      });
+      // Keep user_parent_patient links for history / possible restore.
+      // Lists and booking already ignore soft-deleted parents/children.
     });
 
     return {

@@ -1,7 +1,7 @@
 import prisma from "~/server/utils/prisma";
 import {
-  findActivePatient,
   findActivePractitioner,
+  findLinkedActivePatient,
 } from "~/server/utils/activeEntities";
 import {
   attachAppointmentTimes,
@@ -165,13 +165,14 @@ export default defineEventHandler(async (event) => {
 
     // Validate reassignment targets before mutating session balances
     if (patientChanged || (patient_id && patient_id !== existingPatientId)) {
-      const targetPatient = await findActivePatient(prisma, newPatientId, {
+      const targetPatient = await findLinkedActivePatient(prisma, newPatientId, {
         patient_id: true,
       });
       if (!targetPatient) {
         return {
           success: false,
-          message: "Patient not found or inactive",
+          message:
+            "Patient not found, inactive, or not linked to an active parent",
         };
       }
     }
@@ -198,14 +199,16 @@ export default defineEventHandler(async (event) => {
 
     const appointmentResult = await prisma.$transaction(async (tx) => {
       if (acquireNew) {
-        const targetPatient = await findActivePatient(tx, newPatientId, {
+        const targetPatient = await findLinkedActivePatient(tx, newPatientId, {
           patient_id: true,
           fullname: true,
           available_session: true,
         });
 
         if (!targetPatient) {
-          throw new Error("Patient not found or inactive");
+          throw new Error(
+            "Patient not found, inactive, or not linked to an active parent",
+          );
         }
 
         const availableSessions = targetPatient.available_session || 0;

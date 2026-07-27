@@ -1,14 +1,14 @@
 import prisma from "~/server/utils/prisma";
 import {
-  activePatientWhere,
   activePractitionerWhere,
+  linkedActivePatientWhere,
 } from "~/server/utils/activeEntities";
 
 export default defineEventHandler(async (event) => {
   try {
-    // Get all active patients
+    // Active patients linked to an Active parent only
     const patients = await prisma.user_patients.findMany({
-      where: activePatientWhere(),
+      where: linkedActivePatientWhere(),
       select: {
         patient_id: true,
         fullname: true,

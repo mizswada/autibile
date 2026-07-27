@@ -1,7 +1,7 @@
 import prisma from "~/server/utils/prisma";
 import {
-  findActivePatient,
   findActivePractitioner,
+  findLinkedActivePatient,
 } from "~/server/utils/activeEntities";
 import {
   computeEndTime,
@@ -66,14 +66,16 @@ export default defineEventHandler(async (event) => {
         }
       }
 
-      const patient = await findActivePatient(tx, patient_id, {
+      const patient = await findLinkedActivePatient(tx, patient_id, {
         patient_id: true,
         fullname: true,
         available_session: true,
       });
 
       if (!patient) {
-        throw new Error("Patient not found or inactive");
+        throw new Error(
+          "Patient not found, inactive, or not linked to an active parent",
+        );
       }
 
       if (!is_admin_appointment) {
