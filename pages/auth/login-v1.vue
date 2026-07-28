@@ -13,7 +13,7 @@ definePageMeta({
       >
         <div class="w-full md:w-8/12 lg:w-full px-10 md:px-16 py-12 md:py-20">
           <h3 class="mb-5">Login</h3>
-          <p class="mb-5">Welcome to corradUI. Please login to continue.</p>
+          <p class="mb-5">Welcome to Autibile. Please login to continue.</p>
           <div class="grid grid-cols-2">
             <FormKit label="Username" type="text" outer-class="col-span-2" />
             <FormKit

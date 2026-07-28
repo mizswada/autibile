@@ -29,7 +29,17 @@ export default defineNuxtConfig({
         { name: "viewport", content: "width=device-width, initial-scale=1" },
         {
           name: "description",
+          content:
+            "Autibile is a therapy and autism screening platform for parents, doctors, and therapists to manage appointments, screenings, diary reports, and care records.",
+        },
+        {
+          property: "og:title",
           content: "Autibile",
+        },
+        {
+          property: "og:description",
+          content:
+            "Therapy and autism screening platform for parents, doctors, and therapists.",
         },
         {
           name: "google-site-verification",

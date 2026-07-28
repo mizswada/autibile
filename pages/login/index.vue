@@ -7,6 +7,16 @@ definePageMeta({
   middleware: ["dashboard"],
 });
 
+useSeoMeta({
+  title: "Autibile Login",
+  description:
+    "Autibile is a therapy and autism screening platform for parents, doctors, and therapists. Sign in to manage appointments, screenings, and care records.",
+  ogTitle: "Autibile",
+  ogDescription:
+    "Therapy and autism screening platform for parents, doctors, and therapists.",
+  robots: "index, follow",
+});
+
 const { $swal } = useNuxtApp();
 const username = ref("");
 const password = ref("");
@@ -89,7 +99,7 @@ const login = async () => {
         </div>
         <h3 class="mb-4">Login</h3>
         <p class="text-slate-500 mb-6">
-          Welcome to Corrad. Please login to continue.
+          Welcome to Autibile. Please login to continue.
         </p>
         <div class="grid grid-cols-2">
           <FormKit

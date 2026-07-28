@@ -1,11 +1,15 @@
 <script setup>
 useHead({
   title: "Autibile",
-  description: "Home page",
   htmlAttrs: {
     lang: "en",
   },
   meta: [
+    {
+      name: "description",
+      content:
+        "Autibile is a therapy and autism screening platform for parents, doctors, and therapists to manage appointments, screenings, diary reports, and care records.",
+    },
     {
       name: "google-site-verification",
       content: "Ye_NPj_76H17L1-oQoUHpXWedFhZV5ubU72vqBB2iuY",
