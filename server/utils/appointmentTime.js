@@ -534,7 +534,8 @@ export function formatAppointmentCalendarEvent(appointment, sessionNumber = null
       end_time,
       parent_comment: appointment.parent_comment,
       therapist_doctor_comment: appointment.therapist_doctor_comment,
-      parent_rate: appointment.parent_rate,
+      parent_rate:
+        appointment.parent_rate != null ? Number(appointment.parent_rate) : null,
       slot_ID: appointment.slot_ID,
       session_number: sessionNumber,
       is_admin_appointment: isAdminAppointment,
