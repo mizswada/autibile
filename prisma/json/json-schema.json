@@ -94,6 +94,17 @@
             "null"
           ]
         },
+        "emailVerified": {
+          "type": "boolean",
+          "default": false
+        },
+        "emailVerifiedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
         "userCreatedDate": {
           "type": [
             "string",
@@ -112,6 +123,12 @@
           "type": "array",
           "items": {
             "$ref": "#/definitions/appointments"
+          }
+        },
+        "user_email_token": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/user_email_token"
           }
         },
         "user_parents": {
@@ -137,6 +154,38 @@
           "items": {
             "$ref": "#/definitions/userrole"
           }
+        }
+      }
+    },
+    "user_email_token": {
+      "type": "object",
+      "properties": {
+        "tokenID": {
+          "type": "integer"
+        },
+        "token": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "usedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "user": {
+          "$ref": "#/definitions/user"
         }
       }
     },
@@ -2290,6 +2339,9 @@
     },
     "user": {
       "$ref": "#/definitions/user"
+    },
+    "user_email_token": {
+      "$ref": "#/definitions/user_email_token"
     },
     "role": {
       "$ref": "#/definitions/role"

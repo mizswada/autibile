@@ -31,13 +31,30 @@ model user {
   userPhone          String?              @db.VarChar(255)
   userIC             String?              @db.VarChar(50)
   signInBy           String?              @db.VarChar(255)
+  emailVerified      Boolean              @default(false)
+  emailVerifiedAt    DateTime?            @db.DateTime(0)
   userCreatedDate    DateTime?            @db.DateTime(0)
   userModifiedDate   DateTime?            @db.DateTime(0)
   appointments       appointments[]
+  user_email_token   user_email_token[]
   user_parents       user_parents[]
   user_patients      user_patients[]
   user_practitioners user_practitioners[]
   userrole           userrole[]
+}
+
+model user_email_token {
+  tokenID   Int       @id @default(autoincrement())
+  userID    Int
+  token     String    @unique @db.VarChar(255)
+  type      String    @db.VarChar(50)
+  expiresAt DateTime  @db.DateTime(0)
+  usedAt    DateTime? @db.DateTime(0)
+  createdAt DateTime  @default(now()) @db.DateTime(0)
+  user      user      @relation(fields: [userID], references: [userID], onDelete: Cascade, onUpdate: NoAction, map: "FK_user_email_token_user")
+
+  @@index([userID], map: "idx_user_email_token_userID")
+  @@index([type], map: "idx_user_email_token_type")
 }
 
 model role {

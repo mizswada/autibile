@@ -735,7 +735,12 @@ const pageNumbers = computed(() => {
     </rs-card>
     
     <!-- Invoice Details Modal -->
-    <rs-modal v-model="showInvoiceDetails" title="Invoice Details">
+    <rs-modal
+      v-model="showInvoiceDetails"
+      title="Invoice Details"
+      ok-only
+      :ok-callback="closeDetails"
+    >
       <div v-if="selectedInvoice" class="p-4">
         <div class="flex justify-between items-center mb-6">
           <h5>Invoice {{ formatInvoiceId(selectedInvoice.invoice_id) }}</h5>
@@ -782,18 +787,6 @@ const pageNumbers = computed(() => {
             <p class="font-medium">{{ selectedInvoice.payment_reference }}</p>
           </div>
         </div>
-        
-        <!-- <div class="flex justify-end space-x-2">
-          <rs-button variant="outline" @click="downloadInvoice(selectedInvoice.invoice_id)">
-            <NuxtIcon name="ic:outline-download" class="mr-1" />
-            Download
-          </rs-button>
-          <rs-button variant="outline" @click="printInvoice(selectedInvoice)">
-            <NuxtIcon name="ic:outline-print" class="mr-1" />
-            Print
-          </rs-button>
-          <rs-button @click="closeDetails">Close</rs-button>
-        </div> -->
       </div>
     </rs-modal>
     
