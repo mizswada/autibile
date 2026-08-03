@@ -3,6 +3,10 @@ import { ref, onMounted, watch, computed } from 'vue';
 import { useUserStore } from '@/stores/user';
 import { useFetch, useLazyFetch } from '#app';
 import Loading from '@/components/Loading.vue';
+import {
+  buildAppointmentPdfFilename,
+  renderAppointmentPdf,
+} from '@/utils/appointmentDocument';
 
 // FullCalendar is browser-only. Use the client plugin (same as pages/ui/component/calendar.vue)
 // instead of importing it here — top-level imports break SSR on hard reload.
@@ -193,6 +197,7 @@ const rawData = ref([]);
 // Modal state
 const showModal = ref(false);
 const showDetailsModal = ref(false);
+const printingAppointmentId = ref(null);
 const showEditModal = ref(false);
 const showCommentModal = ref(false);
 const showRatingModal = ref(false);
@@ -1078,6 +1083,27 @@ const viewAppointmentDetails = (row) => {
   } else {
     console.error("Appointment not found for ID:", id);
   }
+};
+
+const downloadAppointmentPdf = async (appointment) => {
+  if (!appointment || printingAppointmentId.value) return;
+
+  printingAppointmentId.value = appointment.id;
+  try {
+    const { default: jsPDF } = await import('jspdf');
+    const pdf = await renderAppointmentPdf(jsPDF, appointment, statusMapping);
+    pdf.save(buildAppointmentPdfFilename(appointment));
+  } catch (error) {
+    console.error('Failed to generate appointment PDF:', error);
+    alert('Failed to generate appointment PDF. Please try again.');
+  } finally {
+    printingAppointmentId.value = null;
+  }
+};
+
+const downloadSelectedAppointmentPdf = async () => {
+  if (!selectedAppointment.value) return;
+  await downloadAppointmentPdf(selectedAppointment.value);
 };
 
 // Update the editAppointment function to work with the restored table structure
@@ -2034,6 +2060,20 @@ const validatePatientData = (patient) => {
                     <Icon name="material-symbols:visibility-outline-rounded" size="22" />
                   </button>
 
+                  <!-- Download PDF -->
+                  <button
+                    type="button"
+                    class="table-action-icon table-action-icon--primary"
+                    title="Download Appointment PDF"
+                    :disabled="printingAppointmentId === row.value.id"
+                    @click="() => downloadAppointmentPdf(getOriginalData(row.value.id))"
+                  >
+                    <Icon
+                      :name="printingAppointmentId === row.value.id ? 'line-md:loading-twotone-loop' : 'material-symbols:picture-as-pdf-outline'"
+                      size="22"
+                    />
+                  </button>
+
                   <!-- Delete Icon -->
                   <button
                     type="button"
@@ -2425,7 +2465,20 @@ const validatePatientData = (patient) => {
             </div>
           </div>
 
-          <div class="mt-6 flex justify-center gap-3">
+          <div class="mt-6 flex justify-center gap-3 flex-wrap">
+            <rs-button
+              variant="secondary-outline"
+              @click="downloadSelectedAppointmentPdf"
+              :disabled="printingAppointmentId === selectedAppointment.id"
+            >
+              <Icon
+                :name="printingAppointmentId === selectedAppointment.id ? 'line-md:loading-twotone-loop' : 'material-symbols:picture-as-pdf-outline'"
+                class="mr-1"
+                size="18"
+              />
+              <span v-if="printingAppointmentId === selectedAppointment.id">Generating PDF...</span>
+              <span v-else>Download PDF</span>
+            </rs-button>
             <rs-button
               v-if="selectedAppointment.status !== 37"
               variant="danger"
