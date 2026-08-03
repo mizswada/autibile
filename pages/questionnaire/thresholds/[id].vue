@@ -74,6 +74,7 @@ async function fetchThresholds() {
 }
 
 function openAddThresholdModal() {
+  modalErrorMessage.value = '';
   newThreshold.value = {
     scoring_min: '',
     scoring_max: '',
@@ -89,12 +90,13 @@ function openAddThresholdModal() {
 }
 
 function openEditThresholdModal(threshold) {
+  modalErrorMessage.value = '';
   newThreshold.value = {
-    scoring_min: threshold.scoring_min,
-    scoring_max: threshold.scoring_max === 999999 ? '' : threshold.scoring_max,
-    interpretation: threshold.interpretation,
+    scoring_min: threshold.scoring_min ?? '',
+    scoring_max: threshold.scoring_max === 999999 ? '' : (threshold.scoring_max ?? ''),
+    interpretation: threshold.interpretation ?? '',
     interpretation_bm: threshold.interpretation_bm || '',
-    recommendation: threshold.recommendation,
+    recommendation: threshold.recommendation ?? '',
     recommendation_bm: threshold.recommendation_bm || '',
     admin_recommendation: threshold.admin_recommendation || ''
   };
@@ -103,17 +105,35 @@ function openEditThresholdModal(threshold) {
   showThresholdModal.value = true;
 }
 
+function hasRequiredThresholdValue(value) {
+  return value !== '' && value !== null && value !== undefined;
+}
+
 async function saveThreshold() {
-  if (!newThreshold.value.scoring_min || 
-      !newThreshold.value.interpretation || 
-      !newThreshold.value.recommendation) {
+  const minRaw = newThreshold.value.scoring_min;
+  const interpretation = newThreshold.value.interpretation?.trim();
+  const recommendation = newThreshold.value.recommendation?.trim();
+
+  if (
+    !hasRequiredThresholdValue(minRaw) ||
+    !interpretation ||
+    !recommendation
+  ) {
     modalErrorMessage.value = 'Minimum score, prediction, and recommendation are required';
     return;
   }
 
   try {
-    const min = parseInt(newThreshold.value.scoring_min);
-    const max = newThreshold.value.scoring_max ? parseInt(newThreshold.value.scoring_max) : 999999;
+    const min = parseInt(String(minRaw), 10);
+    const maxRaw = newThreshold.value.scoring_max;
+    const max = hasRequiredThresholdValue(maxRaw)
+      ? parseInt(String(maxRaw), 10)
+      : 999999;
+
+    if (Number.isNaN(min) || Number.isNaN(max)) {
+      modalErrorMessage.value = 'Minimum and maximum scores must be valid numbers';
+      return;
+    }
     
     if (min > max) {
       modalErrorMessage.value = 'Minimum score cannot be greater than maximum score';
@@ -124,9 +144,9 @@ async function saveThreshold() {
       questionnaire_id: parseInt(questionnaireId),
       scoring_min: min,
       scoring_max: max,
-      interpretation: newThreshold.value.interpretation,
+      interpretation,
       interpretation_bm: newThreshold.value.interpretation_bm,
-      recommendation: newThreshold.value.recommendation,
+      recommendation,
       recommendation_bm: newThreshold.value.recommendation_bm,
       admin_recommendation: newThreshold.value.admin_recommendation
     };
@@ -364,7 +384,7 @@ function getScoreRangeDisplay(threshold) {
             name="scoringMin"
             label="Minimum Score"
             placeholder="Enter minimum score"
-            validation="required|number"
+            :validation="[['required'], ['number']]"
             validation-visibility="dirty"
             :validation-messages="{ required: 'This field is required', number: 'Must be a number' }"
           />

@@ -6,16 +6,19 @@ const route = useRoute();
 const router = useRouter();
 const questionnaireId = route.params.id;
 
-// Function to check if the current questionnaire is protected
-const isProtectedQuestionnaire = computed(() => {
-  return questionnaireId === '1';
-});
+const isMchatrQuestionnaire = computed(() => questionnaireId === '1');
+const MCHATR_DELETE_CONFIRM_PHRASE = 'CONFIRM DELETE THIS QUESTION';
 
 const questionnaire = ref(null);
 const questions = ref([]);
 const isLoading = ref(true);
 const showQuestionModal = ref(false);
 const showHeaderModal = ref(false);
+const showMchatrHeaderWarningModal = ref(false);
+const showMchatrAddQuestionWarningModal = ref(false);
+const showMchatrEditQuestionWarningModal = ref(false);
+const pendingAddQuestionParent = ref(null);
+const pendingEditQuestion = ref(null);
 
 const DEFAULT_NUMBER_CONFIG = {
   min: 0,
@@ -96,6 +99,12 @@ const deepNestedSubQuestions = ref({});
 const showDeleteModal = ref(false);
 const pendingDeleteQuestion = ref(null);
 const isDeleting = ref(false);
+const deleteConfirmPhrase = ref('');
+
+const canConfirmDelete = computed(() => {
+  if (!isMchatrQuestionnaire.value) return true;
+  return deleteConfirmPhrase.value === MCHATR_DELETE_CONFIRM_PHRASE;
+});
 
 async function fetchAnswerTypes() {
   try {
@@ -823,6 +832,67 @@ async function expandFullHierarchy(parentId, childId) {
   console.log(`✅ Full hierarchy expanded: ${parentId} → ${childId}`);
 }
 
+function requestOpenHeaderModal() {
+  if (isMchatrQuestionnaire.value) {
+    showMchatrHeaderWarningModal.value = true;
+    return;
+  }
+  openHeaderModal();
+}
+
+function confirmMchatrHeaderWarning() {
+  showMchatrHeaderWarningModal.value = false;
+  openHeaderModal();
+}
+
+function cancelMchatrHeaderWarning() {
+  showMchatrHeaderWarningModal.value = false;
+}
+
+function requestOpenAddQuestionModal(parentQuestion = null) {
+  if (isMchatrQuestionnaire.value) {
+    pendingAddQuestionParent.value = parentQuestion;
+    showMchatrAddQuestionWarningModal.value = true;
+    return;
+  }
+  openAddQuestionModal(parentQuestion);
+}
+
+function confirmMchatrAddQuestionWarning() {
+  const parentQuestion = pendingAddQuestionParent.value;
+  showMchatrAddQuestionWarningModal.value = false;
+  pendingAddQuestionParent.value = null;
+  openAddQuestionModal(parentQuestion);
+}
+
+function cancelMchatrAddQuestionWarning() {
+  showMchatrAddQuestionWarningModal.value = false;
+  pendingAddQuestionParent.value = null;
+}
+
+function requestOpenEditQuestionModal(question) {
+  if (isMchatrQuestionnaire.value) {
+    pendingEditQuestion.value = question;
+    showMchatrEditQuestionWarningModal.value = true;
+    return;
+  }
+  openEditQuestionModal(question);
+}
+
+function confirmMchatrEditQuestionWarning() {
+  const question = pendingEditQuestion.value;
+  showMchatrEditQuestionWarningModal.value = false;
+  pendingEditQuestion.value = null;
+  if (question) {
+    openEditQuestionModal(question);
+  }
+}
+
+function cancelMchatrEditQuestionWarning() {
+  showMchatrEditQuestionWarningModal.value = false;
+  pendingEditQuestion.value = null;
+}
+
 function openHeaderModal() {
   headerContent.value = questionnaire.value.header || '';
   showHeaderModal.value = true;
@@ -858,12 +928,6 @@ async function saveHeader() {
 }
 
 function openAddQuestionModal(parentQuestion = null) {
-  // Don't allow adding questions for protected questionnaires
-  if (isProtectedQuestionnaire.value) {
-    showMessage('Questions cannot be added for this questionnaire as it is a system questionnaire.', 'error');
-    return;
-  }
-  
   newQuestion.value = {
     question_bm: '',
     question_en: '',
@@ -879,12 +943,6 @@ function openAddQuestionModal(parentQuestion = null) {
 }
 
 async function openEditQuestionModal(question) {
-  // Don't allow editing questions for protected questionnaires
-  if (isProtectedQuestionnaire.value) {
-    showMessage('Questions cannot be edited for this questionnaire as it is a system questionnaire.', 'error');
-    return;
-  }
-  
   // Initialize with question data
   newQuestion.value = {
     question_bm: question.question_text_bm,
@@ -1114,22 +1172,26 @@ function getAnswerTypeLabel(answerType, question = null) {
 
 // Delete functions
 function confirmDelete(question) {
-  // Don't allow deleting questions for protected questionnaires
-  if (isProtectedQuestionnaire.value) {
-    showMessage('Questions cannot be deleted for this questionnaire as it is a system questionnaire.', 'error');
-    return;
-  }
-  
   pendingDeleteQuestion.value = question;
+  deleteConfirmPhrase.value = '';
   showDeleteModal.value = true;
 }
 
 function cancelDelete() {
   pendingDeleteQuestion.value = null;
+  deleteConfirmPhrase.value = '';
   showDeleteModal.value = false;
 }
 
 async function performDelete() {
+  if (!canConfirmDelete.value) {
+    showMessage(
+      `Please type "${MCHATR_DELETE_CONFIRM_PHRASE}" exactly to confirm deletion.`,
+      'error',
+    );
+    return;
+  }
+
   const question = pendingDeleteQuestion.value;
   isDeleting.value = true;
 
@@ -1159,6 +1221,7 @@ async function performDelete() {
   } finally {
     showDeleteModal.value = false;
     pendingDeleteQuestion.value = null;
+    deleteConfirmPhrase.value = '';
     isDeleting.value = false;
   }
 }
@@ -1294,6 +1357,23 @@ async function performDelete() {
     </div>
 
     <div v-else-if="questionnaire">
+      <div
+        v-if="isMchatrQuestionnaire"
+        class="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg"
+      >
+        <div class="flex gap-3">
+          <Icon name="material-symbols:warning" class="text-amber-500 shrink-0 mt-0.5" size="22" />
+          <div>
+            <p class="font-semibold text-amber-900">M-CHAT-R System Questionnaire</p>
+            <p class="text-sm text-amber-800 mt-1">
+              This is a standardized autism screening tool. Adding, editing, or deleting questions,
+              or changing the header, may affect scoring validity, eligibility rules, and comparison
+              with established clinical norms. Only proceed if you fully understand the impact of these changes.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div class="card mb-6 p-4">
         <h2 class="text-xl font-semibold">{{ questionnaire.name }}</h2>
         <p class="text-sm text-gray-500">{{ questionnaire.description }} | 
@@ -1305,7 +1385,7 @@ async function performDelete() {
         <div class="mt-4 border-t pt-3">
           <div class="flex justify-between items-center mb-2">
             <h3 class="text-md font-medium">Questionnaire Header/Instructions</h3>
-            <rs-button v-if="!isProtectedQuestionnaire" @click="openHeaderModal" size="sm" >
+            <rs-button @click="requestOpenHeaderModal" size="sm" >
               <Icon name="material-symbols:edit-outline-rounded" class="mr-1" />
               Edit Header
             </rs-button>
@@ -1322,7 +1402,7 @@ async function performDelete() {
       <div class="flex justify-between items-center mb-4">
         <h3 class="text-lg font-semibold">Questions ({{ questions.length }})</h3>
         <div class="flex gap-2">
-          <rs-button v-if="!isProtectedQuestionnaire" @click="openAddQuestionModal">
+          <rs-button @click="requestOpenAddQuestionModal()">
             <Icon name="material-symbols:add" class="mr-1" />
             Add New Question
           </rs-button>
@@ -1336,7 +1416,7 @@ async function performDelete() {
             <h3 class="text-xl font-medium text-gray-600 mb-2">No Questions Added Yet</h3>
             <p class="text-gray-500 mb-6">This questionnaire doesn't have any questions yet.</p>
             <div class="flex gap-4">
-              <rs-button v-if="!isProtectedQuestionnaire" @click="openAddQuestionModal">
+              <rs-button @click="requestOpenAddQuestionModal()">
                 <Icon name="material-symbols:add" class="mr-1" />
                 Add New Question
               </rs-button>
@@ -1427,8 +1507,7 @@ async function performDelete() {
                   <td class="px-6 py-4 text-right text-sm font-medium">
                     <div class="flex justify-end gap-3 items-center">
                       <button 
-                        v-if="!isProtectedQuestionnaire"
-                        @click="openEditQuestionModal(question)" 
+                        @click="requestOpenEditQuestionModal(question)" 
                         class="text-indigo-600 hover:text-indigo-900"
                         title="Edit Question"
                       >
@@ -1444,8 +1523,7 @@ async function performDelete() {
                       </button>
 
                       <button 
-                        v-if="!isProtectedQuestionnaire"
-                        @click="openAddQuestionModal(question)"
+                        @click="requestOpenAddQuestionModal(question)"
                         class="text-green-600 hover:text-green-900"
                         title="Add Sub-question"
                       >
@@ -1454,7 +1532,6 @@ async function performDelete() {
                       </button>
                       
                       <button 
-                        v-if="!isProtectedQuestionnaire"
                         @click="confirmDelete(question)"
                         class="text-red-600 hover:text-red-900"
                         title="Delete Question"
@@ -1547,8 +1624,7 @@ async function performDelete() {
                     <td class="px-6 py-4 text-right text-sm font-medium">
                       <div class="flex justify-end gap-3 items-center">
                         <button 
-                          v-if="!isProtectedQuestionnaire"
-                          @click="openEditQuestionModal(subQuestion)" 
+                          @click="requestOpenEditQuestionModal(subQuestion)" 
                           class="text-indigo-600 hover:text-indigo-900"
                           title="Edit Question"
                         >
@@ -1564,8 +1640,7 @@ async function performDelete() {
                         </button>
 
                         <button 
-                          v-if="!isProtectedQuestionnaire"
-                          @click="openAddQuestionModal(subQuestion)"
+                          @click="requestOpenAddQuestionModal(subQuestion)"
                           class="text-green-600 hover:text-green-900"
                           title="Add Sub-question"
                         >
@@ -1574,7 +1649,6 @@ async function performDelete() {
                         </button>
 
                         <button 
-                          v-if="!isProtectedQuestionnaire"
                           @click="confirmDelete(subQuestion)"
                           class="text-red-600 hover:text-red-900"
                           title="Delete Question"
@@ -1664,8 +1738,7 @@ async function performDelete() {
                         <td class="px-6 py-4 text-right text-sm font-medium">
                           <div class="flex justify-end gap-3 items-center">
                             <button 
-                              v-if="!isProtectedQuestionnaire"
-                              @click="openEditQuestionModal(nestedSubQuestion)" 
+                              @click="requestOpenEditQuestionModal(nestedSubQuestion)" 
                               class="text-indigo-600 hover:text-indigo-900"
                               title="Edit Question"
                             >
@@ -1681,8 +1754,7 @@ async function performDelete() {
                             </button>
 
                             <button 
-                              v-if="!isProtectedQuestionnaire"
-                              @click="openAddQuestionModal(nestedSubQuestion)"
+                              @click="requestOpenAddQuestionModal(nestedSubQuestion)"
                               class="text-green-600 hover:text-green-900"
                               title="Add Sub-question"
                             >
@@ -1691,7 +1763,6 @@ async function performDelete() {
                             </button>
 
                             <button 
-                              v-if="!isProtectedQuestionnaire"
                               @click="confirmDelete(nestedSubQuestion)"
                               class="text-red-600 hover:text-red-900"
                               title="Delete Question"
@@ -1768,8 +1839,7 @@ async function performDelete() {
                               <td class="px-6 py-4 text-right text-sm font-medium">
                                 <div class="flex justify-end gap-3 items-center">
                                   <button 
-                                    v-if="!isProtectedQuestionnaire"
-                                    @click="openEditQuestionModal(deepNestedSubQuestion)" 
+                                    @click="requestOpenEditQuestionModal(deepNestedSubQuestion)" 
                                     class="text-indigo-600 hover:text-indigo-900"
                                     title="Edit Question"
                                   >
@@ -1785,7 +1855,6 @@ async function performDelete() {
                                   </button>
 
                                   <button 
-                                    v-if="!isProtectedQuestionnaire"
                                     @click="confirmDelete(deepNestedSubQuestion)"
                                     class="text-red-600 hover:text-red-900"
                                     title="Delete Question"
@@ -1818,6 +1887,22 @@ async function performDelete() {
     >
       <div v-if="modalErrorMessage" class="mb-3 p-2 rounded bg-red-100 text-red-700 border border-red-300">
         {{ modalErrorMessage }}
+      </div>
+
+      <div
+        v-if="isMchatrQuestionnaire && !isEditingQuestion"
+        class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900"
+      >
+        <strong>Warning:</strong> This question will be added to the M-CHAT-R screening. It is not
+        part of the official validated tool and may affect scoring and follow-up eligibility.
+      </div>
+
+      <div
+        v-if="isMchatrQuestionnaire && isEditingQuestion"
+        class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900"
+      >
+        <strong>Warning:</strong> You are editing an M-CHAT-R question. Changing wording, answer
+        type, or required status may affect scoring, M-CHAT-R/F follow-up logic, and clinical validity.
       </div>
       
       <!-- Show parent question info when adding/editing a sub-question -->
@@ -1950,6 +2035,15 @@ async function performDelete() {
       :overlay-close="false"
       :hide-footer="true"
     >
+      <div
+        v-if="isMchatrQuestionnaire"
+        class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900"
+      >
+        <strong>Warning:</strong> Changing the M-CHAT-R header/instructions may confuse parents or
+        practitioners and can affect how the screening is understood. Ensure any edits remain
+        clinically appropriate.
+      </div>
+
       <FormKit type="form" @submit="saveHeader" :actions="false">
         <FormKit
           type="textarea"
@@ -1983,6 +2077,93 @@ async function performDelete() {
     </rs-modal>
 
     <rs-modal
+      title="Edit M-CHAT-R Header — Confirm"
+      ok-title="Continue to Edit"
+      cancel-title="Cancel"
+      :ok-callback="confirmMchatrHeaderWarning"
+      :cancel-callback="cancelMchatrHeaderWarning"
+      v-model="showMchatrHeaderWarningModal"
+      :overlay-close="false"
+    >
+      <div class="bg-amber-50 border-l-4 border-amber-400 p-4 mb-4">
+        <div class="flex">
+          <Icon name="material-symbols:warning" class="text-amber-500 shrink-0 mr-2" />
+          <div class="text-sm text-amber-900">
+            <p class="font-semibold mb-2">You are about to edit the M-CHAT-R header</p>
+            <p>
+              M-CHAT-R is a validated screening instrument. Changing the header or instructions
+              may affect how users complete the questionnaire and interpret results.
+            </p>
+            <ul class="list-disc ml-5 mt-2 space-y-1">
+              <li>Keep wording clear and aligned with screening purpose</li>
+              <li>Avoid removing important clinical disclaimers</li>
+              <li>Changes apply immediately to all new screenings</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <p class="text-sm text-gray-600">Do you want to continue?</p>
+    </rs-modal>
+
+    <rs-modal
+      :title="pendingAddQuestionParent ? 'Add M-CHAT-R Sub-Question — Confirm' : 'Add M-CHAT-R Question — Confirm'"
+      ok-title="Continue to Add"
+      cancel-title="Cancel"
+      :ok-callback="confirmMchatrAddQuestionWarning"
+      :cancel-callback="cancelMchatrAddQuestionWarning"
+      v-model="showMchatrAddQuestionWarningModal"
+      :overlay-close="false"
+    >
+      <div class="bg-amber-50 border-l-4 border-amber-400 p-4 mb-4">
+        <div class="flex">
+          <Icon name="material-symbols:warning" class="text-amber-500 shrink-0 mr-2" />
+          <div class="text-sm text-amber-900">
+            <p class="font-semibold mb-2">You are about to add a question to M-CHAT-R</p>
+            <p>
+              Adding questions to this standardized questionnaire can break scoring logic,
+              M-CHAT-R/F follow-up eligibility, and clinical validity.
+            </p>
+            <ul class="list-disc ml-5 mt-2 space-y-1">
+              <li>New questions are not part of the official M-CHAT-R tool</li>
+              <li>Total scores and risk thresholds may no longer be accurate</li>
+              <li>Follow-up questionnaire (M-CHAT-R/F) logic may be affected</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <p class="text-sm text-gray-600">Do you still want to add this question?</p>
+    </rs-modal>
+
+    <rs-modal
+      title="Edit M-CHAT-R Question — Confirm"
+      ok-title="Continue to Edit"
+      cancel-title="Cancel"
+      :ok-callback="confirmMchatrEditQuestionWarning"
+      :cancel-callback="cancelMchatrEditQuestionWarning"
+      v-model="showMchatrEditQuestionWarningModal"
+      :overlay-close="false"
+    >
+      <div class="bg-amber-50 border-l-4 border-amber-400 p-4 mb-4">
+        <div class="flex">
+          <Icon name="material-symbols:warning" class="text-amber-500 shrink-0 mr-2" />
+          <div class="text-sm text-amber-900">
+            <p class="font-semibold mb-2">You are about to edit an M-CHAT-R question</p>
+            <p>
+              M-CHAT-R is a validated screening instrument. Editing existing questions can change
+              how scores are calculated and interpreted.
+            </p>
+            <ul class="list-disc ml-5 mt-2 space-y-1">
+              <li>Changing question text may confuse parents or practitioners</li>
+              <li>Changing answer type or options can break scoring logic</li>
+              <li>M-CHAT-R/F follow-up eligibility may be affected</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <p class="text-sm text-gray-600">Do you want to continue editing this question?</p>
+    </rs-modal>
+
+    <rs-modal
       title="Toggle Status"
       ok-title="Yes"
       cancel-title="No"
@@ -2009,18 +2190,36 @@ async function performDelete() {
     </rs-modal>
 
     <rs-modal
-      title="Delete Question"
-      ok-title="Delete"
-      cancel-title="Cancel"
-      :ok-callback="performDelete"
-      :cancel-callback="cancelDelete"
+      :title="isMchatrQuestionnaire ? 'Delete M-CHAT-R Question' : 'Delete Question'"
       v-model="showDeleteModal"
       :overlay-close="false"
+      :hide-footer="true"
     >
       <p class="mb-4">
         Are you sure you want to delete this question?
       </p>
-      <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+
+      <div
+        v-if="isMchatrQuestionnaire"
+        class="bg-amber-50 border-l-4 border-amber-400 p-4 mb-4"
+      >
+        <div class="flex">
+          <Icon name="material-symbols:warning" class="text-amber-500 shrink-0 mr-2" />
+          <div class="text-sm text-amber-900">
+            <p class="font-semibold mb-2">Deleting an M-CHAT-R question is highly destructive</p>
+            <p>
+              This can permanently break scoring, M-CHAT-R/F follow-up logic, and historical result
+              comparisons. All associated options and responses will also be removed.
+            </p>
+            <span v-if="pendingDeleteQuestion?.has_sub_questions" class="font-bold block mt-2">
+              This question has {{ pendingDeleteQuestion?.sub_questions_count }} sub-question(s)
+              that will also be deleted.
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
         <div class="flex">
           <div class="flex-shrink-0">
             <Icon name="material-symbols:warning" class="text-yellow-400" />
@@ -2036,9 +2235,51 @@ async function performDelete() {
         </div>
       </div>
 
+      <div v-if="isMchatrQuestionnaire" class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-2">
+          Type <span class="font-mono font-semibold">{{ MCHATR_DELETE_CONFIRM_PHRASE }}</span> to confirm
+        </label>
+        <input
+          v-model="deleteConfirmPhrase"
+          type="text"
+          class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+          :placeholder="MCHATR_DELETE_CONFIRM_PHRASE"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <p
+          v-if="deleteConfirmPhrase && !canConfirmDelete"
+          class="mt-2 text-sm text-red-600"
+        >
+          Confirmation phrase does not match.
+        </p>
+      </div>
+
       <div v-if="isDeleting" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
         <Icon name="line-md:loading-twotone-loop" class="text-primary mr-2" />
         <span>Deleting question...</span>
+      </div>
+
+      <div class="flex justify-end gap-2 mt-4">
+        <button
+          type="button"
+          class="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400 text-black"
+          :disabled="isDeleting"
+          @click="cancelDelete"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="px-4 py-2 rounded text-white"
+          :class="canConfirmDelete && !isDeleting
+            ? 'bg-red-600 hover:bg-red-700'
+            : 'bg-red-300 cursor-not-allowed'"
+          :disabled="!canConfirmDelete || isDeleting"
+          @click="performDelete"
+        >
+          Delete
+        </button>
       </div>
     </rs-modal>
   </div>
