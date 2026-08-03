@@ -4,6 +4,21 @@ import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { jsPDF } from 'jspdf';
 import { getDiaryEntryLines } from '~/utils/diaryReport';
+import { COMPANY_INFO } from '~/utils/paymentDocuments';
+import {
+  buildIntegratedReportFilename,
+  buildIntegratedReportOptions,
+  buildIndividualReportOptions,
+  buildIndividualResultFilename,
+  downloadIndividualScreeningPdf,
+  downloadIntegratedScreeningPdf,
+  resolveScoreInterpretation,
+} from '~/utils/screeningReportDocument';
+import {
+  buildAppointmentPdfFilename,
+  normalizeAppointmentForPdf,
+  renderAppointmentPdf,
+} from '~/utils/appointmentDocument';
 
 const route = useRoute();
 const patientId = computed(() => route.query.patientId || route.params.id);
@@ -33,12 +48,24 @@ const expandedDates = ref(new Set());
 const collapsedQnA = ref({});
 const scoreThresholds = ref({});
 const thresholdsLoading = ref(false);
+const isGeneratingIntegratedReport = ref(false);
 const isGeneratingReport = ref(false);
+const downloadingQuestionnaireId = ref(null);
 
 // Pagination for appointments
 const currentPage = ref(1);
 const itemsPerPage = ref(10);
 const appointmentsLoading = ref(false);
+const printingAppointmentId = ref(null);
+
+const appointmentStatusMapping = {
+  36: { label: 'Booked', class: 'bg-yellow-100 text-yellow-800' },
+  37: { label: 'Cancelled', class: 'bg-red-100 text-red-800' },
+  38: { label: 'Start', class: 'bg-blue-100 text-blue-800' },
+  39: { label: 'Confirm Start', class: 'bg-green-100 text-green-800' },
+  40: { label: 'Finish', class: 'bg-purple-100 text-purple-800' },
+  41: { label: 'Completed', class: 'bg-indigo-100 text-indigo-800' },
+};
 
 // Computed properties for pagination
 const totalPages = computed(() => Math.ceil((appointments.value?.length || 0) / itemsPerPage.value));
@@ -164,7 +191,7 @@ async function fetchAppointments() {
   appointmentsLoading.value = true;
   try {
     // For patient profile, we want to show ALL appointments including cancelled and deleted ones
-    const res = await fetch(`/api/appointments/listAll?patient_id=${patientId.value}`);
+    const res = await fetch(`/api/appointments/listAll?patient_id=${patientId.value}&patient_profile=1`);
     const data = await res.json();
     if (data.success) {
       appointments.value = data.data;
@@ -379,6 +406,23 @@ function getTherapistDoctorComment(appt) {
   return (appt.extendedProps && appt.extendedProps.therapist_doctor_comment) || appt.therapistDoctorComment || appt.therapist_doctor_comment;
 }
 
+async function downloadAppointmentPdf(appt) {
+  const appointmentId = appt.id || appt.appointment_id;
+  if (!appt || printingAppointmentId.value) return;
+
+  printingAppointmentId.value = appointmentId;
+  try {
+    const normalized = normalizeAppointmentForPdf(appt);
+    const pdf = await renderAppointmentPdf(jsPDF, normalized, appointmentStatusMapping);
+    pdf.save(buildAppointmentPdfFilename(normalized));
+  } catch (error) {
+    console.error('Failed to generate appointment PDF:', error);
+    toast.error('Failed to generate appointment PDF. Please try again.');
+  } finally {
+    printingAppointmentId.value = null;
+  }
+}
+
 function getScoreClass(score) {
   const val = parseInt(score);
   if (val > 70) return 'text-red-600';
@@ -397,8 +441,61 @@ function formatDateOnly(dateString) {
 
 function getScoreInterpretation(q) {
   const thresholds = scoreThresholds.value[q.questionnaire_id] || [];
-  const score = parseInt(q.total_score);
-  return thresholds.find(t => score >= t.scoring_min && score <= t.scoring_max) || null;
+  return resolveScoreInterpretation(q.total_score, thresholds);
+}
+
+async function downloadIntegratedScreeningReport() {
+  if (isGeneratingIntegratedReport.value) return;
+
+  const reportOptions = buildIntegratedReportOptions({
+    responses: questionnaires.value,
+    thresholdsByQid: scoreThresholds.value,
+    patientDetails: patientDetails.value,
+    parentDetails: parentDetails.value,
+  });
+
+  if (!reportOptions) {
+    toast.error('No M-CHAT-R screening found for this patient.');
+    return;
+  }
+
+  isGeneratingIntegratedReport.value = true;
+  try {
+    await downloadIntegratedScreeningPdf(
+      reportOptions,
+      buildIntegratedReportFilename(reportOptions.childName),
+    );
+    toast.success('Integrated screening report downloaded.');
+  } catch (err) {
+    console.error('Failed to generate integrated screening report:', err);
+    toast.error('Failed to generate integrated screening report.');
+  } finally {
+    isGeneratingIntegratedReport.value = false;
+  }
+}
+
+async function downloadQuestionnaireReport(q) {
+  if (!q || downloadingQuestionnaireId.value) return;
+
+  downloadingQuestionnaireId.value = q.qr_id;
+  try {
+    const thresholds = scoreThresholds.value[q.questionnaire_id] || [];
+    const response = {
+      ...q,
+      patient_name: q.patient_name || patientDetails.value?.fullname || 'N/A',
+    };
+    const reportData = buildIndividualReportOptions(response, thresholds);
+    await downloadIndividualScreeningPdf(
+      reportData,
+      buildIndividualResultFilename(reportData.questionnaireTitle, reportData.childName),
+    );
+    toast.success('Screening report downloaded.');
+  } catch (err) {
+    console.error('Failed to download screening report:', err);
+    toast.error('Failed to generate PDF. Please try again.');
+  } finally {
+    downloadingQuestionnaireId.value = null;
+  }
 }
 
 // Add these methods for actions (can be stubs or use existing logic)
@@ -445,140 +542,267 @@ function downloadReferralPdf(referral) {
   alert('Download PDF for referral ' + referral.id);
 }
 
-async function downloadReferralLetter(referral) {
+async function buildReferralLetterPdf(referral) {
   const pdf = new jsPDF('p', 'mm', 'a4');
-  const W = pdf.internal.pageSize.getWidth();
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
   const margin = 20;
+  const rightX = pageW - margin;
+  const contentW = pageW - margin * 2;
+  const labelColW = 52;
+  const valueX = margin + labelColW;
+  const valueW = contentW - labelColW;
+  const lineH = 5.5;
+  const bottomLimit = pageH - 22;
   let y = margin;
 
-  // — Header with clinic name and logo
+  const ensureSpace = (needed) => {
+    if (y + needed > bottomLimit) {
+      pdf.addPage();
+      y = margin;
+    }
+  };
+
+  const drawLines = (lines, x, startY) => {
+    let cursorY = startY;
+    lines.forEach((line) => {
+      if (cursorY > bottomLimit) {
+        pdf.addPage();
+        cursorY = margin;
+        y = margin;
+      }
+      pdf.text(line, x, cursorY);
+      cursorY += lineH;
+    });
+    return cursorY - startY;
+  };
+
+  const drawWrappedValue = (text, x = valueX, maxW = valueW) => {
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(10);
+    const lines = pdf.splitTextToSize(String(text ?? 'NA'), maxW);
+    const height = drawLines(lines, x, y);
+    y += height;
+    return height;
+  };
+
+  const drawInlineLabelValue = (label, value, options = {}) => {
+    const { labelBold = false, fontSize = 10 } = options;
+    ensureSpace(lineH * 2);
+    pdf.setFontSize(fontSize);
+    pdf.setFont(undefined, labelBold ? 'bold' : 'normal');
+    const prefix = `${label}:`;
+    const prefixW = pdf.getTextWidth(`${prefix} `);
+    pdf.text(`${prefix} `, margin, y);
+
+    pdf.setFont(undefined, 'normal');
+    const valueLines = pdf.splitTextToSize(String(value ?? 'NA'), contentW - prefixW);
+    if (valueLines.length) {
+      pdf.text(valueLines[0], margin + prefixW, y);
+      for (let i = 1; i < valueLines.length; i += 1) {
+        y += lineH;
+        ensureSpace(lineH);
+        pdf.text(valueLines[i], margin, y);
+      }
+    }
+    y += lineH + 2;
+  };
+
+  const drawLabelValueRow = (label, value, options = {}) => {
+    const { indent = 0, labelBold = false } = options;
+    ensureSpace(lineH * 2);
+    const rowStartY = y;
+
+    pdf.setFont(undefined, labelBold ? 'bold' : 'normal');
+    pdf.setFontSize(10);
+    pdf.text(`${label}:`, margin + indent, rowStartY);
+
+    pdf.setFont(undefined, 'normal');
+    const lines = pdf.splitTextToSize(String(value ?? 'NA'), valueW - indent);
+    const height = drawLines(lines, valueX + indent, rowStartY);
+    y = rowStartY + Math.max(lineH, height) + 2;
+  };
+
+  const drawSectionHeading = (text) => {
+    ensureSpace(10);
+    y += 4;
+    pdf.setFont(undefined, 'bold');
+    pdf.setFontSize(11);
+    pdf.text(text, margin, y);
+    y += 7;
+  };
+
+  // — Header (logo left, company info beside — same pattern as payment/appointment PDFs)
+  const headerY = y;
+  let textX = margin;
+  const logoH = 16;
+  const addrLineGap = 4.5;
+
+  let logoDataUrl = null;
+  try {
+    const res = await fetch(`${window.location.origin}/img/neurspatherapy_logo.png`);
+    if (res.ok) {
+      const blob = await res.blob();
+      logoDataUrl = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    }
+  } catch {
+    logoDataUrl = null;
+  }
+
+  if (logoDataUrl) {
+    try {
+      const props = pdf.getImageProperties(logoDataUrl);
+      const logoW = props.width && props.height ? (props.width / props.height) * logoH : logoH;
+      pdf.addImage(logoDataUrl, 'PNG', margin, headerY, logoW, logoH);
+      textX = margin + logoW + 4;
+    } catch {
+      textX = margin;
+    }
+  }
+
   pdf.setFontSize(16).setFont(undefined, 'bold');
-  pdf.text('NEUROSPA AUTISM CENTRE', margin, y);
-  y += 8;
+  pdf.text(COMPANY_INFO.name, textX, headerY + 6);
   pdf.setFontSize(10).setFont(undefined, 'normal');
-  pdf.text('Tel   : +60 3-1234 5678', margin, y);
-  y += 4;
-  pdf.text('SAMB : +60 3-1234 5679', margin, y);
+  COMPANY_INFO.addressLines.forEach((line, i) => {
+    pdf.text(line, textX, headerY + 11 + i * addrLineGap);
+  });
+  const telY = headerY + 11 + COMPANY_INFO.addressLines.length * addrLineGap;
+  pdf.text('Tel   : +60 10-913 5763', textX, telY);
 
   // — Divider
-  y += 10;
-  pdf.setLineWidth(0.5).line(margin, y, W - margin, y);
+  y = Math.max(headerY + logoH, telY + 4) + 4;
+  pdf.setLineWidth(0.5).line(margin, y, rightX, y);
 
   // — Date
   y += 8;
   pdf.setFontSize(11).setFont(undefined, 'normal');
   const dateStr = referral.date ? formatDateOnly(referral.date) : formatDateOnly(new Date().toISOString());
-  pdf.text(`Date : ${dateStr}`, W - margin, y, { align: 'right' });
+  pdf.text(`Date : ${dateStr}`, rightX, y, { align: 'right' });
 
   // — Referral to & salutation
-  y += 15;
-  pdf.setFont(undefined, 'normal');
-  pdf.text('Referral to:', margin, y);
-  pdf.text(referral.recipient || '__________', margin + 30, y);
+  y += 12;
+  drawInlineLabelValue('Referral to', referral.recipient || '__________');
 
+  ensureSpace(lineH);
+  y += 2;
+  pdf.setFont(undefined, 'normal');
+  pdf.setFontSize(10);
+  pdf.text(`Dear ${referral.recipient || '__________'},`, margin, y);
   y += 10;
-  pdf.text('Dear ' + (referral.recipient || '__________') + ',', margin, y);
 
   // — Reason for Referral
-  y += 15;
-  pdf.setFont(undefined, 'bold').setFontSize(11);
-  pdf.text('REASON FOR REFERRAL: ', margin, y);
-  pdf.setFont(undefined, 'normal');
-  pdf.text(referral.reason || '________________', margin + 50, y); 
+  drawInlineLabelValue('REASON FOR REFERRAL', referral.reason || '________________', { labelBold: true, fontSize: 11 });
+  y += 2;
 
   // — Patient's details
-  y += 15;
-  pdf.setFont(undefined, 'bold').setFontSize(11);
-  pdf.text('Patient\'s details:', margin, y);
-
-  // draw fields
+  drawSectionHeading('Patient\'s details:');
   const details = [
-    ['Name',        patientDetails.value?.fullname || 'NA'],
-    ['DOB',         formatDateOnly(patientDetails.value?.dob) || 'NA'],
-    ['Age',         calculateAge(patientDetails.value?.dob) || 'NA'],
+    ['Name', patientDetails.value?.fullname || 'NA'],
+    ['DOB', formatDateOnly(patientDetails.value?.dob) || 'NA'],
+    ['Age', calculateAge(patientDetails.value?.dob) || 'NA'],
   ];
-  y += 8;
-  pdf.setFont(undefined, 'normal').setFontSize(10);
   details.forEach(([label, val]) => {
-    pdf.text(label + ' :', margin + 5, y);
-    pdf.text(val, margin + 50, y);
-    y += 7;
+    drawLabelValueRow(label, val, { indent: 5 });
   });
 
   // — Diagnosis
   if (referral.diagnosis?.length) {
-    y += 4;
-    pdf.setFont(undefined, 'bold').setFontSize(11);
-    pdf.text('Diagnosis:', margin, y);
-    y += 7;
-    pdf.setFont(undefined, 'normal').setFontSize(10);
+    drawSectionHeading('Diagnosis:');
     referral.diagnosis.forEach((d, i) => {
-      pdf.text(`${i + 1}. ${d}`, margin + 5, y);
-      y += 6;
+      ensureSpace(lineH);
+      pdf.setFont(undefined, 'normal');
+      pdf.setFontSize(10);
+      const lines = pdf.splitTextToSize(`${i + 1}. ${d}`, contentW - 5);
+      drawLines(lines, margin + 5, y);
+      y += 2;
     });
   }
 
   // — Thank-you
-  y += 8;
+  ensureSpace(10);
+  y += 4;
   pdf.setFont(undefined, 'normal').setFontSize(10);
   pdf.text('Thank you for seeing the above-named child.', margin, y);
+  y += 10;
 
   // — History fields
   const hist = referral.history || {};
-  const historyLabels = [
-    'Presenting concerns',
-    'Developmental milestones',
-    'Behavioural concerns',
-    'Medical history',
-    'Medication / Allergies',
-    'Family / social background',
-    'Other relevant history'
+  const historyFields = [
+    { label: 'Presenting concerns', key: 'presentingConcerns' },
+    { label: 'Developmental milestones', key: 'developmentalMilestone' },
+    { label: 'Behavioural concerns', key: 'behavioralConcerns' },
+    { label: 'Medical history', key: 'medicalHistory' },
+    { label: 'Medication / Allergies', key: 'medicationAllergies' },
+    { label: 'Family / social background', key: 'familySocialBackground' },
+    { label: 'Other relevant history', key: 'otherHistory' },
   ];
-  y += 12;
-  pdf.setFont(undefined, 'normal').setFontSize(10);
-  historyLabels.forEach(label => {
-    const key = label.toLowerCase().replace(/[ /]/g, '');
-    const val = hist[key] || 'NA';
-    pdf.text(`${label}:`, margin, y);
-    pdf.text(val, margin + 60, y);
-    y += 7;
+  historyFields.forEach(({ label, key }) => {
+    drawLabelValueRow(label, hist[key] || 'NA');
   });
 
   // — Exams
-  y += 4;
-  pdf.text('Physical examination:', margin, y);
-  pdf.text(referral.physicalExamination || 'NA', margin + 60, y);
-  y += 7;
-  pdf.text('General appearance:', margin, y);
-  pdf.text(referral.generalAppearance || 'NA', margin + 60, y);
-  y += 7;
-  pdf.text('Systemic examination:', margin, y);
-  pdf.text(
-    (referral.systemicExamination || []).join(', ') || 'NA',
-    margin + 60,
-    y
-  );
+  y += 2;
+  drawLabelValueRow('Physical examination', referral.physicalExamination || 'NA');
+  drawLabelValueRow('General appearance', referral.generalAppearance || 'NA');
 
   // — Medications
-  y += 10;
-  pdf.text('Current medications:', margin, y);
-  pdf.text(referral.currentMedications, margin + 60, y);
+  y += 2;
+  drawLabelValueRow('Current medications', referral.currentMedications || 'No');
   if (referral.currentMedications === 'Yes') {
-    y += 7;
-    pdf.text('Details:', margin, y);
-    pdf.text(referral.medicationDetails || 'NA', margin + 60, y);
+    drawLabelValueRow('Details', referral.medicationDetails || 'NA', { indent: 5 });
   }
 
   // — Closing & signature
-  y = pdf.internal.pageSize.getHeight() - 50;
-  pdf.text('Please kindly see him/her to provide your expert assessment and management.', margin, y - 20);
-  pdf.text('Thank you.', margin, y - 10);
+  ensureSpace(45);
+  y += 10;
+  pdf.setFont(undefined, 'normal').setFontSize(10);
+  const closingLines = pdf.splitTextToSize(
+    'Please kindly see him/her to provide your expert assessment and management.',
+    contentW,
+  );
+  drawLines(closingLines, margin, y);
+  y += 4;
+  pdf.text('Thank you.', margin, y);
+  y += 12;
   pdf.text('Yours sincerely,', margin, y);
-  pdf.text('__________________________', margin, y + 10);
-  pdf.text('Referring personnel', margin, y + 18);
+  y += 14;
+  pdf.text('__________________________', margin, y);
+  y += 8;
+  pdf.text('Referring personnel', margin, y);
 
-  // — Download
+  return { pdf, dateStr };
+}
+
+async function downloadReferralLetter(referral) {
+  const { pdf, dateStr } = await buildReferralLetterPdf(referral);
   pdf.save(`referral_${dateStr.replace(/[/ ]/g, '_')}.pdf`);
+}
+
+async function printReferralLetter(referral) {
+  const { pdf } = await buildReferralLetterPdf(referral);
+  const url = pdf.output('bloburl');
+  const printWindow = window.open(url);
+  if (!printWindow) {
+    alert('Please allow pop-ups to print this document.');
+    URL.revokeObjectURL(url);
+    return;
+  }
+
+  let hasPrinted = false;
+  const triggerPrint = () => {
+    if (hasPrinted) return;
+    hasPrinted = true;
+    printWindow.focus();
+    printWindow.print();
+  };
+
+  printWindow.onload = triggerPrint;
+  setTimeout(triggerPrint, 800);
 }
 
 
@@ -739,6 +963,9 @@ async function downloadReferralLetter(referral) {
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Comments
                         </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
@@ -806,6 +1033,22 @@ async function downloadReferralLetter(referral) {
                             <span v-if="!getParentComment(appt) && !getTherapistDoctorComment(appt)" class="text-gray-400">-</span>
                           </div>
                         </td>
+                        <td class="px-6 py-4 text-sm text-gray-900">
+                          <div class="table-action-group">
+                            <button
+                              type="button"
+                              class="table-action-icon table-action-icon--primary"
+                              title="Download Appointment"
+                              :disabled="printingAppointmentId === (appt.appointment_id || appt.id)"
+                              @click="downloadAppointmentPdf(appt)"
+                            >
+                              <Icon
+                                :name="printingAppointmentId === (appt.appointment_id || appt.id) ? 'line-md:loading-twotone-loop' : 'material-symbols:download-outline'"
+                                size="22"
+                              />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     </tbody>
                   </table>
@@ -867,8 +1110,21 @@ async function downloadReferralLetter(referral) {
             <div v-if="questionnaires && questionnaires.length" class="space-y-6">
               <!-- Summary Table -->
               <div class="border rounded-lg overflow-hidden">
-                <div class="bg-purple-50 px-4 py-2 border-b">
+                <div class="bg-purple-50 px-4 py-2 border-b flex items-center justify-between gap-3">
                   <h3 class="text-lg font-medium text-purple-800">Assessment Summary</h3>
+                  <rs-button
+                    variant="primary"
+                    size="sm"
+                    :disabled="isGeneratingIntegratedReport || thresholdsLoading"
+                    @click="downloadIntegratedScreeningReport"
+                  >
+                    <Icon
+                      :name="isGeneratingIntegratedReport ? 'line-md:loading-twotone-loop' : 'material-symbols:download-outline'"
+                      class="mr-1"
+                      size="20"
+                    />
+                    Download Latest Integrated Report
+                  </rs-button>
                 </div>
                 <div class="overflow-x-auto">
                   <table class="min-w-full divide-y divide-gray-200">
@@ -906,14 +1162,28 @@ async function downloadReferralLetter(referral) {
                           {{ getScoreInterpretation(q)?.recommendation || '-' }}
                         </td>
                         <td class="px-6 py-4 text-sm text-gray-900">
-                          <button
-                            @click="$router.push(`/questionnaire/results/${q.qr_id}?patientId=${patientId}`)"
-                            class="text-purple-600 hover:text-purple-800 font-medium flex items-center"
-                            title="View Screening Details"
-                          >
-                            <Icon name="material-symbols:visibility-outline-rounded" size="22" class="mr-1" />
-                            View Details
-                          </button>
+                          <div class="table-action-group">
+                            <button
+                              type="button"
+                              class="table-action-icon table-action-icon--primary"
+                              title="View Screening Details"
+                              @click="$router.push(`/questionnaire/results/${q.qr_id}?patientId=${patientId}`)"
+                            >
+                              <Icon name="material-symbols:visibility-outline-rounded" size="22" />
+                            </button>
+                            <button
+                              type="button"
+                              class="table-action-icon table-action-icon--primary"
+                              title="Download Result"
+                              :disabled="downloadingQuestionnaireId === q.qr_id || thresholdsLoading"
+                              @click="downloadQuestionnaireReport(q)"
+                            >
+                              <Icon
+                                :name="downloadingQuestionnaireId === q.qr_id ? 'line-md:loading-twotone-loop' : 'material-symbols:download-outline'"
+                                size="22"
+                              />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     </tbody>
@@ -993,6 +1263,9 @@ async function downloadReferralLetter(referral) {
                             <rs-button variant="outline" size="sm" title="Delete Referral" @click="deleteReferral(referral.id)">
                               <Icon name="material-symbols:delete-outline" size="22" />
                             </rs-button>
+                            <rs-button variant="outline" size="sm" title="Print Referral Letter" @click="printReferralLetter(referral)">
+                              <Icon name="material-symbols:print-outline" size="22" />
+                            </rs-button>
                             <rs-button variant="outline" size="sm" title="Download Referral Letter" @click="downloadReferralLetter(referral)">
                               <Icon name="material-symbols:download-outline" size="22" />
                             </rs-button>
@@ -1055,16 +1328,6 @@ async function downloadReferralLetter(referral) {
                     <div>
                       <span class="text-sm font-medium text-gray-500">General Appearance:</span>
                       <p class="text-gray-900">{{ selectedReferral.generalAppearance || 'NA' }}</p>
-                    </div>
-                    <div>
-                      <span class="text-sm font-medium text-gray-500">Systemic Examination:</span>
-                      <div>
-                        <span
-                          v-for="(sys, idx) in (Array.isArray(selectedReferral.systemicExamination) ? selectedReferral.systemicExamination : [])"
-                          :key="idx"
-                          class="inline-block bg-purple-100 text-purple-800 px-2 py-1 rounded mr-1 mb-1 text-xs"
-                        >{{ sys }}</span>
-                      </div>
                     </div>
                     <div>
                       <span class="text-sm font-medium text-gray-500">Current Medications:</span>

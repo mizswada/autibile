@@ -41,14 +41,6 @@ const reasonOptions = [
   'Special education support',
   'Others'
 ];
-const systemicOptions = [
-  'Cardiovascular',
-  'Respiratory',
-  'Abdomen',
-  'Neurology',
-  'Other'
-];
-
 const referralForm = ref({
   recipient: '',
   customRecipient: '',
@@ -69,8 +61,6 @@ const referralForm = ref({
   },
   physicalExamination: '',
   generalAppearance: '',
-  systemicExamination: [],
-  customSystemic: '',
   currentMedications: 'No',
   medicationDetails: ''
 });
@@ -105,12 +95,6 @@ onMounted(async () => {
           },
           physicalExamination: r.physicalExamination || '',
           generalAppearance: r.generalAppearance || '',
-          systemicExamination: Array.isArray(r.systemicExamination)
-            ? r.systemicExamination.map(opt => systemicOptions.includes(opt) ? opt : 'Other')
-            : [],
-          customSystemic: Array.isArray(r.systemicExamination)
-            ? r.systemicExamination.find(opt => !systemicOptions.includes(opt)) || ''
-            : '',
           currentMedications: r.currentMedications || 'No',
           medicationDetails: r.medicationDetails || ''
         };
@@ -146,9 +130,6 @@ async function saveReferral() {
     const reasonValue = referralForm.value.reason === 'Others'
       ? referralForm.value.customReason
       : referralForm.value.reason;
-    const systemicValue = referralForm.value.systemicExamination.map(opt =>
-      opt === 'Other' ? referralForm.value.customSystemic : opt
-    );
 
     let response, result;
     if (isEdit.value) {
@@ -167,7 +148,7 @@ async function saveReferral() {
           history: referralForm.value.history,
           physicalExamination: referralForm.value.physicalExamination,
           generalAppearance: referralForm.value.generalAppearance,
-          systemicExamination: systemicValue,
+          systemicExamination: [],
           currentMedications: referralForm.value.currentMedications,
           medicationDetails: referralForm.value.currentMedications === 'Yes' ? referralForm.value.medicationDetails : ''
         })
@@ -196,7 +177,7 @@ async function saveReferral() {
           history: referralForm.value.history,
           physicalExamination: referralForm.value.physicalExamination,
           generalAppearance: referralForm.value.generalAppearance,
-          systemicExamination: systemicValue,
+          systemicExamination: [],
           currentMedications: referralForm.value.currentMedications,
           medicationDetails: referralForm.value.currentMedications === 'Yes' ? referralForm.value.medicationDetails : ''
         })
@@ -296,18 +277,6 @@ async function saveReferral() {
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">General Appearance</label>
           <textarea v-model="referralForm.generalAppearance" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="General appearance (or NA)"></textarea>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Systemic Examination</label>
-          <div class="flex flex-wrap gap-2 mb-2">
-            <label v-for="option in systemicOptions" :key="option" class="flex items-center space-x-2">
-              <input type="checkbox" :value="option" v-model="referralForm.systemicExamination" />
-              <span>{{ option }}</span>
-            </label>
-          </div>
-          <div v-if="referralForm.systemicExamination.includes('Other')" class="mt-2">
-            <input v-model="referralForm.customSystemic" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="Specify other system" />
-          </div>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Current Medications</label>

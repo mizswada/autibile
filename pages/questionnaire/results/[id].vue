@@ -3,6 +3,12 @@ import { ref, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { navigateTo } from '#imports';
 import RsQuestionnaireForm from '~/components/RsQuestionnaireForm.vue';
+import {
+  buildIndividualReportOptions,
+  buildIndividualResultFilename,
+  downloadIndividualScreeningPdf,
+  resolveScoreInterpretation,
+} from '~/utils/screeningReportDocument';
 
 const route = useRoute();
 const responseId = computed(() => route.params.id);
@@ -12,6 +18,7 @@ const isLoading = ref(true);
 const error = ref(null);
 const scoreThresholds = ref([]);
 const showDetailsView = ref(false);
+const isGeneratingPdf = ref(false);
 
 onMounted(async () => {
   await fetchResponseDetails();
@@ -191,19 +198,26 @@ const formattedAnswers = computed(() => {
 // Get the appropriate score interpretation based on the total score
 const scoreInterpretation = computed(() => {
   if (!response.value || !scoreThresholds.value.length) return null;
-  
-  const totalScore = response.value.total_score || 0;
-  
-  for (const threshold of scoreThresholds.value) {
-    if (threshold.comparison === ">=" && totalScore >= threshold.threshold) {
-      return threshold;
-    } else if (threshold.comparison === "<" && totalScore < threshold.threshold) {
-      return threshold;
-    }
-  }
-  
-  return null;
+  return resolveScoreInterpretation(response.value.total_score, scoreThresholds.value);
 });
+
+async function handleDownloadResult() {
+  if (!response.value || isGeneratingPdf.value) return;
+
+  isGeneratingPdf.value = true;
+  try {
+    const reportData = buildIndividualReportOptions(response.value, scoreThresholds.value);
+    await downloadIndividualScreeningPdf(
+      reportData,
+      buildIndividualResultFilename(reportData.questionnaireTitle, reportData.childName),
+    );
+  } catch (err) {
+    console.error('PDF generation error:', err);
+    alert('Failed to generate PDF. Please try again.');
+  } finally {
+    isGeneratingPdf.value = false;
+  }
+}
 
 function isCompositeMember(questionId) {
   return (response.value?.composite_member_question_ids || []).includes(
@@ -226,13 +240,27 @@ function isCompositeMember(questionId) {
         <h1 class="text-2xl font-bold">Response Details</h1>
       </div>
       
-      <button 
-        @click="toggleView" 
-        class="flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-      >
-        <Icon :name="showDetailsView ? 'material-symbols:format-list-bulleted' : 'material-symbols:visibility'" class="mr-1" />
-        {{ showDetailsView ? 'Show Summary' : 'Show Questionnaire View' }}
-      </button>
+      <div class="flex items-center gap-2">
+        <button
+          @click="handleDownloadResult"
+          :disabled="isGeneratingPdf"
+          class="flex items-center px-4 py-2 bg-green-700 text-white rounded hover:bg-green-800 disabled:opacity-60"
+          title="Download Result"
+        >
+          <Icon
+            :name="isGeneratingPdf ? 'line-md:loading-twotone-loop' : 'material-symbols:download-outline'"
+            class="mr-1"
+          />
+          Download Result
+        </button>
+        <button 
+          @click="toggleView" 
+          class="flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          <Icon :name="showDetailsView ? 'material-symbols:format-list-bulleted' : 'material-symbols:visibility'" class="mr-1" />
+          {{ showDetailsView ? 'Show Summary' : 'Show Questionnaire View' }}
+        </button>
+      </div>
     </div>
     
     <div v-if="isLoading" class="p-8 text-center">
@@ -336,8 +364,8 @@ function isCompositeMember(questionId) {
         <div v-if="scoreInterpretation" class="bg-white p-6 rounded shadow">
           <h2 class="text-xl font-bold mb-4">Score Interpretation</h2>
           
-          <div class="p-4 rounded" :class="scoreInterpretation.comparison === '>=' && scoreInterpretation.threshold <= response.total_score ? 'bg-yellow-50 border border-yellow-200' : 'bg-green-50 border border-green-200'">
-            <div class="font-medium text-lg mb-2" :class="scoreInterpretation.comparison === '>=' && scoreInterpretation.threshold <= response.total_score ? 'text-yellow-700' : 'text-green-700'">
+          <div class="p-4 rounded bg-green-50 border border-green-200">
+            <div class="font-medium text-lg mb-2 text-green-700">
               {{ scoreInterpretation.interpretation }}
             </div>
             <div class="text-gray-700">

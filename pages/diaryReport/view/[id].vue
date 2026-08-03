@@ -1,7 +1,8 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { getDiaryEntryLines, formatDiaryEntryText } from '~/utils/diaryReport';
+import { getDiaryEntryLines } from '~/utils/diaryReport';
+import { downloadDiaryReportPdf } from '~/utils/diaryReportDocument';
 
 const route = useRoute();
 const router = useRouter();
@@ -185,186 +186,26 @@ async function generateReport() {
     showMessage('Cannot identify patient', 'error');
     return;
   }
-  
+
   isGeneratingPdf.value = true;
   try {
-    // Import jsPDF dynamically
-    const { default: jsPDF } = await import('jspdf');
-    
     showMessage('Generating PDF, please wait...', 'success');
-    
-    // Create a PDF with A4 dimensions
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    
-    // Add header with title
-    pdf.setFontSize(18);
-    pdf.text(`Patient Report: ${selectedPatient.value.fullname}`, 14, 20);
-    pdf.setFontSize(12);
-    pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
-    
-    let yPosition = 40;
-    const lineHeight = 7;
-    const sectionSpacing = 15;
-    const subSectionSpacing = 10;
-    
-    // Helper function to add a section title
-    function addSectionTitle(title, y) {
-      pdf.setFontSize(14);
-      pdf.setFont(undefined, 'bold');
-      pdf.text(title, 14, y);
-      pdf.setFont(undefined, 'normal');
-      pdf.setFontSize(11);
-      return y + lineHeight;
-    }
-    
-    // Helper function to add a field with label and value
-    function addField(label, value, y, x = 14) {
-      pdf.text(`${label}: ${value || 'N/A'}`, x, y);
-      return y + lineHeight;
-    }
-    
-    // Patient and Parent Information Section (Side by Side)
-    yPosition = addSectionTitle('Patient & Parent Information', yPosition);
-    yPosition += 2;
-    
-    // Create two columns
-    const leftColumnX = 14;
-    const rightColumnX = pageWidth / 2 + 7;
-    const columnWidth = (pageWidth - 28) / 2;
-    
-    // Patient Information (Left Column)
-    pdf.setFont(undefined, 'bold');
-    pdf.text('Patient Information:', leftColumnX, yPosition);
-    pdf.setFont(undefined, 'normal');
-    yPosition += lineHeight;
-    
-    yPosition = addField('Full Name', selectedPatient.value.fullname || 'N/A', yPosition, leftColumnX);
-    yPosition = addField('Nickname', selectedPatient.value.nickname || 'N/A', yPosition, leftColumnX);
-    yPosition = addField('IC Number', selectedPatient.value.patient_ic || 'N/A', yPosition, leftColumnX);
-    yPosition = addField('Gender', selectedPatient.value.gender || 'N/A', yPosition, leftColumnX);
-    yPosition = addField('Date of Birth', formatDate(selectedPatient.value.dob), yPosition, leftColumnX);
-    yPosition = addField('Age', calculateAge(selectedPatient.value.dob), yPosition, leftColumnX);
-    yPosition = addField('Autism Diagnosis', selectedPatient.value.autism_diagnose || 'Not diagnosed', yPosition, leftColumnX);
-    yPosition = addField('Diagnosed Date', formatDate(selectedPatient.value.diagnosed_on), yPosition, leftColumnX);
-    yPosition = addField('Status', selectedPatient.value.status || 'N/A', yPosition, leftColumnX);
-    yPosition = addField('OKU Card', selectedPatient.value.OKUCard || 'N/A', yPosition, leftColumnX);
-    yPosition = addField('Treatment Type', selectedPatient.value.treatment_type || 'N/A', yPosition, leftColumnX);
-    
-    // Parent Information (Right Column)
-    const parentY = yPosition - (11 * lineHeight); // Reset to same starting position as patient info (updated count)
-    pdf.setFont(undefined, 'bold');
-    pdf.text('Parent Information:', rightColumnX, parentY);
-    pdf.setFont(undefined, 'normal');
-    let parentCurrentY = parentY + lineHeight;
-    
-    parentCurrentY = addField('Full Name', patientDetails.value.parent?.fullName || 'N/A', parentCurrentY, rightColumnX);
-    if (patientDetails.value.parent) {
-      parentCurrentY = addField('Email', patientDetails.value.parent.email || 'N/A', parentCurrentY, rightColumnX);
-      parentCurrentY = addField('Phone', patientDetails.value.parent.phone || 'N/A', parentCurrentY, rightColumnX);
-      parentCurrentY = addField('Relationship', patientDetails.value.parent.relationshipName || 'N/A', parentCurrentY, rightColumnX);
-      parentCurrentY = addField('Address', patientDetails.value.parent.addressLine1 || 'N/A', parentCurrentY, rightColumnX);
-      parentCurrentY = addField('City', patientDetails.value.parent.city || 'N/A', parentCurrentY, rightColumnX);
-      parentCurrentY = addField('Postal Code', patientDetails.value.parent.postcode || 'N/A', parentCurrentY, rightColumnX);
-    }
-    
-    // Use the higher Y position to continue
-    yPosition = Math.max(yPosition, parentCurrentY);
-    
-    // Check if we need a new page for diary entries
-    if (yPosition > pageHeight - 60) {
-      pdf.addPage();
-      yPosition = 20;
-    } else {
-      yPosition += sectionSpacing;
-    }
-    
-    // Diary Entries Section
-    yPosition = addSectionTitle('Diary Entries', yPosition);
-    yPosition += 2;
-    
-    if (diaryEntries.value && diaryEntries.value.length > 0) {
-      // Check if we need a new page
-      if (yPosition > pageHeight - 60) {
-        pdf.addPage();
-        yPosition = 20;
-      }
-      
-      // Table headers
-      pdf.setFont(undefined, 'bold');
-      pdf.text('Date', 14, yPosition);
-      pdf.text('Time', 60, yPosition);
-      pdf.text('Entry', 100, yPosition);
-      pdf.setFont(undefined, 'normal');
-      yPosition += lineHeight;
-      
-      // Draw header line below the headers
-      pdf.line(14, yPosition, pageWidth - 14, yPosition);
-      yPosition += 3;
-      
-      // Sort all entries by date (newest first)
-      const allEntries = [...diaryEntries.value].sort((a, b) => 
-        new Date(b.created_at) - new Date(a.created_at)
-      );
-      
-      for (const entry of allEntries) {
-        // Check if we need a new page
-        if (yPosition > pageHeight - 20) {
-          pdf.addPage();
-          yPosition = 20;
-          
-          // Repeat headers on new page
-          pdf.setFont(undefined, 'bold');
-          pdf.text('Date', 14, yPosition);
-          pdf.text('Time', 60, yPosition);
-          pdf.text('Entry', 100, yPosition);
-          pdf.setFont(undefined, 'normal');
-          yPosition += lineHeight;
-          pdf.line(14, yPosition, pageWidth - 14, yPosition);
-          yPosition += 3;
-        }
-        
-        // Format date and time
-        const entryDate = new Date(entry.created_at);
-        const dateStr = entryDate.toLocaleDateString();
-        const timeStr = entryDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        
-        // Add table row
-        pdf.text(dateStr, 14, yPosition);
-        pdf.text(timeStr, 60, yPosition);
-        
-        // Handle entry content with text wrapping
-        const descriptionWidth = pageWidth - 114; // 100 + 14 margin
-        const entryText = formatDiaryEntryText(entry);
-        const splitDescription = pdf.splitTextToSize(entryText, descriptionWidth);
-        pdf.text(splitDescription, 100, yPosition);
-        
-        // Calculate row height based on description length
-        const rowHeight = Math.max(lineHeight, splitDescription.length * lineHeight);
-        yPosition += rowHeight + 2;
-      }
-    } else {
-      pdf.text('No diary entries available', 14, yPosition);
-      yPosition += lineHeight;
-    }
-    
-    // Add footer with page numbers
-    const pageCount = pdf.internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      pdf.setPage(i);
-      pdf.setFontSize(10);
-      pdf.text(`Page ${i} of ${pageCount}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
-    }
-    
-    // Save the PDF with a formatted filename
-    const filename = `${selectedPatient.value.fullname.replace(/\s+/g, '_')}_report_${new Date().toISOString().slice(0, 10)}.pdf`;
-    pdf.save(filename);
-    
+
+    await downloadDiaryReportPdf({
+      title: 'Patient Diary Report',
+      childName: selectedPatient.value.fullname,
+      childNickname: selectedPatient.value.nickname,
+      entries: (diaryEntries.value || []).map((entry) => ({
+        ...entry,
+        timestamp: entry.created_at || entry.timestamp,
+      })),
+      reportScope: 'all',
+    });
+
     showMessage('Report generated and downloaded successfully', 'success');
   } catch (error) {
     console.error('Error generating report:', error);
-    showMessage('Error generating PDF report: ' + (error.message || 'Unknown error'), 'error');
+    showMessage(`Error generating PDF report: ${error.message || 'Unknown error'}`, 'error');
   } finally {
     isGeneratingPdf.value = false;
   }

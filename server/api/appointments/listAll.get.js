@@ -22,7 +22,11 @@ export default defineEventHandler(async (event) => {
     );
 
     const query = getQuery(event);
-    const { date, patient_id, practitioner_id, status } = query;
+    const { date, patient_id, practitioner_id, status, patient_profile } = query;
+    const forPatientProfile =
+      patient_profile === "1" ||
+      patient_profile === "true" ||
+      patient_profile === true;
 
     const filter = {};
     if (date) filter.date = new Date(date);
@@ -30,8 +34,9 @@ export default defineEventHandler(async (event) => {
     if (practitioner_id) filter.practitioner_id = parseInt(practitioner_id);
     if (status) filter.status = parseInt(status);
 
-    // Doctors may only see their own appointments.
-    if (isDoctor && !isAdmin) {
+    // Doctors may only see their own appointments, except when viewing a
+    // specific patient on the patient profile page (all appointments for that patient).
+    if (isDoctor && !isAdmin && !(forPatientProfile && patient_id)) {
       const doctor = await prisma.user_practitioners.findFirst({
         where: {
           user_id: parseInt(userID),

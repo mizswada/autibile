@@ -1,6 +1,11 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
 import { navigateTo } from '#app';
+import {
+  buildIndividualReportOptions,
+  buildIndividualResultFilename,
+  downloadIndividualScreeningPdf,
+} from '~/utils/screeningReportDocument';
 
 const responses = ref([]);
 const isLoading = ref(true);
@@ -14,6 +19,8 @@ const selectedResponse = ref(null);
 const patientDetails = ref(null);
 const scoreThresholds = ref([]);
 const loadingDetails = ref(false);
+const downloadingResponseId = ref(null);
+const thresholdsCache = ref({});
 
 onMounted(async () => {
   await Promise.all([
@@ -211,6 +218,37 @@ function clearFilters() {
   fetchResponses();
 }
 
+async function getThresholdsForQuestionnaire(questionnaireId) {
+  if (thresholdsCache.value[questionnaireId]) {
+    return thresholdsCache.value[questionnaireId];
+  }
+
+  const res = await fetch(`/api/questionnaire/thresholds?questionnaireId=${questionnaireId}`);
+  const result = await res.json();
+  const data = res.ok && result.data ? result.data : [];
+  thresholdsCache.value[questionnaireId] = data;
+  return data;
+}
+
+async function downloadResponseReport(response) {
+  if (!response || downloadingResponseId.value) return;
+
+  downloadingResponseId.value = response.qr_id;
+  try {
+    const thresholds = await getThresholdsForQuestionnaire(response.questionnaire_id);
+    const reportData = buildIndividualReportOptions(response, thresholds);
+    await downloadIndividualScreeningPdf(
+      reportData,
+      buildIndividualResultFilename(reportData.questionnaireTitle, reportData.childName),
+    );
+  } catch (err) {
+    console.error('Failed to download screening report:', err);
+    alert('Failed to generate PDF. Please try again.');
+  } finally {
+    downloadingResponseId.value = null;
+  }
+}
+
 // Get the appropriate score interpretation based on the total score
 const scoreInterpretation = computed(() => {
   if (!selectedResponse.value || !scoreThresholds.value.length) return null;
@@ -332,6 +370,17 @@ const scoreInterpretation = computed(() => {
                     title="View Autism Screening and Answers"
                   >
                     <Icon name="material-symbols:visibility-outline-rounded" size="22" />
+                  </button>
+                  <button
+                    @click="downloadResponseReport(response)"
+                    class="table-action-icon table-action-icon--primary flex items-center"
+                    :disabled="downloadingResponseId === response.qr_id"
+                    title="Download Result"
+                  >
+                    <Icon
+                      :name="downloadingResponseId === response.qr_id ? 'line-md:loading-twotone-loop' : 'material-symbols:download-outline'"
+                      size="22"
+                    />
                   </button>
                 </div>
               </td>

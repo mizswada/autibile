@@ -37,8 +37,50 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
+export function normalizeAppointmentForPdf(appt) {
+  if (!appt) return null;
+
+  if (appt.patientName && appt.serviceName) {
+    return appt;
+  }
+
+  const props = appt.extendedProps || {};
+  const start = appt.start || appt.date;
+
+  return {
+    id: appt.id || appt.appointment_id,
+    patientName: props.patient_name || appt.patientName || 'Unknown Patient',
+    practitionerName: props.practitioner_name || appt.practitionerName || 'Admin',
+    serviceName: props.service_name || appt.serviceName || 'Unknown Service',
+    date: start ? new Date(start).toLocaleDateString('en-MY') : (appt.date || 'N/A'),
+    timeSlot: props.time_slot || appt.timeSlot || appt.time || 'Unknown Time',
+    status: props.status ?? appt.status ?? 36,
+    patientId: props.patient_id || appt.patientId,
+    parentComment: props.parent_comment ?? appt.parentComment ?? appt.parent_comment,
+    therapistDoctorComment:
+      props.therapist_doctor_comment ?? appt.therapistDoctorComment ?? appt.therapist_doctor_comment,
+    parentRate: props.parent_rate ?? appt.parentRate ?? appt.parent_rate ?? 0,
+    sessionNumber: props.session_number ?? appt.sessionNumber ?? null,
+    isAdminAppointment: props.is_admin_appointment ?? appt.isAdminAppointment ?? false,
+  };
+}
+
 function getStatusLabel(status, statusMapping) {
   return statusMapping[Number(status)]?.label || 'Unknown';
+}
+
+// Matches scheduled appointment list badge colors.
+const APPOINTMENT_STATUS_COLORS = {
+  36: '#CA8A04', // Booked
+  37: '#DC2626', // Cancelled
+  38: '#2563EB', // Start
+  39: '#16A34A', // Confirm Start
+  40: '#9333EA', // Finish
+  41: '#4338CA', // Completed
+};
+
+function getStatusBadgeColor(status) {
+  return APPOINTMENT_STATUS_COLORS[Number(status)] || DOCUMENT_THEME.muted;
 }
 
 function getSessionStatusText(status) {
@@ -81,6 +123,7 @@ export function buildAppointmentDocumentHtml(appt, statusMapping) {
   const t = DOCUMENT_THEME;
   const accentColor = t.greenBright;
   const statusLabel = getStatusLabel(appt.status, statusMapping);
+  const statusBadgeColor = getStatusBadgeColor(appt.status);
   const infoRows = buildInfoRows(appt, statusMapping);
   const logoUrl = `${window.location.origin}/img/neurspatherapy_logo.png`;
 
@@ -106,7 +149,11 @@ export function buildAppointmentDocumentHtml(appt, statusMapping) {
       (row) => `
         <div class="info-item ${row.label.includes('Comment') ? 'full-width' : ''}">
           <span class="info-label">${row.label}</span>
-          <span class="info-value">${escapeHtml(row.value)}</span>
+          ${
+            row.label === 'Status'
+              ? `<span class="status-value" style="background:${statusBadgeColor}">${escapeHtml(row.value)}</span>`
+              : `<span class="info-value">${escapeHtml(row.value)}</span>`
+          }
         </div>`,
     )
     .join('');
@@ -171,7 +218,16 @@ export function buildAppointmentDocumentHtml(appt, statusMapping) {
           text-transform: uppercase;
           letter-spacing: 0.5px;
           color: #fff;
-          background: ${t.green};
+        }
+        .status-value {
+          display: inline-block;
+          padding: 2px 10px;
+          border-radius: 999px;
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.4px;
+          color: #fff;
         }
         .accent-bar {
           height: 4px;
@@ -276,7 +332,7 @@ export function buildAppointmentDocumentHtml(appt, statusMapping) {
           </div>
           <div class="doc-head">
             <p class="doc-type">APPOINTMENT</p>
-            <span class="status-badge">${escapeHtml(statusLabel)}</span>
+            <span class="status-badge" style="background:${statusBadgeColor}">${escapeHtml(statusLabel)}</span>
           </div>
         </div>
 
@@ -369,13 +425,14 @@ export async function renderAppointmentPdf(jsPDF, appt, statusMapping) {
   pdf.text('APPOINTMENT', rightX, y + 7, { align: 'right' });
 
   const badgeText = getStatusLabel(appt.status, statusMapping).toUpperCase();
+  const badgeColor = hexToRgb(getStatusBadgeColor(appt.status));
   pdf.setFont(undefined, 'bold');
   pdf.setFontSize(8);
   const badgeTextW = pdf.getTextWidth(badgeText);
   const badgeW = badgeTextW + 10;
   const badgeX = rightX - badgeW;
   const badgeY = y + 12;
-  setFill(hexToRgb(t.green));
+  setFill(badgeColor);
   pdf.roundedRect(badgeX, badgeY, badgeW, 6, 3, 3, 'F');
   setText([255, 255, 255]);
   pdf.text(badgeText, badgeX + badgeW / 2, badgeY + 4.1, { align: 'center' });
@@ -456,6 +513,21 @@ export async function renderAppointmentPdf(jsPDF, appt, statusMapping) {
     pdf.setFont(undefined, 'normal');
     pdf.setFontSize(7);
     pdf.text(String(row.label).toUpperCase(), ix, iy);
+
+    if (row.label === 'Status') {
+      const statusText = String(row.value).toUpperCase();
+      pdf.setFont(undefined, 'bold');
+      pdf.setFontSize(7.5);
+      const statusTextW = pdf.getTextWidth(statusText);
+      const statusBadgeW = statusTextW + 8;
+      const statusBadgeH = 5;
+      setFill(badgeColor);
+      pdf.roundedRect(ix, iy + 1.5, statusBadgeW, statusBadgeH, 2, 2, 'F');
+      setText([255, 255, 255]);
+      pdf.text(statusText, ix + 4, iy + 4.8);
+      return;
+    }
+
     setText(ink);
     pdf.setFont(undefined, 'bold');
     pdf.setFontSize(9);

@@ -2064,12 +2064,12 @@ const validatePatientData = (patient) => {
                   <button
                     type="button"
                     class="table-action-icon table-action-icon--primary"
-                    title="Download Appointment PDF"
+                    title="Download Appointment"
                     :disabled="printingAppointmentId === row.value.id"
                     @click="() => downloadAppointmentPdf(getOriginalData(row.value.id))"
                   >
                     <Icon
-                      :name="printingAppointmentId === row.value.id ? 'line-md:loading-twotone-loop' : 'material-symbols:picture-as-pdf-outline'"
+                      :name="printingAppointmentId === row.value.id ? 'line-md:loading-twotone-loop' : 'material-symbols:download-outline'"
                       size="22"
                     />
                   </button>
@@ -2472,7 +2472,7 @@ const validatePatientData = (patient) => {
               :disabled="printingAppointmentId === selectedAppointment.id"
             >
               <Icon
-                :name="printingAppointmentId === selectedAppointment.id ? 'line-md:loading-twotone-loop' : 'material-symbols:picture-as-pdf-outline'"
+                :name="printingAppointmentId === selectedAppointment.id ? 'line-md:loading-twotone-loop' : 'material-symbols:download-outline'"
                 class="mr-1"
                 size="18"
               />
