@@ -96,7 +96,7 @@
         },
         "emailVerified": {
           "type": "boolean",
-          "default": false
+          "default": true
         },
         "emailVerifiedAt": {
           "type": [

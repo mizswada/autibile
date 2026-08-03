@@ -31,8 +31,8 @@ model user {
   userPhone          String?              @db.VarChar(255)
   userIC             String?              @db.VarChar(50)
   signInBy           String?              @db.VarChar(255)
-  emailVerified      Boolean              @default(false)
-  emailVerifiedAt    DateTime?            @db.DateTime(0)
+  emailVerified      Boolean              @default(true)
+  emailVerifiedAt    DateTime?            @default(now()) @db.DateTime(0)
   userCreatedDate    DateTime?            @db.DateTime(0)
   userModifiedDate   DateTime?            @db.DateTime(0)
   appointments       appointments[]
