@@ -1,22 +1,25 @@
 <script setup>
 definePageMeta({
-  title: "Delete Account — Autibile",
+  title: "Account Request — Autibile",
   layout: "empty",
 });
 
 useHead({
-  title: "Delete Your Autibile Account",
+  title: "Autibile Account Request",
   meta: [
     {
       name: "description",
       content:
-        "Request deletion of your Autibile mobile app account and associated personal data.",
+        "Submit password reset or account deletion requests for your Autibile mobile app account.",
     },
   ],
 });
 
+const activeTab = ref("deletion");
+
 const fullName = ref("");
 const email = ref("");
+const phoneNumber = ref("");
 const accountType = ref("Parents");
 const additionalInfo = ref("");
 const confirmed = ref(false);
@@ -26,7 +29,7 @@ const success = ref("");
 
 const accountTypes = ["Parents", "Doctor", "Therapist"];
 
-async function submitRequest() {
+async function submitDeletionRequest() {
   error.value = "";
   success.value = "";
 
@@ -42,20 +45,20 @@ async function submitRequest() {
 
   loading.value = true;
   try {
-    const res = await $fetch("/api/public/delete-account-request", {
+    const res = await $fetch("/api/public/account-request", {
       method: "POST",
       body: {
+        requestType: "AccountDeletion",
         fullName: fullName.value.trim(),
         email: email.value.trim(),
         accountType: accountType.value,
         additionalInfo: additionalInfo.value.trim(),
+        confirmed: confirmed.value,
       },
     });
 
     if (res.statusCode === 200) {
-      success.value =
-        res.message ||
-        "Your deletion request has been submitted. We will process it within 30 days.";
+      success.value = res.message || "Your deletion request has been submitted.";
       fullName.value = "";
       email.value = "";
       additionalInfo.value = "";
@@ -69,6 +72,53 @@ async function submitRequest() {
       e?.data?.message || e?.message || "An error occurred. Please try again later.";
   } finally {
     loading.value = false;
+  }
+}
+
+async function submitPasswordResetRequest() {
+  error.value = "";
+  success.value = "";
+
+  if (!email.value.trim() || !phoneNumber.value.trim()) {
+    error.value = "Please enter your account email and registered phone number.";
+    return;
+  }
+
+  loading.value = true;
+  try {
+    const res = await $fetch("/api/public/account-request", {
+      method: "POST",
+      body: {
+        requestType: "PasswordReset",
+        email: email.value.trim(),
+        phoneNumber: phoneNumber.value.trim(),
+        accountType: accountType.value,
+      },
+    });
+
+    if (res.statusCode === 200) {
+      success.value =
+        res.message ||
+        "Your password reset request has been submitted. Once approved, your password will be reset to 12345678.";
+      email.value = "";
+      phoneNumber.value = "";
+      accountType.value = "Parents";
+    } else {
+      error.value = res.message || "Failed to submit request. Please try again.";
+    }
+  } catch (e) {
+    error.value =
+      e?.data?.message || e?.message || "An error occurred. Please try again later.";
+  } finally {
+    loading.value = false;
+  }
+}
+
+function submitCurrentTab() {
+  if (activeTab.value === "reset") {
+    submitPasswordResetRequest();
+  } else {
+    submitDeletionRequest();
   }
 }
 </script>
@@ -86,98 +136,72 @@ async function submitRequest() {
         </div>
 
         <h1 class="text-2xl md:text-3xl font-bold text-slate-800 mb-2">
-          Delete Your Autibile Account
+          Account Request
         </h1>
-        <p class="text-slate-600 mb-8">
-          This page is for users of the <strong>Autibile</strong> mobile application
-          (Android package <code class="text-sm bg-slate-100 px-1 rounded">my.autibile.app</code>).
-          Use the steps below to request that your account and associated personal data
-          are deleted.
+        <p class="text-slate-600 mb-6">
+          Submit a password reset or account deletion request for your Autibile mobile app account.
         </p>
 
-        <section class="mb-8">
-          <h2 class="text-xl font-semibold text-slate-800 mb-3">
-            How to request account deletion
-          </h2>
-          <ol class="list-decimal list-inside space-y-3 text-slate-700">
-            <li>
-              <strong>Option A — Use this form (recommended if you cannot open the app):</strong>
-              Fill in the request form at the bottom of this page with the email address
-              registered to your Autibile account and submit it.
-            </li>
-            <li>
-              <strong>Option B — From inside the Autibile app:</strong>
-              Sign in → open <em>Profile</em> → <em>Delete Account</em> →
-              <em>Continue</em> (opens this page so you can submit the request).
-              You can also open this page from the Sign In / user type screens via
-              <em>Request account deletion</em>.
-            </li>
-            <li>
-              After we receive your request, we verify ownership of the account and
-              process the deletion. You will receive a confirmation email when the
-              request is completed (or if we need more information).
-            </li>
-          </ol>
-          <p class="mt-4 text-slate-600">
-            Processing time:
-            <strong>within 30 days</strong> of a verified request.
-          </p>
-        </section>
+        <div class="flex gap-2 mb-8">
+          <button
+            type="button"
+            class="px-4 py-2 rounded-lg text-sm font-semibold"
+            :class="activeTab === 'deletion' ? 'bg-[#4db5ff] text-white' : 'bg-slate-100 text-slate-700'"
+            @click="activeTab = 'deletion'"
+          >
+            Account Deletion
+          </button>
+          <button
+            type="button"
+            class="px-4 py-2 rounded-lg text-sm font-semibold"
+            :class="activeTab === 'reset' ? 'bg-[#4db5ff] text-white' : 'bg-slate-100 text-slate-700'"
+            @click="activeTab = 'reset'"
+          >
+            Password Reset
+          </button>
+        </div>
 
-        <section class="mb-8">
-          <h2 class="text-xl font-semibold text-slate-800 mb-3">
-            Data that is deleted
-          </h2>
-          <p class="text-slate-600 mb-3">
-            When your account deletion is completed, the following personal data
-            associated with your Autibile account is deleted or anonymised:
-          </p>
-          <ul class="list-disc list-inside space-y-2 text-slate-700">
-            <li>Account credentials and profile information (name, email, phone, IC/ID where stored)</li>
-            <li>Parent / doctor / therapist profile details</li>
-            <li>Linked child / patient profile data that is solely tied to your account</li>
-            <li>Appointments, diary reports, progress notes, questionnaire responses, and referrals linked to your account</li>
-            <li>Community posts authored under your account</li>
-            <li>In-app session and authentication tokens</li>
-          </ul>
-        </section>
-
-        <section class="mb-8">
-          <h2 class="text-xl font-semibold text-slate-800 mb-3">
-            Data that may be retained
-          </h2>
-          <p class="text-slate-600 mb-3">
-            Certain records may be kept for a limited period where required for legal,
-            security, or financial compliance:
-          </p>
-          <ul class="list-disc list-inside space-y-2 text-slate-700">
-            <li>
-              <strong>Payment / invoice records:</strong> retained up to
-              <strong>7 years</strong> where required by applicable tax or accounting laws,
-              then deleted or anonymised.
-            </li>
-            <li>
-              <strong>Security / fraud logs:</strong> limited technical logs may be retained
-              up to <strong>90 days</strong>.
-            </li>
-            <li>
-              <strong>Aggregated analytics:</strong> non-identifiable statistics that cannot
-              reasonably be linked back to you may be retained.
-            </li>
-            <li>
-              Data that belongs to another user’s account (for example a practitioner’s
-              clinical notes about a patient who remains under another parent’s account)
-              is not deleted as part of your request.
-            </li>
-          </ul>
-        </section>
-
-        <section class="mb-2 border-t border-slate-200 pt-8">
+        <section v-if="activeTab === 'reset'" class="mb-2">
           <h2 class="text-xl font-semibold text-slate-800 mb-2">
-            Submit a deletion request
+            Request password reset
           </h2>
           <p class="text-slate-600 mb-6">
-            Submit the form below. We will process verified requests within 30 days.
+            Enter the email and phone number registered to your account. After an administrator
+            approves your request, your password will be reset to
+            <strong>12345678</strong>. Please change it after signing in.
+          </p>
+
+          <div class="grid grid-cols-1 gap-1">
+            <FormKit
+              type="email"
+              label="Account email"
+              v-model="email"
+              validation="required|email"
+              :classes="{ label: 'text-left', messages: 'text-left' }"
+            />
+            <FormKit
+              type="tel"
+              label="Registered phone number"
+              v-model="phoneNumber"
+              validation="required"
+              :classes="{ label: 'text-left', messages: 'text-left' }"
+            />
+            <FormKit
+              type="select"
+              label="Account type"
+              v-model="accountType"
+              :options="accountTypes"
+              :classes="{ label: 'text-left', messages: 'text-left' }"
+            />
+          </div>
+        </section>
+
+        <section v-else class="mb-2">
+          <h2 class="text-xl font-semibold text-slate-800 mb-2">
+            Request account deletion
+          </h2>
+          <p class="text-slate-600 mb-6">
+            Verified deletion requests are processed after administrator approval.
           </p>
 
           <div class="grid grid-cols-1 gap-1">
@@ -193,8 +217,7 @@ async function submitRequest() {
               label="Account email"
               v-model="email"
               validation="required|email"
-              help="Must match an email registered to an Autibile account."
-              :classes="{ label: 'text-left', messages: 'text-left', help: 'text-left' }"
+              :classes="{ label: 'text-left', messages: 'text-left' }"
             />
             <FormKit
               type="select"
@@ -213,27 +236,28 @@ async function submitRequest() {
             <FormKit
               type="checkbox"
               v-model="confirmed"
-              label="I understand this will permanently delete my Autibile account and associated personal data as described above."
+              label="I understand this will permanently delete my Autibile account and associated personal data."
               :classes="{ label: 'text-left', messages: 'text-left' }"
             />
-
-            <div v-if="error" class="text-red-600 text-left mb-2">{{ error }}</div>
-            <div v-if="success" class="text-green-700 text-left mb-2">{{ success }}</div>
-
-            <FormKit
-              type="button"
-              input-class="w-full"
-              :disabled="loading"
-              @click="submitRequest"
-            >
-              <span v-if="loading">Submitting...</span>
-              <span v-else>Request account deletion</span>
-            </FormKit>
           </div>
         </section>
 
+        <div v-if="error" class="text-red-600 text-left mb-2 mt-4">{{ error }}</div>
+        <div v-if="success" class="text-green-700 text-left mb-2 mt-4">{{ success }}</div>
+
+        <FormKit
+          type="button"
+          input-class="w-full mt-4"
+          :disabled="loading"
+          @click="submitCurrentTab"
+        >
+          <span v-if="loading">Submitting...</span>
+          <span v-else-if="activeTab === 'reset'">Request password reset</span>
+          <span v-else>Request account deletion</span>
+        </FormKit>
+
         <p class="mt-8 text-sm text-slate-500 text-center">
-          Autibile · Account &amp; data deletion ·
+          Autibile · Account requests ·
           <NuxtLink to="/privacy" class="text-primary hover:underline">
             Privacy Policy
           </NuxtLink>

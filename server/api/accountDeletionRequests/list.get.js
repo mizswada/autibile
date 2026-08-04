@@ -1,27 +1,18 @@
+import { requireAdmin } from "~/server/utils/reports/guard";
+
 export default defineEventHandler(async (event) => {
+  const guard = requireAdmin(event);
+  if (!guard.ok) {
+    return {
+      statusCode: guard.statusCode,
+      message: guard.message,
+    };
+  }
+
   try {
-    const { userID } = event.context.user || {};
-
-    if (!userID) {
-      return {
-        statusCode: 401,
-        message: "Unauthorized",
-      };
-    }
-
-    const validatedUser = await prisma.user.findFirst({
-      where: { userID: parseInt(userID) },
-    });
-
-    if (!validatedUser) {
-      return {
-        statusCode: 401,
-        message: "Unauthorized",
-      };
-    }
-
     const query = getQuery(event);
     const statusFilter = (query.status || "").trim();
+    const requestTypeFilter = (query.requestType || query.request_type || "").trim();
 
     const where = {
       deleted_at: null,
@@ -29,6 +20,10 @@ export default defineEventHandler(async (event) => {
 
     if (statusFilter && statusFilter !== "All") {
       where.status = statusFilter;
+    }
+
+    if (requestTypeFilter && requestTypeFilter !== "All") {
+      where.request_type = requestTypeFilter;
     }
 
     const requests = await prisma.account_deletion_requests.findMany({
@@ -39,8 +34,11 @@ export default defineEventHandler(async (event) => {
     const data = requests.map((item, index) => ({
       no: index + 1,
       requestId: item.request_id,
+      requestType: item.request_type || "AccountDeletion",
       fullName: item.full_name,
       email: item.email,
+      phoneNumber: item.phone_number || "",
+      userId: item.user_id,
       accountType: item.account_type,
       additionalInfo: item.additional_info || "",
       status: item.status,

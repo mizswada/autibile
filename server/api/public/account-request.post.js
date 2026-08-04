@@ -1,14 +1,9 @@
 import { handleAccountRequestSubmit } from "~/server/utils/accountRequestHandlers";
-import { REQUEST_TYPES } from "~/server/utils/accountRequestHelpers";
 
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event);
-    return await handleAccountRequestSubmit({
-      ...body,
-      requestType: REQUEST_TYPES.ACCOUNT_DELETION,
-      confirmed: body?.confirmed ?? true,
-    });
+    return await handleAccountRequestSubmit(body);
   } catch (error) {
     console.log(error);
     return {

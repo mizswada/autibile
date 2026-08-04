@@ -1,29 +1,79 @@
 import { DateTime } from "luxon";
+import sha256 from "crypto-js/sha256.js";
+import { requireAdmin } from "~/server/utils/reports/guard";
+import { REQUEST_TYPES } from "~/server/utils/accountRequestHelpers";
+import {
+  escapeHtml,
+  sendAccountRequestEmail,
+} from "~/server/utils/accountRequestHelpers";
+import { TEMP_RESET_PASSWORD } from "~/server/utils/accountRequestHandlers";
+import { fulfillAccountDeletion } from "~/server/utils/fulfillAccountDeletion";
 
 const ALLOWED_STATUSES = ["Pending", "In Progress", "Completed", "Rejected"];
 
+async function notifyUserOfCompletion(request, status, adminNotes) {
+  if (!request.email) return;
+
+  const name = escapeHtml(request.full_name || "User");
+  const notesBlock = adminNotes
+    ? `<p><strong>Admin notes:</strong> ${escapeHtml(adminNotes)}</p>`
+    : "";
+
+  if (status === "Completed") {
+    if (request.request_type === REQUEST_TYPES.PASSWORD_RESET) {
+      await sendAccountRequestEmail({
+        to: request.email,
+        subject: "Your Autibile password reset has been approved",
+        html: `
+          <p>Hi ${name},</p>
+          <p>Your password reset request (#${request.request_id}) has been approved.</p>
+          <p>Your temporary password is <strong>${TEMP_RESET_PASSWORD}</strong>. Please sign in and change your password immediately.</p>
+          ${notesBlock}
+          <p>— Autibile Support</p>
+        `,
+      });
+      return;
+    }
+
+    await sendAccountRequestEmail({
+      to: request.email,
+      subject: "Your Autibile account deletion request has been completed",
+      html: `
+        <p>Hi ${name},</p>
+        <p>Your account deletion request (#${request.request_id}) has been approved and your account has been deactivated.</p>
+        ${notesBlock}
+        <p>— Autibile Support</p>
+      `,
+    });
+    return;
+  }
+
+  if (status === "Rejected") {
+    await sendAccountRequestEmail({
+      to: request.email,
+      subject: "Your Autibile account request was rejected",
+      html: `
+        <p>Hi ${name},</p>
+        <p>Your account request (#${request.request_id}) could not be approved.</p>
+        ${notesBlock}
+        <p>Please contact support if you need further assistance.</p>
+        <p>— Autibile Support</p>
+      `,
+    });
+  }
+}
+
 export default defineEventHandler(async (event) => {
+  const guard = requireAdmin(event);
+  if (!guard.ok) {
+    return {
+      statusCode: guard.statusCode,
+      message: guard.message,
+    };
+  }
+
   try {
     const { userID } = event.context.user || {};
-
-    if (!userID) {
-      return {
-        statusCode: 401,
-        message: "Unauthorized",
-      };
-    }
-
-    const validatedUser = await prisma.user.findFirst({
-      where: { userID: parseInt(userID) },
-    });
-
-    if (!validatedUser) {
-      return {
-        statusCode: 401,
-        message: "Unauthorized",
-      };
-    }
-
     const body = await readBody(event);
     const requestId = parseInt(body?.requestId);
     const status = (body?.status || "").trim();
@@ -54,8 +104,34 @@ export default defineEventHandler(async (event) => {
     if (!existing) {
       return {
         statusCode: 404,
-        message: "Deletion request not found.",
+        message: "Account request not found.",
       };
+    }
+
+    if (status === "Completed" && existing.status !== "Completed") {
+      const targetUserId = existing.user_id;
+
+      if (!targetUserId) {
+        return {
+          statusCode: 400,
+          message: "This request is not linked to a user account.",
+        };
+      }
+
+      if (existing.request_type === REQUEST_TYPES.PASSWORD_RESET) {
+        await prisma.user.update({
+          where: { userID: targetUserId },
+          data: {
+            userPassword: sha256(TEMP_RESET_PASSWORD).toString(),
+            userModifiedDate: new Date(),
+          },
+        });
+      } else {
+        await fulfillAccountDeletion({
+          userId: targetUserId,
+          accountType: existing.account_type,
+        });
+      }
     }
 
     const now = DateTime.now().toISO();
@@ -72,20 +148,28 @@ export default defineEventHandler(async (event) => {
       },
     });
 
+    if (isTerminal) {
+      try {
+        await notifyUserOfCompletion(updated, status, adminNotes);
+      } catch (emailError) {
+        console.log("Failed to send account request status email:", emailError);
+      }
+    }
+
     return {
       statusCode: 200,
       message: "Request status updated.",
       data: {
         requestId: updated.request_id,
         status: updated.status,
+        requestType: updated.request_type,
       },
     };
   } catch (error) {
     console.error("PUT /api/accountDeletionRequests/updateStatus error:", error);
     return {
       statusCode: 500,
-      message: "Internal Server Error",
-      error: error.message,
+      message: error.message || "Internal Server Error",
     };
   }
 });

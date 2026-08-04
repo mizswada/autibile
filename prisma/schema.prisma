@@ -441,8 +441,11 @@ model tech_supports {
 
 model account_deletion_requests {
   request_id      Int       @id @default(autoincrement())
+  request_type    String    @default("AccountDeletion") @db.VarChar(50)
   full_name       String    @db.VarChar(255)
   email           String    @db.VarChar(255)
+  phone_number    String?   @db.VarChar(50)
+  user_id         Int?
   account_type    String    @db.VarChar(50)
   additional_info String?   @db.Text
   status          String    @default("Pending") @db.VarChar(50)

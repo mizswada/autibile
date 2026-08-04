@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 
 const rawData = ref([]);
 const isLoading = ref(false);
@@ -7,6 +7,7 @@ const error = ref(null);
 const message = ref("");
 const messageType = ref("success");
 const statusFilter = ref("All");
+const requestTypeFilter = ref("All");
 
 const showUpdateModal = ref(false);
 const selectedRequest = ref(null);
@@ -15,12 +16,15 @@ const adminNotes = ref("");
 const isSaving = ref(false);
 
 const statusOptions = ["All", "Pending", "In Progress", "Completed", "Rejected"];
+const requestTypeOptions = ["All", "PasswordReset", "AccountDeletion"];
 const editableStatuses = ["Pending", "In Progress", "Completed", "Rejected"];
 
 const columns = [
   { name: "requestId", label: "ID" },
+  { name: "requestType", label: "Type" },
   { name: "fullName", label: "Full Name" },
   { name: "email", label: "Email" },
+  { name: "phoneNumber", label: "Phone" },
   { name: "accountType", label: "Account Type" },
   { name: "status", label: "Status" },
   { name: "createdAt", label: "Submitted" },
@@ -42,14 +46,24 @@ function formatDate(value) {
   }
 }
 
+function formatRequestType(value) {
+  if (value === "PasswordReset") return "Password Reset";
+  if (value === "AccountDeletion") return "Account Deletion";
+  return value || "—";
+}
+
 async function fetchRequests() {
   isLoading.value = true;
   error.value = null;
   try {
-    const query =
-      statusFilter.value && statusFilter.value !== "All"
-        ? `?status=${encodeURIComponent(statusFilter.value)}`
-        : "";
+    const params = new URLSearchParams();
+    if (statusFilter.value && statusFilter.value !== "All") {
+      params.set("status", statusFilter.value);
+    }
+    if (requestTypeFilter.value && requestTypeFilter.value !== "All") {
+      params.set("requestType", requestTypeFilter.value);
+    }
+    const query = params.toString() ? `?${params.toString()}` : "";
     const result = await $fetch(`/api/accountDeletionRequests/list${query}`);
     if (result.statusCode === 200) {
       rawData.value = result.data || [];
@@ -65,16 +79,20 @@ async function fetchRequests() {
 }
 
 onMounted(fetchRequests);
+watch([statusFilter, requestTypeFilter], fetchRequests);
 
 const tableData = computed(() =>
   rawData.value.map((item) => ({
     requestId: item.requestId,
+    requestType: formatRequestType(item.requestType),
     fullName: item.fullName,
     email: item.email,
+    phoneNumber: item.phoneNumber || "—",
     accountType: item.accountType,
     status: item.status,
     createdAt: formatDate(item.createdAt),
     action: "manage",
+    _raw: item,
   }))
 );
 
@@ -103,6 +121,17 @@ function openUpdateModal(row) {
   adminNotes.value = request.adminNotes || "";
   showUpdateModal.value = true;
 }
+
+const completionWarning = computed(() => {
+  if (!selectedRequest.value || updateStatus.value !== "Completed") return "";
+  if (selectedRequest.value.requestType === "PasswordReset") {
+    return "Approving will reset this user's password to 12345678.";
+  }
+  if (selectedRequest.value.requestType === "AccountDeletion") {
+    return "Approving will deactivate this user's account.";
+  }
+  return "";
+});
 
 async function saveStatus() {
   if (!selectedRequest.value) return;
@@ -139,10 +168,9 @@ async function saveStatus() {
 
 <template>
   <div class="mb-4">
-    <h1 class="text-2xl font-bold">Account Deletion Requests</h1>
+    <h1 class="text-2xl font-bold">Account Requests</h1>
     <p class="text-slate-500 mt-1">
-      Review and process Autibile app account deletion requests. Verified deletions
-      should be completed within 30 days.
+      Review password reset and account deletion requests from the mobile app and website.
     </p>
 
     <div class="card p-4 mt-4">
@@ -161,6 +189,15 @@ async function saveStatus() {
             label="Filter by status"
             v-model="statusFilter"
             :options="statusOptions"
+            :classes="{ label: 'text-left' }"
+          />
+        </div>
+        <div class="w-56">
+          <FormKit
+            type="select"
+            label="Filter by type"
+            v-model="requestTypeFilter"
+            :options="requestTypeOptions"
             :classes="{ label: 'text-left' }"
           />
         </div>
@@ -197,7 +234,7 @@ async function saveStatus() {
     </div>
 
     <rs-modal
-      title="Manage Deletion Request"
+      title="Manage Account Request"
       ok-title="Save"
       cancel-title="Cancel"
       :ok-callback="saveStatus"
@@ -209,6 +246,10 @@ async function saveStatus() {
         <p>
           <span class="font-semibold">Request ID:</span>
           {{ selectedRequest.requestId }}
+        </p>
+        <p>
+          <span class="font-semibold">Type:</span>
+          {{ formatRequestType(selectedRequest.requestType) }}
         </p>
         <p>
           <span class="font-semibold">Name:</span>
@@ -224,6 +265,10 @@ async function saveStatus() {
           </a>
         </p>
         <p>
+          <span class="font-semibold">Phone:</span>
+          {{ selectedRequest.phoneNumber || "—" }}
+        </p>
+        <p>
           <span class="font-semibold">Account type:</span>
           {{ selectedRequest.accountType }}
         </p>
@@ -235,6 +280,13 @@ async function saveStatus() {
           <span class="font-semibold">Additional info:</span>
           {{ selectedRequest.additionalInfo || "—" }}
         </p>
+
+        <div
+          v-if="completionWarning"
+          class="p-3 rounded bg-amber-50 border border-amber-200 text-amber-900 text-sm"
+        >
+          {{ completionWarning }}
+        </div>
 
         <FormKit
           type="select"

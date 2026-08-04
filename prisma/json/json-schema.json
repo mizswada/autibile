@@ -1661,11 +1661,27 @@
         "request_id": {
           "type": "integer"
         },
+        "request_type": {
+          "type": "string",
+          "default": "AccountDeletion"
+        },
         "full_name": {
           "type": "string"
         },
         "email": {
           "type": "string"
+        },
+        "phone_number": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "user_id": {
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "account_type": {
           "type": "string"
