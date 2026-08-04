@@ -10,6 +10,7 @@ const { width } = useWindowSize();
 
 const user = useUserStore();
 const route = useRoute();
+const accountRequestPendingCount = inject("accountRequestPendingCount", ref(0));
 const props = defineProps({
   items: {
     type: Array,
@@ -84,6 +85,13 @@ function navigationPage(path, external) {
     external: external,
   });
 }
+
+function showNavDot(item) {
+  return (
+    item.path === "/accountDeletionRequests" &&
+    Number(accountRequestPendingCount?.value || 0) > 0
+  );
+}
 </script>
 
 <template>
@@ -137,6 +145,11 @@ function navigationPage(path, external) {
               <Icon v-if="item2.icon" :name="item2.icon" size="18"></Icon>
               <Icon v-else name="mdi:circle-slice-8" size="18"></Icon>
               <span class="mx-3 font-normal">{{ item2.title }}</span>
+              <span
+                v-if="showNavDot(item2)"
+                class="inline-block w-2 h-2 rounded-full bg-red-500 shrink-0"
+                title="Pending account requests"
+              ></span>
               <Icon
                 v-if="item2.child && item2.child.length > 0"
                 class="ml-auto side-menu-arrow"
@@ -152,6 +165,11 @@ function navigationPage(path, external) {
               <Icon v-if="item2.icon" :name="item2.icon" size="18"></Icon>
               <Icon v-else name="mdi:circle-slice-8" size="18"></Icon>
               <span class="mx-3 font-normal">{{ item2.title }}</span>
+              <span
+                v-if="showNavDot(item2)"
+                class="inline-block w-2 h-2 rounded-full bg-red-500 shrink-0"
+                title="Pending account requests"
+              ></span>
               <Icon
                 v-if="item2.child && item2.child.length > 0"
                 class="ml-auto side-menu-arrow"

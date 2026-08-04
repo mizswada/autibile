@@ -8,7 +8,7 @@ import {
   findRecentAccountRequest,
   findRegisteredUserByEmail,
   getAdminNotificationEmail,
-  normalizePhone,
+  phonesEquivalent,
   sendAccountRequestEmail,
 } from "~/server/utils/accountRequestHelpers";
 
@@ -140,9 +140,7 @@ export async function handleAccountRequestSubmit(body) {
   }
 
   if (requestType === REQUEST_TYPES.PASSWORD_RESET) {
-    const storedPhone = normalizePhone(registeredUser.userPhone);
-    const submittedPhone = normalizePhone(phoneNumber);
-    if (!storedPhone || storedPhone !== submittedPhone) {
+    if (!phonesEquivalent(phoneNumber, registeredUser.userPhone)) {
       return {
         statusCode: 400,
         message:

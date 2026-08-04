@@ -52,6 +52,27 @@ function formatRequestType(value) {
   return value || "—";
 }
 
+function isPasswordResetRequest(item) {
+  return item?.requestType === "PasswordReset";
+}
+
+function validationIconClass(matches) {
+  return matches ? "text-green-600" : "text-red-500";
+}
+
+function validationTitle(matches, label, registeredValue) {
+  if (matches) {
+    return `${label} matches registered account`;
+  }
+  const suffix = registeredValue ? ` (registered: ${registeredValue})` : "";
+  return `${label} does not match registered account${suffix}`;
+}
+
+const refreshAccountRequestPendingCount = inject(
+  "refreshAccountRequestPendingCount",
+  () => {}
+);
+
 async function fetchRequests() {
   isLoading.value = true;
   error.value = null;
@@ -78,7 +99,10 @@ async function fetchRequests() {
   }
 }
 
-onMounted(fetchRequests);
+onMounted(() => {
+  fetchRequests();
+  refreshAccountRequestPendingCount();
+});
 watch([statusFilter, requestTypeFilter], fetchRequests);
 
 const tableData = computed(() =>
@@ -151,6 +175,7 @@ async function saveStatus() {
       showUpdateModal.value = false;
       selectedRequest.value = null;
       await fetchRequests();
+      refreshAccountRequestPendingCount();
     } else {
       showMessage(result.message || "Failed to update request.", "error");
     }
@@ -223,6 +248,38 @@ async function saveStatus() {
             {{ row.value.status }}
           </span>
         </template>
+        <template v-slot:email="row">
+          <div class="flex items-center gap-2">
+            <span>{{ row.value.email }}</span>
+            <Icon
+              v-if="isPasswordResetRequest(row.value._raw)"
+              :name="row.value._raw.emailMatches ? 'mdi:check-circle' : 'mdi:close-circle'"
+              size="16"
+              :class="validationIconClass(row.value._raw.emailMatches)"
+              :title="validationTitle(
+                row.value._raw.emailMatches,
+                'Email',
+                row.value._raw.registeredEmail
+              )"
+            />
+          </div>
+        </template>
+        <template v-slot:phoneNumber="row">
+          <div class="flex items-center gap-2">
+            <span>{{ row.value.phoneNumber }}</span>
+            <Icon
+              v-if="isPasswordResetRequest(row.value._raw)"
+              :name="row.value._raw.phoneMatches ? 'mdi:check-circle' : 'mdi:close-circle'"
+              size="16"
+              :class="validationIconClass(row.value._raw.phoneMatches)"
+              :title="validationTitle(
+                row.value._raw.phoneMatches,
+                'Phone',
+                row.value._raw.registeredPhone
+              )"
+            />
+          </div>
+        </template>
         <template v-slot:action="row">
           <div class="flex justify-center items-center">
             <rs-button size="sm" @click="openUpdateModal(row.value)">
@@ -263,10 +320,34 @@ async function saveStatus() {
           >
             {{ selectedRequest.email }}
           </a>
+          <Icon
+            v-if="isPasswordResetRequest(selectedRequest)"
+            :name="selectedRequest.emailMatches ? 'mdi:check-circle' : 'mdi:close-circle'"
+            size="16"
+            class="inline ml-1 align-text-bottom"
+            :class="validationIconClass(selectedRequest.emailMatches)"
+            :title="validationTitle(
+              selectedRequest.emailMatches,
+              'Email',
+              selectedRequest.registeredEmail
+            )"
+          />
         </p>
         <p>
           <span class="font-semibold">Phone:</span>
           {{ selectedRequest.phoneNumber || "—" }}
+          <Icon
+            v-if="isPasswordResetRequest(selectedRequest)"
+            :name="selectedRequest.phoneMatches ? 'mdi:check-circle' : 'mdi:close-circle'"
+            size="16"
+            class="inline ml-1 align-text-bottom"
+            :class="validationIconClass(selectedRequest.phoneMatches)"
+            :title="validationTitle(
+              selectedRequest.phoneMatches,
+              'Phone',
+              selectedRequest.registeredPhone
+            )"
+          />
         </p>
         <p>
           <span class="font-semibold">Account type:</span>

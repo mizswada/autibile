@@ -4,6 +4,7 @@ import RSItem from "~/components/layouts/sidemenu/Item.vue";
 import { useUserStore } from "~/stores/user";
 
 const userStore = useUserStore();
+const { pendingCount, refreshPendingCount } = useAccountRequestPendingCount();
 
 // Get navigation based on user roles
 const menuItem = computed(() => {
@@ -31,6 +32,9 @@ onMounted(() => {
     return;
   }
 });
+
+provide("accountRequestPendingCount", pendingCount);
+provide("refreshAccountRequestPendingCount", refreshPendingCount);
 </script>
 
 <template>

@@ -9,8 +9,31 @@ export function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+/**
+ * Normalize phone numbers to a comparable canonical form.
+ * Strips formatting, then unifies Malaysia local (0…) and international (60…) formats.
+ */
 export function normalizePhone(value) {
-  return String(value || "").replace(/\D/g, "");
+  let digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return "";
+
+  // +60 12-345 6789 / 60123456789 → 0123456789
+  if (digits.startsWith("60") && digits.length >= 10) {
+    digits = `0${digits.slice(2)}`;
+  }
+
+  // 12-345 6789 / 123456789 → 0123456789 (local mobile without leading 0)
+  if (/^1\d{8,9}$/.test(digits)) {
+    digits = `0${digits}`;
+  }
+
+  return digits;
+}
+
+export function phonesEquivalent(phoneA, phoneB) {
+  const normalizedA = normalizePhone(phoneA);
+  const normalizedB = normalizePhone(phoneB);
+  return Boolean(normalizedA && normalizedB && normalizedA === normalizedB);
 }
 
 export async function sendAccountRequestEmail({ to, subject, html, replyTo }) {
@@ -166,4 +189,28 @@ export async function findRecentAccountRequest({ email, requestType, minutes = 5
     },
     orderBy: { created_at: "desc" },
   });
+}
+
+export function emailMatchesUser(submittedEmail, user) {
+  if (!submittedEmail || !user) return false;
+  const normalized = submittedEmail.trim().toLowerCase();
+  const candidates = [user.userEmail, user.userUsername].filter(Boolean);
+  return candidates.some((value) => value.toLowerCase() === normalized);
+}
+
+export function phoneMatchesUser(submittedPhone, userPhone) {
+  return phonesEquivalent(submittedPhone, userPhone);
+}
+
+export function getUserValidationForRequest(request, user) {
+  const isPasswordReset = request.request_type === REQUEST_TYPES.PASSWORD_RESET;
+
+  return {
+    emailMatches: emailMatchesUser(request.email, user),
+    phoneMatches: isPasswordReset
+      ? phoneMatchesUser(request.phone_number, user?.userPhone)
+      : null,
+    registeredEmail: user?.userEmail || user?.userUsername || "",
+    registeredPhone: user?.userPhone || "",
+  };
 }
