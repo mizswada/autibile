@@ -4,7 +4,16 @@ import RSItem from "~/components/layouts/sidemenu/Item.vue";
 import { useUserStore } from "~/stores/user";
 
 const userStore = useUserStore();
-const { pendingCount, refreshPendingCount } = useAccountRequestPendingCount();
+
+const isAdmin = computed(() =>
+  (userStore.roles || []).some(
+    (role) => role.includes("Admin") || role.includes("Administrator")
+  )
+);
+
+const { pendingCount, refreshPendingCount } = useAccountRequestPendingCount(
+  () => isAdmin.value
+);
 
 // Get navigation based on user roles
 const menuItem = computed(() => {

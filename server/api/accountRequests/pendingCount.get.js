@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const pendingCount = await prisma.account_deletion_requests.count({
+    const pendingCount = await prisma.account_requests.count({
       where: {
         deleted_at: null,
         status: "Pending",
@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
       data: { pendingCount },
     };
   } catch (error) {
-    console.error("GET /api/accountDeletionRequests/pendingCount error:", error);
+    console.error("GET /api/accountRequests/pendingCount error:", error);
     return {
       statusCode: 500,
       message: "Internal Server Error",

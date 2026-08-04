@@ -180,7 +180,7 @@ export async function handleAccountRequestSubmit(body) {
   const resolvedName =
     fullName || registeredUser.userFullName || registeredUser.userUsername || email;
 
-  const created = await prisma.account_deletion_requests.create({
+  const created = await prisma.account_requests.create({
     data: {
       request_type: requestType,
       full_name: resolvedName,

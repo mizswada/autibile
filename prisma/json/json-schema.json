@@ -1655,7 +1655,7 @@
         }
       }
     },
-    "account_deletion_requests": {
+    "account_requests": {
       "type": "object",
       "properties": {
         "request_id": {
@@ -2422,8 +2422,8 @@
     "tech_supports": {
       "$ref": "#/definitions/tech_supports"
     },
-    "account_deletion_requests": {
-      "$ref": "#/definitions/account_deletion_requests"
+    "account_requests": {
+      "$ref": "#/definitions/account_requests"
     },
     "community": {
       "$ref": "#/definitions/community"

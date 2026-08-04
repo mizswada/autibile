@@ -165,7 +165,7 @@ export function accountTypeMatchesUser(accountType, registeredUser) {
 
 export async function findOpenAccountRequest({ email, requestType }) {
   const normalizedEmail = email.toLowerCase();
-  return prisma.account_deletion_requests.findFirst({
+  return prisma.account_requests.findFirst({
     where: {
       deleted_at: null,
       request_type: requestType,
@@ -180,7 +180,7 @@ export async function findRecentAccountRequest({ email, requestType, minutes = 5
   const normalizedEmail = email.toLowerCase();
   const since = new Date(Date.now() - minutes * 60 * 1000);
 
-  return prisma.account_deletion_requests.findFirst({
+  return prisma.account_requests.findFirst({
     where: {
       deleted_at: null,
       request_type: requestType,

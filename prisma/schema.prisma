@@ -439,7 +439,7 @@ model tech_supports {
   deleted_at         DateTime? @db.Timestamp(0)
 }
 
-model account_deletion_requests {
+model account_requests {
   request_id      Int       @id @default(autoincrement())
   request_type    String    @default("AccountDeletion") @db.VarChar(50)
   full_name       String    @db.VarChar(255)

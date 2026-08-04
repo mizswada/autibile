@@ -4,12 +4,24 @@ import { requireAdmin } from "~/server/utils/reports/guard";
 import { REQUEST_TYPES } from "~/server/utils/accountRequestHelpers";
 import {
   escapeHtml,
+  findRegisteredUserByEmail,
   sendAccountRequestEmail,
 } from "~/server/utils/accountRequestHelpers";
 import { TEMP_RESET_PASSWORD } from "~/server/utils/accountRequestHandlers";
 import { fulfillAccountDeletion } from "~/server/utils/fulfillAccountDeletion";
 
 const ALLOWED_STATUSES = ["Pending", "In Progress", "Completed", "Rejected"];
+
+/**
+ * Requests created before user_id existed have no linked account,
+ * so fall back to matching the email they were submitted with.
+ */
+async function resolveTargetUserId(request) {
+  if (request.user_id) return request.user_id;
+
+  const user = await findRegisteredUserByEmail(request.email || "");
+  return user?.userID || null;
+}
 
 async function notifyUserOfCompletion(request, status, adminNotes) {
   if (!request.email) return;
@@ -94,7 +106,7 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    const existing = await prisma.account_deletion_requests.findFirst({
+    const existing = await prisma.account_requests.findFirst({
       where: {
         request_id: requestId,
         deleted_at: null,
@@ -108,15 +120,19 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    let resolvedUserId = existing.user_id;
+
     if (status === "Completed" && existing.status !== "Completed") {
-      const targetUserId = existing.user_id;
+      const targetUserId = await resolveTargetUserId(existing);
 
       if (!targetUserId) {
         return {
           statusCode: 400,
-          message: "This request is not linked to a user account.",
+          message: `No active account was found for ${existing.email}. Please verify the account before completing this request.`,
         };
       }
+
+      resolvedUserId = targetUserId;
 
       if (existing.request_type === REQUEST_TYPES.PASSWORD_RESET) {
         await prisma.user.update({
@@ -137,11 +153,12 @@ export default defineEventHandler(async (event) => {
     const now = DateTime.now().toISO();
     const isTerminal = status === "Completed" || status === "Rejected";
 
-    const updated = await prisma.account_deletion_requests.update({
+    const updated = await prisma.account_requests.update({
       where: { request_id: requestId },
       data: {
         status,
         ...(adminNotes !== undefined ? { admin_notes: adminNotes || null } : {}),
+        ...(!existing.user_id && resolvedUserId ? { user_id: resolvedUserId } : {}),
         updated_at: now,
         processed_by: parseInt(userID),
         processed_at: isTerminal ? now : existing.processed_at,
@@ -166,7 +183,7 @@ export default defineEventHandler(async (event) => {
       },
     };
   } catch (error) {
-    console.error("PUT /api/accountDeletionRequests/updateStatus error:", error);
+    console.error("PUT /api/accountRequests/updateStatus error:", error);
     return {
       statusCode: 500,
       message: error.message || "Internal Server Error",

@@ -88,7 +88,7 @@ function navigationPage(path, external) {
 
 function showNavDot(item) {
   return (
-    item.path === "/accountDeletionRequests" &&
+    item.path === "/accountRequests" &&
     Number(accountRequestPendingCount?.value || 0) > 0
   );
 }

@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
       where.request_type = requestTypeFilter;
     }
 
-    const requests = await prisma.account_deletion_requests.findMany({
+    const requests = await prisma.account_requests.findMany({
       where,
       orderBy: { created_at: "desc" },
     });
@@ -89,7 +89,7 @@ export default defineEventHandler(async (event) => {
       data,
     };
   } catch (error) {
-    console.error("GET /api/accountDeletionRequests/list error:", error);
+    console.error("GET /api/accountRequests/list error:", error);
     return {
       statusCode: 500,
       message: "Internal Server Error",

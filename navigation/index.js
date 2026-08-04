@@ -133,7 +133,7 @@ const adminNavigation = [
       {
         title: "Account Requests",
         icon: "ic:outline-person-off",
-        path: "/accountDeletionRequests",
+        path: "/accountRequests",
       },
       {
         title: "AI Settings",
