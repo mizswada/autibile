@@ -8,7 +8,6 @@ import {
   findRecentAccountRequest,
   findRegisteredUserByEmail,
   getAdminNotificationEmail,
-  phonesEquivalent,
   sendAccountRequestEmail,
 } from "~/server/utils/accountRequestHelpers";
 
@@ -137,16 +136,6 @@ export async function handleAccountRequestSubmit(body) {
       statusCode: 400,
       message: `This email is registered with Autibile, but not as a ${accountType} account. Please select the correct account type.`,
     };
-  }
-
-  if (requestType === REQUEST_TYPES.PASSWORD_RESET) {
-    if (!phonesEquivalent(phoneNumber, registeredUser.userPhone)) {
-      return {
-        statusCode: 400,
-        message:
-          "The phone number does not match our records. Please use the phone number registered with your account.",
-      };
-    }
   }
 
   const recentDuplicate = await findRecentAccountRequest({
