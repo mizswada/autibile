@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, inject } from 'vue';
 
 const rawData = ref([]);
 const isLoading = ref(false);
@@ -13,6 +13,10 @@ const showModalDelete = ref(false);
 
 const pendingApprovePractitioner = ref(null);
 const pendingRejectPractitioner = ref(null);
+const refreshAdminNotificationCounts = inject(
+  "refreshAdminNotificationCounts",
+  () => {}
+);
 
 const columns = [
   { name: 'fullName', label: 'Full Name' },
@@ -57,7 +61,10 @@ async function fetchPractitioners() {
   }
 }
 
-onMounted(fetchPractitioners);
+onMounted(() => {
+  fetchPractitioners();
+  refreshAdminNotificationCounts();
+});
 
 const tableData = computed(() =>
   rawData.value.map(p => ({
@@ -95,6 +102,7 @@ async function approvePractitioner() {
     if (result.statusCode === 200) {
       showMessage('This practitioner has been approved!');
       await fetchPractitioners();
+      await refreshAdminNotificationCounts();
     } else {
       showMessage(`Approval failed: ${result.message}`, 'error');
     }
@@ -127,6 +135,7 @@ async function rejectPractitioner() {
     if (result.statusCode === 200) {
       showMessage('This practitioner has been rejected!');
       await fetchPractitioners();
+      await refreshAdminNotificationCounts();
     } else {
       showMessage(`Rejection failed: ${result.message}`, 'error');
     }

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, inject } from 'vue';
 
 // Data
 const isLoading = ref(true);
@@ -8,6 +8,23 @@ const message = ref('');
 const messageType = ref('success');
 const isGenerating = ref({});
 const searchQuery = ref('');
+const notificationCounts = inject("adminNotificationCounts", {
+  diaryUnseenPatientIds: [],
+});
+const refreshAdminNotificationCounts = inject(
+  "refreshAdminNotificationCounts",
+  () => {}
+);
+
+const unseenDiaryPatientIds = computed(() => {
+  return new Set(
+    (notificationCounts.diaryUnseenPatientIds || []).map((id) => Number(id))
+  );
+});
+
+function hasUnseenDiary(patient) {
+  return unseenDiaryPatientIds.value.has(Number(patient.childID));
+}
 
 // Fetch all patients with their parent information
 async function fetchPatients() {
@@ -97,7 +114,10 @@ function formatDate(dateString) {
 }
 
 // Load data on component mount
-onMounted(fetchPatients);
+onMounted(() => {
+  fetchPatients();
+  refreshAdminNotificationCounts();
+});
 </script>
 
 <template>
@@ -172,7 +192,14 @@ onMounted(fetchPatients);
                   <div class="text-sm text-gray-900">{{ patient.parentFullName || patient.parentUsername }}</div>
                 </td>
                 <td class="px-6 py-4">
-                  <div class="text-sm font-medium text-gray-900">{{ patient.fullname }}</div>
+                  <div class="text-sm font-medium text-gray-900 flex items-center gap-2">
+                    {{ patient.fullname }}
+                    <span
+                      v-if="hasUnseenDiary(patient)"
+                      class="inline-block w-2 h-2 rounded-full bg-red-500 shrink-0"
+                      title="New diary reports in the last 24 hours"
+                    ></span>
+                  </div>
                 </td>
                 <td class="px-6 py-4">
                   <div class="text-sm text-gray-900">{{ patient.icNumber || 'N/A' }}</div>

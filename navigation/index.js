@@ -62,6 +62,7 @@ const adminNavigation = [
       {
         title: "Manage User",
         icon: "ic:outline-person",
+        badgeKey: "userApprovalPendingCount",
         child: [
           {
             title: "Parents Management",
@@ -88,16 +89,23 @@ const adminNavigation = [
           {
             title: "Users Approval",
             path: "/userManagement/userApproval",
+            badgeKey: "userApprovalPendingCount",
           },
         ],
       },
       {
         title: "Payment",
         icon: "ic:outline-payment",
+        badgeKey: "paymentPendingCount",
         child: [
           {
             title: "Make Payment",
             path: "/payment",
+          },
+          {
+            title: "Pending Approvals",
+            path: "/payment/pendingApprovals",
+            badgeKey: "paymentPendingCount",
           },
           {
             title: "Payment History",
@@ -114,6 +122,7 @@ const adminNavigation = [
         title: "Diary Report",
         icon: "ic:outline-pie-chart",
         path: "/diaryReport",
+        badgeKey: "diaryUnseenCount",
       },
       {
         title: "Reports",
@@ -134,6 +143,7 @@ const adminNavigation = [
         title: "Account Requests",
         icon: "ic:outline-person-off",
         path: "/accountRequests",
+        badgeKey: "accountRequestPendingCount",
       },
       {
         title: "AI Settings",

@@ -2238,6 +2238,13 @@
           "type": "string",
           "format": "date-time"
         },
+        "admin_seen_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
         "deleted_at": {
           "type": [
             "string",

@@ -3,6 +3,10 @@ import { useLayoutStore } from "~/stores/layout";
 import { useWindowSize } from "vue-window-size";
 import RSChildItem from "~/components/layouts/sidemenu/ItemChild.vue";
 import { useUserStore } from "~/stores/user";
+import {
+  hasAdminNotificationBadge,
+  adminNotificationBadgeTitle,
+} from "~/composables/adminNotificationBadges";
 
 const layoutStore = useLayoutStore();
 const mobileWidth = layoutStore.mobileWidth;
@@ -10,7 +14,7 @@ const { width } = useWindowSize();
 
 const user = useUserStore();
 const route = useRoute();
-const accountRequestPendingCount = inject("accountRequestPendingCount", ref(0));
+const notificationCounts = inject("adminNotificationCounts", {});
 const props = defineProps({
   items: {
     type: Array,
@@ -87,10 +91,7 @@ function navigationPage(path, external) {
 }
 
 function showNavDot(item) {
-  return (
-    item.path === "/accountRequests" &&
-    Number(accountRequestPendingCount?.value || 0) > 0
-  );
+  return hasAdminNotificationBadge(notificationCounts, item);
 }
 </script>
 
@@ -148,7 +149,7 @@ function showNavDot(item) {
               <span
                 v-if="showNavDot(item2)"
                 class="inline-block w-2 h-2 rounded-full bg-red-500 shrink-0"
-                title="Pending account requests"
+                :title="adminNotificationBadgeTitle(item2)"
               ></span>
               <Icon
                 v-if="item2.child && item2.child.length > 0"
@@ -168,7 +169,7 @@ function showNavDot(item) {
               <span
                 v-if="showNavDot(item2)"
                 class="inline-block w-2 h-2 rounded-full bg-red-500 shrink-0"
-                title="Pending account requests"
+                :title="adminNotificationBadgeTitle(item2)"
               ></span>
               <Icon
                 v-if="item2.child && item2.child.length > 0"

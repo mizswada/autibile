@@ -582,10 +582,12 @@ model diary_report {
   date                           DateTime?      @db.Date
   created_at    DateTime       @db.Timestamp(0)
   updated_at    DateTime       @db.Timestamp(0)
+  admin_seen_at DateTime?      @db.Timestamp(0)
   deleted_at    DateTime?      @db.Timestamp(0)
   user_patients user_patients? @relation(fields: [patient_id], references: [patient_id], onDelete: NoAction, onUpdate: NoAction, map: "diary_report_ibfk_1")
 
   @@index([patient_id], map: "patient_id")
+  @@index([admin_seen_at, created_at], map: "idx_diary_report_admin_seen")
 }
 
 model questionnaires_questions_followups {

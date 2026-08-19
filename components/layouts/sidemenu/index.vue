@@ -11,7 +11,7 @@ const isAdmin = computed(() =>
   )
 );
 
-const { pendingCount, refreshPendingCount } = useAccountRequestPendingCount(
+const { counts, refreshCounts } = useAdminNotificationCounts(
   () => isAdmin.value
 );
 
@@ -42,8 +42,9 @@ onMounted(() => {
   }
 });
 
-provide("accountRequestPendingCount", pendingCount);
-provide("refreshAccountRequestPendingCount", refreshPendingCount);
+provide("adminNotificationCounts", counts);
+provide("refreshAdminNotificationCounts", refreshCounts);
+provide("refreshAccountRequestPendingCount", refreshCounts);
 </script>
 
 <template>

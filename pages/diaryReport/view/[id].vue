@@ -1,12 +1,18 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, inject } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getDiaryEntryLines } from '~/utils/diaryReport';
 import { downloadDiaryReportPdf } from '~/utils/diaryReportDocument';
+import { useUserStore } from '~/stores/user';
 
 const route = useRoute();
 const router = useRouter();
 const patientId = route.params.id;
+const userStore = useUserStore();
+const refreshAdminNotificationCounts = inject(
+  "refreshAdminNotificationCounts",
+  () => {}
+);
 
 const isLoading = ref(true);
 const isGeneratingPdf = ref(false);
@@ -125,6 +131,7 @@ async function loadPatientDetails() {
     
     // Fetch diary entries
     await fetchDiaryEntries();
+    await markDiarySeen();
   } catch (error) {
     console.error('Error fetching patient details:', error);
     showMessage('Error loading patient details', 'error');
@@ -224,6 +231,20 @@ async function fetchDiaryEntries() {
     }
   } catch (error) {
     console.error('Error fetching diary entries:', error);
+  }
+}
+
+async function markDiarySeen() {
+  if (!userStore.isAdmin) return;
+
+  try {
+    await $fetch("/api/diaryReport/markSeen", {
+      method: "PUT",
+      body: { patientID: Number(patientId) },
+    });
+    await refreshAdminNotificationCounts();
+  } catch (error) {
+    console.error("Failed to mark diary reports as seen:", error);
   }
 }
 

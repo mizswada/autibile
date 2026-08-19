@@ -3,6 +3,10 @@ import { useLayoutStore } from "~/stores/layout";
 import { useWindowSize } from "vue-window-size";
 import RSChildItem from "~/components/layouts/sidemenu/ItemChild.vue";
 import { useUserStore } from "~/stores/user";
+import {
+  hasAdminNotificationBadge,
+  adminNotificationBadgeTitle,
+} from "~/composables/adminNotificationBadges";
 
 const layoutStore = useLayoutStore();
 const mobileWidth = layoutStore.mobileWidth;
@@ -10,6 +14,7 @@ const { width } = useWindowSize();
 
 const user = useUserStore();
 const route = useRoute();
+const notificationCounts = inject("adminNotificationCounts", {});
 const props = defineProps({
   items: {
     type: Array,
@@ -84,6 +89,10 @@ function navigationPage(path, external) {
   });
 }
 
+function showNavDot(item) {
+  return hasAdminNotificationBadge(notificationCounts, item);
+}
+
 const indentStyle = computed(() => {
   return { "background-color": `rgba(var(--bg-1), ${indent.value})` };
 });
@@ -119,6 +128,11 @@ const indentStyle = computed(() => {
         >
           <Icon v-if="item.icon" :name="item.icon" size="18"></Icon>
           <span class="mx-4 font-normal">{{ item.title }}</span>
+          <span
+            v-if="showNavDot(item)"
+            class="inline-block w-2 h-2 rounded-full bg-red-500 shrink-0"
+            :title="adminNotificationBadgeTitle(item)"
+          ></span>
           <Icon
             v-if="item.child && item.child.length > 0"
             class="ml-auto side-menu-arrow"
@@ -132,6 +146,11 @@ const indentStyle = computed(() => {
           :class="activeMenu(item.path)"
         >
           <span class="mx-3 font-normal">{{ item.title }}</span>
+          <span
+            v-if="showNavDot(item)"
+            class="inline-block w-2 h-2 rounded-full bg-red-500 shrink-0"
+            :title="adminNotificationBadgeTitle(item)"
+          ></span>
           <Icon
             v-if="item.child && item.child.length > 0"
             class="ml-auto side-menu-arrow"

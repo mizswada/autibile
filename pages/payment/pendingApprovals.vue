@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, inject } from "vue";
 
 definePageMeta({
   title: "Pending Payment Approvals",
@@ -11,6 +11,10 @@ const loading = ref(true);
 const error = ref("");
 const payments = ref([]);
 const rejectionReason = ref("");
+const refreshAdminNotificationCounts = inject(
+  "refreshAdminNotificationCounts",
+  () => {}
+);
 
 const fetchPendingPayments = async () => {
   loading.value = true;
@@ -73,6 +77,7 @@ const approvePayment = async (payment) => {
       "success"
     );
     await fetchPendingPayments();
+    await refreshAdminNotificationCounts();
   } catch (err) {
     console.error(err);
     await $swal.fire("Error", "Failed to approve payment", "error");
@@ -90,12 +95,16 @@ const rejectPayment = async (paymentID) => {
     return;
   }
   await fetchPendingPayments();
+  await refreshAdminNotificationCounts();
 };
 
 const formatPrice = (price) => Number(price || 0).toFixed(2);
 const formatDate = (dateString) => new Date(dateString).toLocaleString("en-MY");
 
-onMounted(fetchPendingPayments);
+onMounted(() => {
+  fetchPendingPayments();
+  refreshAdminNotificationCounts();
+});
 </script>
 
 <template>
