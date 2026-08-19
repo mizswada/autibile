@@ -1,4 +1,8 @@
 import sha256 from "crypto-js/sha256.js";
+import {
+  getEmailAlreadyRegisteredError,
+  normalizeEmail,
+} from "~/server/utils/userEmail";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -87,9 +91,12 @@ export default defineEventHandler(async (event) => {
     }
 
     // Prepare update data
+    const emailError = await getEmailAlreadyRegisteredError(email, user.userID);
+    if (emailError) return emailError;
+
     const updateData = {
       userFullName: fullName,
-      userEmail: email,
+      userEmail: normalizeEmail(email),
       userPhone: phone,
       userModifiedDate: new Date(),
     };

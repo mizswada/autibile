@@ -1,6 +1,10 @@
 // Added by: Firzana Huda
 import prisma from "~/server/utils/prisma";
 import sha256 from "crypto-js/sha256.js"
+import {
+  getEmailAlreadyRegisteredError,
+  normalizeEmail,
+} from "~/server/utils/userEmail";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -38,6 +42,9 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    const emailError = await getEmailAlreadyRegisteredError(email);
+    if (emailError) return emailError;
+
     // Hash the password with SHA256
     const hashedPassword = sha256(password).toString();
 
@@ -48,7 +55,7 @@ export default defineEventHandler(async (event) => {
         data: {
           userUsername: username,
           userFullName: fullName,
-          userEmail: email,
+          userEmail: normalizeEmail(email),
           userPhone: phone,
           userIC: ic,
           userPassword: hashedPassword,

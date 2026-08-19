@@ -1,3 +1,8 @@
+import {
+  getEmailAlreadyRegisteredError,
+  normalizeEmail,
+} from "~/server/utils/userEmail";
+
 export default defineEventHandler(async (event) => {
   try {
 
@@ -15,22 +20,13 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    // Check if email already exists
-    const existingUser = await prisma.user.findFirst({ 
-      where: { userEmail: email } 
-    });
-
-    if (existingUser) {
-      return {
-        statusCode: 409,
-        message: "Email already exists",
-      };
-    }
+    const emailError = await getEmailAlreadyRegisteredError(email);
+    if (emailError) return emailError;
 
     // Step 1: Create user
     const user = await prisma.user.create({
       data: {
-        userEmail: email,
+        userEmail: normalizeEmail(email),
         signInBy: 'Google',
         userStatus: 'Active',
         userCreatedDate: new Date(),

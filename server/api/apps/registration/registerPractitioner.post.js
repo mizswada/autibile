@@ -1,4 +1,8 @@
 import sha256 from "crypto-js/sha256.js";
+import {
+  getEmailAlreadyRegisteredError,
+  normalizeEmail,
+} from "~/server/utils/userEmail";
 
 export default defineEventHandler(async (event) => {
     try {  
@@ -28,6 +32,9 @@ export default defineEventHandler(async (event) => {
         };
       }
 
+      const emailError = await getEmailAlreadyRegisteredError(email);
+      if (emailError) return emailError;
+
       const hashedPassword = sha256(password).toString();
 
       // Step 1: Create user
@@ -35,7 +42,7 @@ export default defineEventHandler(async (event) => {
         data: {
           userUsername: username,
           userFullName: fullname,
-          userEmail: email,
+          userEmail: normalizeEmail(email),
           userIC: ic,
           userPhone: phone,
           userStatus: 'Pending',
