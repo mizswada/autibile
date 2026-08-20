@@ -236,26 +236,36 @@ function useOpenAIJsonObjectMode (config: AIConfig): boolean {
   return true
 }
 
+const AI_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    result: { type: 'string' },
+    explanation: { type: 'string' }
+  },
+  required: ['result', 'explanation'],
+  additionalProperties: false
+}
+
 function parseModelJsonResponse (raw: string): AIResponse {
-  const content = raw.trim()
+  let content = raw.trim()
+  // Claude (and some local models) wrap JSON in markdown fences: ```json { ... } ```
+  const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i)
+  if (fenced) {
+    content = fenced[1].trim()
+  } else if (/^```(?:json)?/i.test(content)) {
+    content = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+  }
+
   let parsed: unknown
   try {
     parsed = JSON.parse(content)
   } catch {
-    const block = content.match(/```(?:json)?\s*([\s\S]*?)```/i)
-    if (block) {
+    const start = content.indexOf('{')
+    const end = content.lastIndexOf('}')
+    if (start >= 0 && end > start) {
       try {
-        parsed = JSON.parse(block[1].trim())
+        parsed = JSON.parse(content.slice(start, end + 1))
       } catch { /* */ }
-    }
-    if (parsed == null) {
-      const start = content.indexOf('{')
-      const end = content.lastIndexOf('}')
-      if (start >= 0 && end > start) {
-        try {
-          parsed = JSON.parse(content.slice(start, end + 1))
-        } catch { /* */ }
-      }
     }
   }
   if (parsed == null || typeof parsed !== 'object' || parsed === null) {
@@ -266,6 +276,22 @@ function parseModelJsonResponse (raw: string): AIResponse {
     result: typeof o.result === 'string' ? o.result : 'Unable to determine',
     explanation: typeof o.explanation === 'string' ? o.explanation : ''
   }
+}
+
+function extractAnthropicText (response: unknown): string {
+  if (response == null || typeof response !== 'object') return ''
+  const content = (response as Record<string, unknown>).content
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  return content
+    .map((block) => {
+      if (block == null || typeof block !== 'object') return ''
+      const b = block as Record<string, unknown>
+      return b.type === 'text' && typeof b.text === 'string' ? b.text : ''
+    })
+    .filter(Boolean)
+    .join('\n')
+    .trim()
 }
 
 async function callOpenAI (config: AIConfig, prompt: string): Promise<AIResponse> {
@@ -306,34 +332,51 @@ async function callOpenAI (config: AIConfig, prompt: string): Promise<AIResponse
 }
 
 async function callAnthropic(config: AIConfig, prompt: string): Promise<AIResponse> {
-  const response = await $fetch(config.apiUrl, {
+  const headers = {
+    'x-api-key': config.apiKey,
+    'anthropic-version': '2023-06-01',
+    'Content-Type': 'application/json'
+  }
+  const body: Record<string, unknown> = {
+    model: config.model,
+    max_tokens: 1024,
+    messages: [
+      {
+        role: 'user',
+        content: prompt
+      }
+    ],
+    output_config: {
+      format: {
+        type: 'json_schema',
+        schema: AI_JSON_SCHEMA
+      }
+    }
+  }
+
+  const fetchAnthropic = (payload: Record<string, unknown>) => $fetch(config.apiUrl, {
     method: 'POST',
-    headers: {
-      'x-api-key': config.apiKey,
-      'anthropic-version': '2023-06-01',
-      'Content-Type': 'application/json'
-    },
-    body: {
-      model: config.model,
-      max_tokens: 512,
-      messages: [
-        {
-          role: 'user',
-          content: prompt
-        }
-      ]
-    },
+    headers,
+    body: payload,
     timeout: config.timeoutMs
   })
 
-  const content = response.content?.[0]?.text
+  let response: unknown
+  try {
+    response = await fetchAnthropic(body)
+  } catch (error) {
+    const msg = messageFromUnknownError(error, '')
+    if (!/output_config|output_format|structured output/i.test(msg)) {
+      throw error
+    }
+    const { output_config: _ignored, ...withoutSchema } = body
+    response = await fetchAnthropic(withoutSchema)
+  }
+
+  const content = extractAnthropicText(response)
   if (!content) throw new Error('No content in Anthropic response')
 
-  const parsed = JSON.parse(content)
-  return {
-    result: parsed.result || 'Unable to determine',
-    explanation: parsed.explanation || ''
-  }
+  return parseModelJsonResponse(content)
 }
 
 async function callLocal(config: AIConfig, prompt: string): Promise<AIResponse> {
@@ -354,11 +397,7 @@ async function callLocal(config: AIConfig, prompt: string): Promise<AIResponse> 
   const responseText = typeof response === 'string' ? response : response.response
   if (!responseText) throw new Error('No response from local AI')
 
-  const parsed = JSON.parse(responseText)
-  return {
-    result: parsed.result || 'Unable to determine',
-    explanation: parsed.explanation || ''
-  }
+  return parseModelJsonResponse(typeof responseText === 'string' ? responseText : String(responseText))
 }
 
 export type AIAnalysisResult =
