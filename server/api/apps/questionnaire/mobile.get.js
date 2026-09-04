@@ -28,6 +28,10 @@ export default defineEventHandler(async (event) => {
         questionnaire_id: parseInt(questionnaireID),
         deleted_at: null,
         hidden: { not: true },
+        // Filter out questionnaires deactivated in the admin console.
+        // status is nullable free-text: a bare { not: "Inactive" } would also drop
+        // NULL rows, so NULL is matched explicitly to keep legacy rows visible.
+        OR: [{ status: null }, { status: { not: "Inactive" } }],
       },
       select: {
         questionnaire_id: true,
