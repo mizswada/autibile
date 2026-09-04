@@ -20,7 +20,7 @@ const adminNavigation = [
         path: "/questionnaire",
         children: [
           {
-            title: "Manage Autism Screening",
+            title: "Manage Screening",
             path: "/questionnaire",
           },
           {
@@ -28,7 +28,7 @@ const adminNavigation = [
             path: "/questionnaire/results",
           },
           {
-            title: "Take Autism Screening",
+            title: "Take Screening",
             path: "/questionnaire",
             click: (router) => {
               // This will be handled in the questionnaire index page

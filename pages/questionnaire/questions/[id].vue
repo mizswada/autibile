@@ -168,11 +168,11 @@ async function fetchQuestionnaireData() {
         router.push('/questionnaire');
       }
     } else {
-      showMessage('Failed to load autism screening data', 'error');
+      showMessage('Failed to load screening data', 'error');
     }
   } catch (err) {
           console.error('Error loading autism screening data:', err);
-      showMessage('Error loading autism screening data', 'error');
+      showMessage('Error loading screening data', 'error');
   } finally {
     isLoading.value = false;
   }
@@ -1366,7 +1366,7 @@ async function performDelete() {
           <div>
             <p class="font-semibold text-amber-900">M-CHAT-R System Questionnaire</p>
             <p class="text-sm text-amber-800 mt-1">
-              This is a standardized autism screening tool. Adding, editing, or deleting questions,
+              This is a standardized screening tool. Adding, editing, or deleting questions,
               or changing the header, may affect scoring validity, eligibility rules, and comparison
               with established clinical norms. Only proceed if you fully understand the impact of these changes.
             </p>
@@ -2030,7 +2030,7 @@ async function performDelete() {
     </rs-modal>
 
     <rs-modal
-      title="Edit Autism Screening Header"
+      title="Edit Screening Header"
       v-model="showHeaderModal"
       :overlay-close="false"
       :hide-footer="true"
@@ -2050,7 +2050,7 @@ async function performDelete() {
           v-model="headerContent"
           name="headerContent"
           label="Header/Instructions"
-          placeholder="Enter instructions or header text for the autism screening"
+          placeholder="Enter instructions or header text for the screening"
           rows="6"
         />
 

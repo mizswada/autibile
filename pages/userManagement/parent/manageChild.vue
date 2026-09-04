@@ -546,7 +546,7 @@ function getOriginalData(childIC, parentUsername) {
           </div>
           <div class="ml-3">
             <p class="text-sm text-yellow-700">
-              <strong>Note:</strong> This will allow or prevent the child from taking the MCHAT-R autism screening (Questionnaire ID 1).
+              <strong>Note:</strong> This will allow or prevent the child from taking the MCHAT-R screening (Questionnaire ID 1).
             </p>
           </div>
         </div>

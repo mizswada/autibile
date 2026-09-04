@@ -363,7 +363,7 @@ export function buildMchatDetailedHtml(mchatScore) {
 
   return `
     <div class="domain-section">
-      <h3>Autism Screening (M-CHAT-R) [Score: ${escapeHtml(String(mchatScore))} / 20]</h3>
+      <h3>Screening (M-CHAT-R) [Score: ${escapeHtml(String(mchatScore))} / 20]</h3>
       <ul>${items}</ul>
     </div>`;
 }
@@ -453,7 +453,7 @@ export function buildScreenDetailedHtml(
 function getMchatDomainSection(mchatScore) {
   const score =
     typeof mchatScore === 'number' ? mchatScore : parseInt(String(mchatScore), 10);
-  const title = `Autism Screening (M-CHAT-R) [Score: ${mchatScore} / 20]`;
+  const title = `Screening (M-CHAT-R) [Score: ${mchatScore} / 20]`;
   if (Number.isNaN(score)) return { title, lines: ['Score not available.'] };
   if (score <= 2) {
     return {
