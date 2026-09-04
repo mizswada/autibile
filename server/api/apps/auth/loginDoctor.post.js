@@ -1,5 +1,10 @@
 import sha256 from "crypto-js/sha256.js";
 import jwt from "jsonwebtoken";
+import {
+  findPractitionerByEmail,
+  getActivePractitioner,
+  getPractitionerLoginError,
+} from "~/server/utils/practitionerAuth";
 
 const ENV = useRuntimeConfig();
 
@@ -14,34 +19,9 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    // Find active Doctor practitioner user
-    const user = await prisma.user.findFirst({
-      where: {
-        userEmail: username,
-        userStatus: "Active",
-        userrole: {
-          some: {
-            role: {
-              roleName: "Practitioners",
-            },
-          },
-        },
-        user_practitioners: {
-          some: { 
-            type: "Doctor",
-            status: "Active",
-            deleted_at: null,
-          },
-        },
-      },
-      include: {
-        user_practitioners: {
-          select: {
-            practitioner_id: true,
-          },
-        },
-      },
-    });
+    // Look the account up by e-mail only. Every other condition is checked
+    // below so the response can say what is actually wrong.
+    const user = await findPractitionerByEmail(username);
 
    // console.log('user', user);
 
@@ -62,26 +42,21 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    // Assign role as Doctor directly
+    // Password is correct: safe to disclose why the account cannot be used.
+    const loginError = getPractitionerLoginError(user, "Doctor");
+    if (loginError) return loginError;
+
     const roleNames = ['Doctor'];
 
-    const practitionerId = user.user_practitioners.length > 0 ? user.user_practitioners[0].practitioner_id : null;
-    
-    const userPractitioners = await prisma.user_practitioners.findFirst({
-      where: {
-        practitioner_id: practitionerId,
-        AND: [
-          {
-            registration_no: { not: null },
-          },
-          {
-            registration_no: { not: '' },
-          },
-        ],
-      },
-    });
-    
-
+    // Pick the record matching this login type; user_practitioners[0] could be
+    // a different practitioner type when a user holds more than one.
+    const practitioner = getActivePractitioner(user, "Doctor");
+    const practitionerId = practitioner ? practitioner.practitioner_id : null;
+    const hasPractitionerInfo = !!(
+      practitioner &&
+      practitioner.registration_no !== null &&
+      practitioner.registration_no !== ""
+    );
     // Generate tokens with Doctor role
     const accessToken = generateAccessToken({
       username: user.userUsername,
@@ -107,7 +82,7 @@ export default defineEventHandler(async (event) => {
         roles: roleNames,
         userID: user.userID,
         practitionerId: practitionerId,
-        hasPractitionerInfo: !!userPractitioners,
+        hasPractitionerInfo: hasPractitionerInfo,
         accessToken: accessToken,
         refreshToken: refreshToken,
       },
