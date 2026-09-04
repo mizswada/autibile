@@ -106,18 +106,26 @@ onMounted(() => {
 watch([statusFilter, requestTypeFilter], fetchRequests);
 
 const tableData = computed(() =>
-  rawData.value.map((item) => ({
-    requestId: item.requestId,
-    requestType: formatRequestType(item.requestType),
-    fullName: item.fullName,
-    email: item.email,
-    phoneNumber: item.phoneNumber || "—",
-    accountType: item.accountType,
-    status: item.status,
-    createdAt: formatDate(item.createdAt),
-    action: "manage",
-    _raw: item,
-  }))
+  rawData.value.map((item) => {
+    const row = {
+      requestId: item.requestId,
+      requestType: formatRequestType(item.requestType),
+      fullName: item.fullName,
+      email: item.email,
+      phoneNumber: item.phoneNumber || "—",
+      accountType: item.accountType,
+      status: item.status,
+      createdAt: formatDate(item.createdAt),
+      action: "manage",
+    };
+
+    // RsTable derives its columns from Object.keys() of each row, so an
+    // enumerable `_raw` renders as a stray column. Keep it reachable from the
+    // slots (row.value._raw) but hidden from the table.
+    Object.defineProperty(row, "_raw", { value: item, enumerable: false });
+
+    return row;
+  })
 );
 
 function getRequestById(requestId) {
