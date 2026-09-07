@@ -21,8 +21,8 @@ export default defineEventHandler(async (event) => {
     } = body;
 
     if (
-      !nickname || !gender || !icNumber || !dateOfBirth || !autismDiagnose ||
-      !diagnosedDate || availableSession === null || availableSession === undefined || !status || okuCard === null || okuCard === undefined || !treatmentType || !parentID || !userID
+      !nickname || !gender || !icNumber || !dateOfBirth ||
+      availableSession === null || availableSession === undefined || !status || okuCard === null || okuCard === undefined || !treatmentType || !parentID || !userID
     ) {
       return {
         statusCode: 400,
@@ -49,8 +49,8 @@ export default defineEventHandler(async (event) => {
           gender,
           patient_ic: icNumber,
           dob: new Date(dateOfBirth),
-          autism_diagnose: autismDiagnose,
-          diagnosed_on: new Date(diagnosedDate),
+          autism_diagnose: autismDiagnose || null,
+          diagnosed_on: diagnosedDate ? new Date(diagnosedDate) : null,
           status,
           available_session: parseInt(availableSession) || 0,
           OKUCard: parseInt(okuCard),

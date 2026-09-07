@@ -83,8 +83,6 @@ async function saveChild() {
     gender: 'Gender',
     icNumber: 'IC Number',
     dateOfBirth: 'Date of Birth',
-    autismDiagnose: 'Autism Diagnose',
-    diagnosedDate: 'Diagnosed Date',
     availableSession: 'Available Sessions',
     status: 'Status',
     okuCard: 'OKU Card',
