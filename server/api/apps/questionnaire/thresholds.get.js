@@ -5,6 +5,10 @@ export default defineEventHandler(async (event) => {
     const whereClause = {
       deleted_at: null, // Filter out soft-deleted records
       hidden: { not: true }, // Filter out hidden questionnaires
+      // Filter out questionnaires deactivated in the admin console.
+      // status is nullable free-text: a bare { not: 'Inactive' } would also drop
+      // NULL rows, so NULL is matched explicitly to keep legacy rows visible.
+      OR: [{ status: null }, { status: { not: 'Inactive' } }],
     };
 
     if (questionnaireID) {

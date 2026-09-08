@@ -188,11 +188,11 @@ async function fetchQuestionnaireData() {
     if (res.ok && result.data && result.data.length > 0) {
       questionnaire.value = result.data[0];
     } else {
-      error.value = 'Autism screening not found';
+      error.value = 'Screening not found';
     }
   } catch (err) {
           console.error('Error loading autism screening:', err);
-          error.value = 'Error loading autism screening';
+          error.value = 'Error loading screening';
   } finally {
     isLoading.value = false;
   }
@@ -240,14 +240,14 @@ function handleSubmit(data) {
   
   // Validate that a patient is selected
   if (!selectedPatientId.value) {
-            message.value = 'Please select a patient before submitting the autism screening.';
+            message.value = 'Please select a patient before submitting the screening.';
     messageType.value = 'error';
     return;
   }
   
   // Additional validation for questionnaire ID 2
   if (questionnaireId === '2' && !isEligibleForQuestionnaire2.value) {
-            message.value = 'This autism screening is only available for patients who scored 3-7 on the MCHAT-R autism screening.';
+            message.value = 'This screening is only available for patients who scored 3-7 on the MCHAT-R screening.';
     messageType.value = 'error';
     return;
   }
@@ -267,7 +267,7 @@ function handleSubmit(data) {
   .then(response => response.json())
   .then(result => {
     if (result.statusCode === 200) {
-              message.value = 'Autism screening submitted successfully!';
+              message.value = 'Screening submitted successfully!';
       messageType.value = 'success';
       
       // Show the result overlay for all questionnaires (M-CHAT-R and others)
@@ -279,13 +279,13 @@ function handleSubmit(data) {
         }, 2000);
       }
     } else {
-              message.value = result.message || 'Error submitting autism screening';
+              message.value = result.message || 'Error submitting screening';
       messageType.value = 'error';
     }
   })
   .catch(error => {
           console.error('Error submitting autism screening:', error);
-          message.value = 'Error submitting autism screening';
+          message.value = 'Error submitting screening';
     messageType.value = 'error';
   });
 }
@@ -335,7 +335,7 @@ function handleMchatrFNavigateBack() {
       <button @click="goBack" class="mr-2 p-2 rounded hover:bg-gray-100" title="Go Back">
         <Icon name="ic:outline-arrow-back" />
       </button>
-      <h1 class="text-2xl font-bold">Take Autism Screening</h1>
+      <h1 class="text-2xl font-bold">Take Screening</h1>
     </div>
 
     <div v-if="message" class="mb-4 p-3 rounded text-white"
@@ -519,10 +519,10 @@ function handleMchatrFNavigateBack() {
         <div class="text-center mb-6">
           <Icon name="ic:outline-check-circle" size="64" class="text-green-500 mx-auto mb-4" />
           <h3 class="text-xl font-semibold text-gray-800 mb-2">
-            {{ isMchatrResult ? 'MCHAT-R Completed!' : 'Autism Screening Completed!' }}
+            {{ isMchatrResult ? 'MCHAT-R Completed!' : 'Screening Completed!' }}
           </h3>
           <p class="text-gray-600">
-            {{ isMchatrResult ? 'Your MCHAT-R questionnaire has been submitted successfully.' : 'The autism screening has been submitted successfully.' }}
+            {{ isMchatrResult ? 'Your MCHAT-R questionnaire has been submitted successfully.' : 'The screening has been submitted successfully.' }}
           </p>
         </div>
 

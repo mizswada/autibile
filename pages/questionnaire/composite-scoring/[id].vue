@@ -27,11 +27,11 @@ async function fetchQuestionnaireData() {
     if (res.ok && result.data && result.data.length > 0) {
       questionnaire.value = result.data[0];
     } else {
-      errorMessage.value = 'Autism screening not found';
+      errorMessage.value = 'Screening not found';
     }
   } catch (err) {
     console.error('Error loading autism screening:', err);
-    errorMessage.value = 'Error loading autism screening';
+    errorMessage.value = 'Error loading screening';
   }
 }
 
@@ -625,8 +625,8 @@ function goBack() {
     <div v-else class="text-center py-12">
       <div class="flex flex-col items-center">
         <Icon name="material-symbols:error-outline" size="64" class="text-gray-400 mb-4" />
-        <h3 class="text-xl font-medium text-gray-600 mb-2">Autism Screening Not Found</h3>
-        <p class="text-gray-500">The requested autism screening could not be found.</p>
+        <h3 class="text-xl font-medium text-gray-600 mb-2">Screening Not Found</h3>
+        <p class="text-gray-500">The requested screening could not be found.</p>
       </div>
     </div>
   </div>

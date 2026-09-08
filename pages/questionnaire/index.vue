@@ -237,7 +237,7 @@ async function persistQuestionnaire(payload) {
         showQuestionnaireModal.value = false;
         modalErrorMessage.value = '';
         showMessage(
-          result.message || 'Autism screening updated successfully.',
+          result.message || 'Screening updated successfully.',
           'success',
         );
         return true;
@@ -245,7 +245,7 @@ async function persistQuestionnaire(payload) {
 
       console.error('Failed to update autism screening:', result.message);
       modalErrorMessage.value =
-        result.message || 'Failed to update autism screening.';
+        result.message || 'Failed to update screening.';
       return false;
     }
 
@@ -272,13 +272,13 @@ async function persistQuestionnaire(payload) {
 
       showQuestionnaireModal.value = false;
       modalErrorMessage.value = '';
-      showMessage('Autism screening inserted successfully.', 'success');
+      showMessage('Screening inserted successfully.', 'success');
       return true;
     }
 
     console.error('Failed to insert autism screening:', result.message);
     modalErrorMessage.value =
-      result.message || 'Failed to insert autism screening.';
+      result.message || 'Failed to insert screening.';
     return false;
   } catch (err) {
     console.error('Error while saving autism screening:', err);
@@ -352,7 +352,7 @@ async function confirmAgeLimitChange() {
 function confirmToggleStatus(questionnaire) {
   // Don't allow status changes for protected questionnaire
   if (isProtectedQuestionnaire(questionnaire.id)) {
-          showMessage('This autism screening status cannot be changed as it is a system autism screening.', 'error');
+          showMessage('This screening status cannot be changed as it is a system screening.', 'error');
     return;
   }
   
@@ -383,7 +383,7 @@ async function performToggleStatus() {
     const result = await res.json();
     if (res.ok) {
       questionnaire.status = newStatus;
-              showMessage(`Autism screening status updated to ${newStatus}`, 'success');
+              showMessage(`Screening status updated to ${newStatus}`, 'success');
     } else {
       showMessage(`Error updating status: ${result.message}`, 'error');
     }
@@ -401,7 +401,7 @@ async function performToggleStatus() {
 function confirmDelete(questionnaire) {
   // Don't allow deletion of protected questionnaire
   if (isProtectedQuestionnaire(questionnaire.id)) {
-          showMessage('This autism screening cannot be deleted as it is a system autism screening.', 'error');
+          showMessage('This screening cannot be deleted as it is a system screening.', 'error');
     return;
   }
   
@@ -432,13 +432,13 @@ async function performDelete() {
     if (result.statusCode === 200) {
       // Remove the deleted questionnaire from the list
       questionnaires.value = questionnaires.value.filter(q => q.id !== questionnaire.id);
-              showMessage('Autism screening deleted successfully', 'success');
+              showMessage('Screening deleted successfully', 'success');
     } else {
-              showMessage(`Error deleting autism screening: ${result.message}`, 'error');
+              showMessage(`Error deleting screening: ${result.message}`, 'error');
     }
   } catch (err) {
     console.error('Delete error:', err);
-          showMessage('An error occurred while deleting the autism screening.', 'error');
+          showMessage('An error occurred while deleting the screening.', 'error');
   } finally {
     showDeleteModal.value = false;
     pendingDeleteQuestionnaire.value = null;
@@ -491,7 +491,7 @@ function navigateToQuestions(questionnaireId) {
 <template>
   <div>
     <div class="flex justify-between items-center mb-4">
-      <h1 class="text-2xl font-bold">Autism Screening</h1>
+      <h1 class="text-2xl font-bold">Screening</h1>
       <div class="flex gap-2">
         <rs-button @click="router.push('/questionnaire/results')">
           <Icon name="material-symbols:analytics-outline" class="mr-1" />
@@ -499,7 +499,7 @@ function navigateToQuestions(questionnaireId) {
         </rs-button>
         <rs-button @click="openAddQuestionnaireModal">
           <Icon name="material-symbols:add" class="mr-1" />
-          Add Autism Screening
+          Add Screening
         </rs-button>
       </div>
     </div>
@@ -512,7 +512,7 @@ function navigateToQuestions(questionnaireId) {
     <div v-if="isLoading" class="flex justify-center my-8">
       <div class="flex flex-col items-center">
         <Icon name="line-md:loading-twotone-loop" size="48" class="text-primary mb-2" />
-        <span>Loading autism screenings...</span>
+        <span>Loading screenings...</span>
       </div>
     </div>
 
@@ -520,11 +520,11 @@ function navigateToQuestions(questionnaireId) {
     <div v-else-if="questionnaires.length === 0" class="card p-8 text-center">
       <div class="flex flex-col items-center">
         <Icon name="material-symbols:folder-off-outline" size="64" class="text-gray-400 mb-4" />
-        <h3 class="text-xl font-medium text-gray-600 mb-2">No Autism Screenings Found</h3>
-        <p class="text-gray-500 mb-6">There are no autism screenings in the system yet.</p>
+        <h3 class="text-xl font-medium text-gray-600 mb-2">No Screenings Found</h3>
+        <p class="text-gray-500 mb-6">There are no screenings in the system yet.</p>
         <rs-button @click="openAddQuestionnaireModal">
           <Icon name="material-symbols:add" class="mr-1" />
-          Create Your First Autism Screening
+          Create Your First Screening
         </rs-button>
       </div>
     </div>
@@ -606,7 +606,7 @@ function navigateToQuestions(questionnaireId) {
           <button
             type="button"
             class="table-action-icon table-action-icon--success"
-            title="Take Autism Screening"
+            title="Take Screening"
             @click="router.push(`/questionnaire/take/${q.id}`)"
           >
             <Icon name="material-symbols:play-circle-outline" size="22" />
@@ -618,20 +618,20 @@ function navigateToQuestions(questionnaireId) {
 
     <!-- Add a help section explaining the workflow -->
     <div class="card p-4 mb-6 bg-blue-50 border border-blue-200">
-      <h3 class="font-semibold text-lg mb-2">How to Create a Complete Autism Screening</h3>
+      <h3 class="font-semibold text-lg mb-2">How to Create a Complete Screening</h3>
       <ol class="list-decimal ml-6 space-y-2">
-        <li>Create an autism screening using the <strong>Add Autism Screening</strong> button</li>
-        <li>Add questions to your autism screening using the <strong>Manage Questions</strong> button</li>
+        <li>Create a screening using the <strong>Add Screening</strong> button</li>
+        <li>Add questions to your screening using the <strong>Manage Questions</strong> button</li>
         <li>For each question, add answer options using the <strong>Manage Options</strong> button</li>
         <li>Define scoring thresholds using the <strong>Manage Scoring Thresholds</strong> button to provide interpretations based on total scores</li>
-        <li>Once you've added options to your questions, use the <strong>Take Autism Screening</strong> button to test it</li>
+        <li>Once you've added options to your questions, use the <strong>Take Screening</strong> button to test it</li>
         <li>View responses using the <strong>View Responses</strong> button</li>
       </ol>
     </div>
 
     <!-- Add/Edit Autism Screening Modal -->
     <rs-modal
-      :title="isEditingQuestionnaire ? 'Edit Autism Screening' : 'Add Autism Screening'"
+      :title="isEditingQuestionnaire ? 'Edit Screening' : 'Add Screening'"
       cancel-title="Cancel"
       v-model="showQuestionnaireModal"
       :overlay-close="false"
@@ -646,8 +646,8 @@ function navigateToQuestions(questionnaireId) {
           type="text"
           v-model="newQuestionnaire.name"
           name="questionnaireName"
-          label="Autism Screening Name"
-          placeholder="Enter autism screening title"
+          label="Screening Name"
+          placeholder="Enter screening title"
           validation="required"
           validation-visibility="dirty"
           :validation-messages="{ required: 'This field is required' }"
@@ -657,8 +657,8 @@ function navigateToQuestions(questionnaireId) {
           type="text"
           v-model="newQuestionnaire.description"
           name="questionnaireDescription"
-          label="Autism Screening Description"
-          placeholder="Enter autism screening description"
+          label="Screening Description"
+          placeholder="Enter screening description"
           validation="required"
           validation-visibility="dirty"
           :validation-messages="{ required: 'This field is required' }"
@@ -668,7 +668,7 @@ function navigateToQuestions(questionnaireId) {
           type="select"
           v-model="newQuestionnaire.status"
           name="questionnaireStatus"
-          label="Autism Screening Status"
+          label="Screening Status"
           :options="[
             { label: '-- Please select --', value: '' },
             { label: 'Active', value: 'Active' },
@@ -803,7 +803,7 @@ function navigateToQuestions(questionnaireId) {
         Are you sure you want to
         <span v-if="pendingToggleQuestionnaire?.status === 'Active'">deactivate</span>
         <span v-else>activate</span>
-        this autism screening ({{ pendingToggleQuestionnaire?.name }})?
+        this screening ({{ pendingToggleQuestionnaire?.name }})?
       </p>
 
       <div v-if="isTogglingStatus" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
@@ -856,7 +856,7 @@ function navigateToQuestions(questionnaireId) {
 
     <!-- Delete confirmation modal -->
     <rs-modal
-      title="Delete Autism Screening"
+      title="Delete Screening"
       ok-title="Delete"
       cancel-title="Cancel"
       :ok-callback="performDelete"
@@ -865,7 +865,7 @@ function navigateToQuestions(questionnaireId) {
       :overlay-close="false"
     >
       <p class="mb-4">
-        Are you sure you want to delete this autism screening ({{ pendingDeleteQuestionnaire?.name }})?
+        Are you sure you want to delete this screening ({{ pendingDeleteQuestionnaire?.name }})?
       </p>
       <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
         <div class="flex">

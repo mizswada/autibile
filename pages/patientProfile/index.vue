@@ -83,7 +83,7 @@ const tabs = [
   'Patient Details',
   'Parent Details',
   'Appointments',
-  'Autism Screenings',
+  'Screenings',
   'Doctor Referrals',
   'Diary Report'
 ];
@@ -95,7 +95,7 @@ const tabMap = {
   'Patient Details': 'patient-details',
   'Parent Details': 'parent-details',
   'Appointments': 'appointments',
-  'Autism Screenings': 'questionnaires',
+  'Screenings': 'questionnaires',
   'Doctor Referrals': 'doctor-referrals',
   'Diary Report': 'diary-report'
 };
@@ -1103,9 +1103,9 @@ async function printReferralLetter(referral) {
         </div>
 
         <!-- Autism Screenings -->
-        <div v-else-if="activeTab === 'Autism Screenings'">
+        <div v-else-if="activeTab === 'Screenings'">
           <div class="bg-white rounded-xl shadow p-6">
-            <h2 class="text-xl font-semibold mb-4 bg-purple-50 text-purple-800 border-b border-purple-200 p-2 rounded-lg">Autism Screenings</h2>
+            <h2 class="text-xl font-semibold mb-4 bg-purple-50 text-purple-800 border-b border-purple-200 p-2 rounded-lg">Screenings</h2>
             
             <div v-if="questionnaires && questionnaires.length" class="space-y-6">
               <!-- Summary Table -->
@@ -1131,7 +1131,7 @@ async function printReferralLetter(referral) {
                     <thead class="bg-gray-50">
                       <tr>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Autism Screening Title
+                          Screening Title
                         </th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Score
@@ -1196,7 +1196,7 @@ async function printReferralLetter(referral) {
             
             <div v-else class="text-gray-400 text-center py-8">
               <Icon name="material-symbols:quiz" size="48" class="mx-auto mb-4 text-gray-300" />
-              <p>No autism screening responses found.</p>
+              <p>No screening responses found.</p>
             </div>
           </div>
         </div>

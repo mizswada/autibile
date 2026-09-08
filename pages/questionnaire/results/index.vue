@@ -269,8 +269,8 @@ const scoreInterpretation = computed(() => {
 <template>
   <div class="p-6">
     <div class="mb-6">
-      <h1 class="text-2xl font-bold mb-2">Autism Screening Results</h1>
-      <p class="text-gray-600">View and analyze autism screening responses</p>
+      <h1 class="text-2xl font-bold mb-2">Screening Results</h1>
+      <p class="text-gray-600">View and analyze screening responses</p>
     </div>
     
     <!-- Filters -->
@@ -278,13 +278,13 @@ const scoreInterpretation = computed(() => {
       <h2 class="text-lg font-medium mb-3">Filters</h2>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Autism Screening</label>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Screening</label>
           <select 
             v-model="selectedQuestionnaire"
             class="w-full p-2 border rounded"
             @change="fetchResponses"
           >
-            <option :value="null">All Autism Screenings</option>
+            <option :value="null">All Screenings</option>
             <option 
               v-for="q in questionnaires" 
               :key="q.questionnaire_id" 
@@ -341,7 +341,7 @@ const scoreInterpretation = computed(() => {
           <thead class="bg-gray-50 text-left">
             <tr>
               <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">No</th>
-              <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Autism Screening</th>
+              <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Screening</th>
               <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
               <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Total Score</th>
               <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
@@ -367,7 +367,7 @@ const scoreInterpretation = computed(() => {
                   <button 
                     @click="viewResponse(response.qr_id)"
                     class="table-action-icon table-action-icon--primary flex items-center"
-                    title="View Autism Screening and Answers"
+                    title="View Screening and Answers"
                   >
                     <Icon name="material-symbols:visibility-outline-rounded" size="22" />
                   </button>
@@ -457,7 +457,7 @@ const scoreInterpretation = computed(() => {
           
           <div class="bg-blue-50 p-4 rounded border border-blue-100 mb-4">
             <div class="flex justify-between items-center mb-2">
-              <div class="text-sm text-blue-700">Autism Screening</div>
+              <div class="text-sm text-blue-700">Screening</div>
               <div class="text-sm text-blue-700">Score</div>
             </div>
             <div class="flex justify-between items-center">
