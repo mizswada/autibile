@@ -106,7 +106,7 @@ async function saveChild() {
   
   // Additional validation
   if (!form.value.fullname || !form.value.nickname || !form.value.gender || 
-      !form.value.dateOfBirth || !form.value.autismDiagnose || !form.value.diagnosedDate || 
+      !form.value.dateOfBirth ||
       !form.value.status || form.value.status === '-- Please select --' ||
       form.value.availableSession === null || form.value.availableSession === undefined ||
       form.value.okuCard === null || form.value.okuCard === undefined || !form.value.treatmentType) {
@@ -117,8 +117,6 @@ async function saveChild() {
     console.log('nickname:', !!form.value.nickname);
     console.log('gender:', !!form.value.gender);
     console.log('dateOfBirth:', !!form.value.dateOfBirth);
-    console.log('autismDiagnose:', !!form.value.autismDiagnose);
-    console.log('diagnosedDate:', !!form.value.diagnosedDate);
     console.log('status:', !!form.value.status);
     console.log('status value:', form.value.status);
     console.log('availableSession:', form.value.availableSession);
@@ -416,8 +414,8 @@ function closeSearchICForm() {
         <FormKit type="text" v-model="form.icNumber" label="IC Number" validation="required" placeholder="Enter 12 digit IC number" />
         <p v-if="icError" class="text-red-500 text-sm mt-1 mb-2">{{ icError }}</p>
         <FormKit type="date" v-model="form.dateOfBirth" label="Date of Birth" validation="required" />
-        <FormKit type="text" v-model="form.autismDiagnose" label="Autism Diagnose" validation="required"/>
-        <FormKit type="date" v-model="form.diagnosedDate" label="Diagnosed Date" validation="required"  />
+        <FormKit type="text" v-model="form.autismDiagnose" label="Autism Diagnose" />
+        <FormKit type="date" v-model="form.diagnosedDate" label="Diagnosed Date" />
         <FormKit type="number" v-model="form.availableSession" label="Available Sessions" validation="required|number|min:0" placeholder="0" disabled/>
         <p class="text-sm text-gray-600 mt-1">Available sessions start at 0 for new children. Sessions can be added later through package purchases.</p>
         <FormKit type="select" v-model="form.status" label="Status" :options="['-- Please select --', 'Active', 'Inactive']" validation="required" />

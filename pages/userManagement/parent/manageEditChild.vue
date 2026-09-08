@@ -43,7 +43,7 @@ onMounted(async () => {
           gender: child.gender,
           icNumber: child.patient_ic,
           dateOfBirth: child.dob?.split('T')[0] ?? '',
-          autismDiagnose: child.autism_diagnose,
+          autismDiagnose: child.autism_diagnose || '',
           diagnosedDate: child.diagnosed_on?.split('T')[0] ?? '',
           availableSession: parseInt(child.available_session) || 0, // Ensure it's an integer
           status: child.status,
@@ -69,8 +69,6 @@ async function saveChild() {
     gender: 'Gender',
     icNumber: 'IC Number',
     dateOfBirth: 'Date of Birth',
-    autismDiagnose: 'Autism Diagnose',
-    diagnosedDate: 'Diagnosed Date',
     availableSession: 'Available Sessions',
     status: 'Status',
     okuCard: 'OKU Card',

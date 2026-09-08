@@ -44,18 +44,18 @@ const isUnlockingAccessOutsideAge = computed(() => {
   );
 });
 
+// Must stay in step with the row shape built in `tableData` below: RsTable
+// derives its headers from Object.keys() of each row. Gender, Autism Diagnose,
+// Diagnosed Date and Treatment Type are intentionally not table columns -- they
+// are viewed and edited on the manageEditChild screen behind the edit icon.
 const columns = [
   { name: 'parentUsername', label: 'Parent Username' },
   { name: 'fullname', label: 'Full Name' },
-  // { name: 'nickname', label: 'Nickname' },
-  { name: 'gender', label: 'Gender' },
-  { name: 'autismDiagnose', label: 'Autism Diagnose' },
-  { name: 'diagnosedDate', label: 'Diagnosed Date' },
+  { name: 'childIC', label: 'Child IC' },
   { name: 'availableSession', label: 'Available Sessions' },
   { name: 'status', label: 'Status' },
   { name: 'mchatrStatus', label: 'MCHAT-R Status' },
   { name: 'okuCard', label: 'OKU Card' },
-  { name: 'treatmentType', label: 'Treatment Type' },
   { name: 'action', label: 'Actions' }
 ];
 
@@ -306,8 +306,12 @@ onMounted(async () => {
         fullname: p.fullname || '',
         // nickname: p.nickname,
         gender: p.gender,
-        autismDiagnose: p.autismDiagnose,
-        diagnosedDate: new Date(p.diagnosedDate).toISOString().split('T')[0],
+        autismDiagnose: p.autismDiagnose || '',
+        // Both are optional now: an unguarded new Date(null) yields 1970-01-01
+        // and new Date(undefined).toISOString() throws, breaking the whole list.
+        diagnosedDate: p.diagnosedDate
+          ? new Date(p.diagnosedDate).toISOString().split('T')[0]
+          : '',
         availableSession: p.availableSession || 0, // Use actual session count directly
         status: p.status,
         mchatrStatus: p.mchatr_status || 'Enable', // Default to Enable if not set
