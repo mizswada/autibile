@@ -195,16 +195,24 @@ const { data: appointmentsData, pending: appointmentsLoading, refresh: refreshAp
       rawData.value = rawAppointments;
       
       // Create the table data from raw data
-      return rawAppointments.map(appt => ({
-        id: appt.id,
-        patientName: appt.patientName,
-        practitionerName: appt.practitionerName,
-        serviceName: appt.serviceName,
-        date: appt.date,
-        timeSlot: appt.timeSlot,
-        status: appt.status,
-        action: 'edit'
-      }));
+      return rawAppointments.map(appt => {
+        const row = {
+          patientName: appt.patientName,
+          practitionerName: appt.practitionerName,
+          serviceName: appt.serviceName,
+          date: appt.date,
+          timeSlot: appt.timeSlot,
+          status: appt.status,
+          action: 'edit'
+        };
+
+        // `id` is internal (getOriginalData(row.value.id) in the slots).
+        // RsTable derives its columns from Object.keys(), so keep it readable
+        // but non-enumerable. Mirrors buildTableRows in scheduledAppointment.vue.
+        Object.defineProperty(row, 'id', { value: appt.id, enumerable: false });
+
+        return row;
+      });
     }
     return [];
   }

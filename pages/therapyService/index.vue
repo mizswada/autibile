@@ -38,7 +38,14 @@ async function fetchServices() {
   error.value = ''
   try {
     const data = await $fetch('/api/therapyService/list')
-    services.value = data.map(item => ({ ...item, action: true }))
+    services.value = data.map(item => {
+      // `id` is internal (used by edit/delete). RsTable derives its columns
+      // from Object.keys(), so keep it readable but non-enumerable.
+      const { id, ...visible } = item
+      const row = { ...visible, action: true }
+      Object.defineProperty(row, 'id', { value: id, enumerable: false })
+      return row
+    })
   } catch (e) {
     error.value = 'Failed to load services'
   }
@@ -69,9 +76,11 @@ async function openModal(value, action) {
       console.log('Form data:', showModalForm.value)
     } catch (e) {
       console.error('Failed to fetch service data:', e)
-      // Fallback to the table data
+      // Fallback to the table data. `id` is non-enumerable on table rows, so
+      // it must be carried explicitly or the later update would lose it.
       showModalForm.value = { 
         ...value,
+        id: value.id,
         therapy_centerID: null
       }
     }
@@ -82,7 +91,9 @@ async function openModal(value, action) {
 }
 
 function openModalDelete(value) {
-  showModalDeleteForm.value = { ...value }
+  // `id` is non-enumerable on table rows (kept out of the table columns), so a
+  // bare spread would drop it and the delete call would lose its id.
+  showModalDeleteForm.value = { ...value, id: value.id }
   showModalDelete.value = true
 }
 
