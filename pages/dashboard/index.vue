@@ -5,8 +5,22 @@ definePageMeta({
 });
 
 import { useFetch } from '#app';
+import { useRoute } from 'vue-router';
 
-const { data: dashboardData, pending, error } = await useFetch('/api/dashboard/dashboard');
+const route = useRoute();
+const { data: dashboardData, pending, error, refresh } = await useFetch('/api/dashboard/dashboard');
+
+// Re-fetch whenever we navigate back to the dashboard, so stale appointment times
+// and other dashboard data refresh automatically (same as mobile's useUpcomingAppointments
+// focus-based refresh).
+watch(
+  () => route.name,
+  async () => {
+    if (route.name === 'dashboard') {
+      await refresh();
+    }
+  }
+);
 
 // Role-based computed properties
 const userRole = computed(() => dashboardData.value?.userRole || 'unknown');
