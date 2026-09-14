@@ -21,7 +21,18 @@ export default defineEventHandler(async (event) => {
       } = body;
 
       console.log(body);
-  
+
+      // Function to convert OKU card string to number
+      // (kept identical to updateDetails.put.js so blank/'Yes'/'No' behave
+      // the same on add and edit)
+      const convertOKUCard = (okuCard) => {
+        if (okuCard === 'Yes') return 1;
+        if (okuCard === 'No') return 0;
+        if (okuCard === 1 || okuCard === '1') return 1;
+        if (okuCard === 0 || okuCard === '0') return 0;
+        return null;
+      };
+
       // Check if IC number already exists in user_patients
       const existingPatient = await prisma.user_patients.findFirst({
         where: { patient_ic: icNumber },
@@ -45,7 +56,7 @@ export default defineEventHandler(async (event) => {
             diagnosed_on: diagnosedDate ? new Date(diagnosedDate) : null,
             status,
             available_session: parseInt(availableSession) || 0,
-            OKUCard: parseInt(okuCard),
+            OKUCard: convertOKUCard(okuCard),
             treatment_type: treatmentType,
             created_at: new Date(),
           },
