@@ -191,6 +191,7 @@ onMounted(async () => {
 </script>
 
 <template>
+  <div>
   <div class="mb-4">
     <h1 class="text-2xl font-bold">Therapy Services</h1>
     <div class="card p-4 mt-4">
@@ -297,4 +298,6 @@ onMounted(async () => {
       Are you sure want to delete this service ({{ showModalDeleteForm.name }})?
     </p>
   </rs-modal>
+
+  </div>
 </template>

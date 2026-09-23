@@ -30,7 +30,7 @@ function hasUnseenDiary(patient) {
 async function fetchPatients() {
   isLoading.value = true;
   try {
-    const response = await fetch('/api/parents/manageChild/listChild?activeOnly=true');
+    const response = await fetch('/api/parents/manageChild/listChild?activeOnly=true&hasDiary=true');
     const result = await response.json();
     
     if (result.statusCode === 200 && result.data) {
@@ -47,7 +47,7 @@ async function fetchPatients() {
         // Merge parent full names into patient data
         patients.value = result.data.map(patient => ({
           ...patient,
-          parentFullName: parentsMap[patient.parentID] || patient.parentUsername
+          parentFullName: parentsMap[patient.parentID] || 'Unknown Parent'
         }));
       } else {
         patients.value = result.data;
@@ -189,7 +189,7 @@ onMounted(() => {
               </tr>
               <tr v-for="patient in filteredPatients" :key="patient.childID" class="hover:bg-gray-50">
                 <td class="px-6 py-4">
-                  <div class="text-sm text-gray-900">{{ patient.parentFullName || patient.parentUsername }}</div>
+                  <div class="text-sm text-gray-900">{{ patient.parentFullName }}</div>
                 </td>
                 <td class="px-6 py-4">
                   <div class="text-sm font-medium text-gray-900 flex items-center gap-2">

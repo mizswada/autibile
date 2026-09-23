@@ -37,7 +37,6 @@ onMounted(async () => {
       rawData.value = parentResult.data.map(p => ({
         userID: p.userID,
         parentID: p.parentID,
-        username: p.username || '',
         fullName: p.fullName || '',
         email: p.email || '',
         phoneNumber: p.phone || '',
@@ -46,6 +45,7 @@ onMounted(async () => {
         nationality: p.nationality || '',
         state: p.state || '',
         status: p.status || '',
+        registeredAt: p.registeredAt || null,
 
         // Added fields
         gender: p.gender || '',
@@ -68,7 +68,7 @@ onMounted(async () => {
 });
 
 async function viewParentDetails(rowData) {
-  const original = getOriginalData(rowData.username);
+  const original = getOriginalData(rowData.userID);
   if (!original) return;
 
   isViewLoading.value = true;
@@ -103,33 +103,34 @@ async function viewParentDetails(rowData) {
 }
 
 const columns = [
-  { name: 'username', label: 'Username' },
   { name: 'fullName', label: 'Full Name' },
   { name: 'email', label: 'Email' },
   { name: 'phoneNumber', label: 'Phone' },
   { name: 'icNumber', label: 'IC' },
+  { name: 'registeredAt', label: 'Registered', sortable: true },
   { name: 'status', label: 'Status' },
   { name: 'action', label: 'Actions' }
 ];
 
 const tableData = computed(() =>
   rawData.value.map(p => ({
-    username: p.username,
+    userID: p.userID,
     fullName: p.fullName,
     email: p.email,
     phoneNumber: p.phoneNumber,
     icNumber: p.icNumber,
+    registeredAt: p.registeredAt ? new Date(p.registeredAt).toLocaleDateString() : '—',
     status: p.status,
     action: 'edit'
   }))
 );
 
-function getOriginalData(username) {
-  return rawData.value.find(p => p.username === username);
+function getOriginalData(userID) {
+  return rawData.value.find(p => p.userID === userID);
 }
 
 function confirmToggleStatus(rowData) {
-  const original = getOriginalData(rowData.username);
+  const original = getOriginalData(rowData.userID);
   if (original) {
     pendingToggleData.value = original;
     showConfirmToggleModal.value = true;
@@ -176,7 +177,7 @@ async function performToggleStatus() {
 
 // Delete functionality
 function confirmDelete(rowData) {
-  const original = getOriginalData(rowData.username);
+  const original = getOriginalData(rowData.userID);
   if (original) {
     pendingDeleteData.value = original;
     showDeleteModal.value = true;
@@ -217,7 +218,7 @@ async function performDelete() {
 }
 
 function openPasswordModal(rowData) {
-  const original = getOriginalData(rowData.username);
+  const original = getOriginalData(rowData.userID);
   if (!original?.userID) {
     alert('Unable to set password: user ID not found.');
     return;
@@ -267,7 +268,7 @@ async function savePassword() {
     });
 
     if (result.statusCode === 200) {
-      alert(`Password updated for ${passwordTarget.value.fullName || passwordTarget.value.username}. Share the new password with them securely.`);
+      alert(`Password updated for ${passwordTarget.value.fullName}. Share the new password with them securely.`);
       cancelPasswordModal();
     } else {
       passwordError.value = result.message || 'Failed to update password';
@@ -283,6 +284,7 @@ async function savePassword() {
 
 
 <template>
+  <div>
   <div class="mb-4">
     <h1 class="text-2xl font-bold">Parents Information</h1>
     <div class="card p-4 mt-4">
@@ -331,7 +333,7 @@ async function savePassword() {
               class="table-action-icon table-action-icon--primary"
               title="Edit Parent"
               @click="() => {
-                const original = getOriginalData(row.value.username);
+                const original = getOriginalData(row.value.userID);
                 if (original) {
                   $router.push({ path: '/userManagement/parent/editParent', query: { parentID: original.parentID } });
                 }
@@ -346,7 +348,7 @@ async function savePassword() {
               class="table-action-icon table-action-icon--primary"
               title="Add Child"
               @click="() => {
-                const original = getOriginalData(row.value.username);
+                const original = getOriginalData(row.value.userID);
                 if (original) {
                   $router.push({
                     path: '/userManagement/parent/addChild',
@@ -405,7 +407,7 @@ async function savePassword() {
       Are you sure you want to
       <span v-if="pendingToggleData?.status === 'Active'">deactivate</span>
       <span v-else>activate</span>
-      this parent (Username: {{ pendingToggleData?.username }})?
+      this parent ({{ pendingToggleData?.fullName }})?
     </p>
 
     <p
@@ -465,8 +467,8 @@ async function savePassword() {
   >
     <p class="mb-4 text-sm text-gray-600">
       Set a new password for
-      <span class="font-semibold">{{ passwordTarget?.fullName || passwordTarget?.username }}</span>
-      ({{ passwordTarget?.username }}). Share it with them securely after saving.
+      <span class="font-semibold">{{ passwordTarget?.fullName }}</span>.
+      Share it with them securely after saving.
     </p>
 
     <FormKit
@@ -557,6 +559,7 @@ async function savePassword() {
     </template>
   </rs-modal>
 
+  </div>
 </template>
 
 <style scoped>

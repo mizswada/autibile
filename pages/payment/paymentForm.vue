@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 
@@ -207,7 +207,7 @@ onMounted(() => {
                  <div class="flex flex-wrap gap-2">
            <NuxtLink to="/payment">
              <rs-button variant="ghost" size="sm">
-               <NuxtIcon name="ic:outline-arrow-back" class="mr-1" />
+               <Icon name="ic:outline-arrow-back" class="mr-1" />
                Back to Invoices
              </rs-button>
            </NuxtLink>
@@ -217,7 +217,7 @@ onMounted(() => {
       <!-- Loading State -->
       <section v-if="isLoading" class="flex justify-center items-center py-12">
         <div class="text-center">
-          <NuxtIcon name="line-md:loading-twotone-loop" class="text-4xl mb-4" />
+          <Icon name="line-md:loading-twotone-loop" class="text-4xl mb-4" />
           <p>Loading invoice details...</p>
         </div>
       </section>
@@ -311,7 +311,7 @@ onMounted(() => {
                  @click="submitPayment"
                >
                  <div class="flex items-center justify-center">
-                   <NuxtIcon v-if="isSubmitting" name="line-md:loading-twotone-loop" class="mr-2" />
+                   <Icon v-if="isSubmitting" name="line-md:loading-twotone-loop" class="mr-2" />
                    <span>{{ isSubmitting ? 'Processing Payment...' : 'Submit Payment' }}</span>
                  </div>
                </rs-button>
@@ -343,7 +343,7 @@ onMounted(() => {
       <!-- Error State -->
       <section v-else class="flex justify-center items-center py-12">
         <div class="text-center text-red-500">
-          <NuxtIcon name="ic:outline-error" class="text-4xl mb-4" />
+          <Icon name="ic:outline-error" class="text-4xl mb-4" />
           <p>Failed to load invoice details</p>
           <rs-button @click="fetchInvoice" class="mt-4">
             Try Again

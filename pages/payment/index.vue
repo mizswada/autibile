@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, onMounted } from 'vue';
 import { buildDocumentHtml, buildInvoiceDocOptions, openPrintWindow } from '~/utils/paymentDocuments';
 
@@ -104,37 +104,37 @@ onMounted(() => {
             <div class="flex space-x-2">
             <NuxtLink to="/payment/packages">
                 <rs-button variant="primary">
-                <NuxtIcon name="ic:outline-package" class="mr-1" />
+                <Icon name="ic:outline-package" class="mr-1" />
                 View Packages
                 </rs-button>
             </NuxtLink>
             <NuxtLink to="/payment/products">
                 <rs-button variant="primary">
-                <NuxtIcon name="ic:outline-inventory" class="mr-1" />
+                <Icon name="ic:outline-inventory" class="mr-1" />
                 View Products
                 </rs-button>
             </NuxtLink>
             <NuxtLink to="/payment/create">
                 <rs-button variant="primary">
-                <NuxtIcon name="ic:outline-add" class="mr-1" />
+                <Icon name="ic:outline-add" class="mr-1" />
                 Create Invoice
                 </rs-button>
             </NuxtLink>
             <NuxtLink to="/payment/history">
                 <rs-button variant="primary">
-                <NuxtIcon name="ic:outline-history" class="mr-1" />
+                <Icon name="ic:outline-history" class="mr-1" />
                 Payment History
                 </rs-button>
             </NuxtLink>
             <NuxtLink to="/payment/pendingApprovals">
                 <rs-button variant="warning">
-                <NuxtIcon name="ic:outline-approval" class="mr-1" />
+                <Icon name="ic:outline-approval" class="mr-1" />
                 Pending Approvals
                 </rs-button>
             </NuxtLink>
             <NuxtLink v-if="selectedInvoice" to="#">
             <rs-button variant="primary" @click="printInvoice">
-                <NuxtIcon name="ic:outline-print" class="mr-1" />
+                <Icon name="ic:outline-print" class="mr-1" />
                 Print Invoice
             </rs-button>
             </NuxtLink>
@@ -153,7 +153,7 @@ onMounted(() => {
           <!-- Loading State -->
           <div v-if="loading" class="mt-7 px-10 flex justify-center items-center h-64">
             <div class="text-center">
-              <NuxtIcon name="line-md:loading-twotone-loop" class="text-4xl mb-4" />
+              <Icon name="line-md:loading-twotone-loop" class="text-4xl mb-4" />
               <p>Loading unpaid invoices...</p>
             </div>
           </div>
@@ -161,7 +161,7 @@ onMounted(() => {
           <!-- Error State -->
           <div v-else-if="error" class="mt-7 px-10 flex justify-center items-center h-64">
             <div class="text-center text-red-500">
-              <NuxtIcon name="ic:outline-error" class="text-4xl mb-4" />
+              <Icon name="ic:outline-error" class="text-4xl mb-4" />
               <p>{{ error }}</p>
               <rs-button @click="fetchInvoices" class="mt-4">
                 Try Again
@@ -172,7 +172,7 @@ onMounted(() => {
           <!-- Empty State -->
           <div v-else-if="invoices.length === 0" class="mt-7 px-10 flex justify-center items-center h-64">
             <div class="text-center text-gray-500">
-              <NuxtIcon name="ic:outline-receipt" class="text-4xl mb-4" />
+              <Icon name="ic:outline-receipt" class="text-4xl mb-4" />
               <p>No unpaid invoices found</p>
               <p class="text-sm mt-2">All invoices have been paid or there are no invoices to display.</p>
               <NuxtLink to="/payment/history">
@@ -266,14 +266,14 @@ onMounted(() => {
               class="w-full" 
               @click="proceedToPayment"
             >
-              <NuxtIcon name="ic:outline-payment" class="mr-2" />
+              <Icon name="ic:outline-payment" class="mr-2" />
               Pay Now
             </rs-button>
           </div>
           
           <div v-else class="mt-7 px-10 flex justify-center items-center h-64">
             <div class="text-center text-gray-500">
-              <NuxtIcon name="ic:outline-receipt" class="text-6xl mb-4" />
+              <Icon name="ic:outline-receipt" class="text-6xl mb-4" />
               <p>Select an invoice from the left to proceed with payment</p>
             </div>
           </div>

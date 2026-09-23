@@ -112,7 +112,7 @@ onMounted(() => {
         @click="router.push('/payment/packages')"
         :disabled="isSubmitting"
       >
-        <NuxtIcon name="ic:outline-arrow-back" class="mr-1" />
+        <Icon name="ic:outline-arrow-back" class="mr-1" />
         Back to Packages
       </rs-button>
     </div>
@@ -120,7 +120,7 @@ onMounted(() => {
     <!-- Loading State -->
     <div v-if="isLoading" class="flex justify-center items-center py-12">
       <div class="text-center">
-        <NuxtIcon name="line-md:loading-twotone-loop" class="text-4xl mb-4" />
+        <Icon name="line-md:loading-twotone-loop" class="text-4xl mb-4" />
         <p>Loading package data...</p>
       </div>
     </div>
@@ -172,7 +172,7 @@ onMounted(() => {
             @click="handleClickSubmit"
           >
             <div class="flex items-center justify-center">
-              <NuxtIcon v-if="isSubmitting" name="line-md:loading-twotone-loop" class="mr-2" />
+              <Icon v-if="isSubmitting" name="line-md:loading-twotone-loop" class="mr-2" />
               <span>{{ isSubmitting ? 'Updating...' : 'Update Package' }}</span>
             </div>
           </rs-button>

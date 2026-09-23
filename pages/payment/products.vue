@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, onMounted } from 'vue';
 
 definePageMeta({
@@ -68,13 +68,13 @@ onMounted(() => {
         <div class="flex flex-wrap gap-2">
           <NuxtLink to="/payment/createProduct">
             <rs-button variant="primary" size="sm">
-              <NuxtIcon name="ic:outline-add" class="mr-1" />
+              <Icon name="ic:outline-add" class="mr-1" />
               Create New Product
             </rs-button>
           </NuxtLink>
           <NuxtLink to="/payment">
             <rs-button variant="ghost" size="sm">
-              <NuxtIcon name="ic:outline-arrow-back" class="mr-1" />
+              <Icon name="ic:outline-arrow-back" class="mr-1" />
               Back to Payment
             </rs-button>
           </NuxtLink>
@@ -112,14 +112,14 @@ onMounted(() => {
       <!-- States -->
       <section v-if="loading" class="flex justify-center items-center py-12">
         <div class="text-center">
-          <NuxtIcon name="line-md:loading-twotone-loop" class="text-4xl mb-4" />
+          <Icon name="line-md:loading-twotone-loop" class="text-4xl mb-4" />
           <p>Loading products...</p>
         </div>
       </section>
 
       <section v-else-if="error" class="flex justify-center items-center py-12">
         <div class="text-center text-red-500">
-          <NuxtIcon name="ic:outline-error" class="text-4xl mb-4" />
+          <Icon name="ic:outline-error" class="text-4xl mb-4" />
           <p>{{ error }}</p>
           <rs-button @click="fetchProducts" class="mt-4">
             Try Again
@@ -129,7 +129,7 @@ onMounted(() => {
 
       <section v-else-if="products.length === 0" class="flex justify-center items-center py-12">
         <div class="text-center text-gray-500">
-          <NuxtIcon name="ic:outline-inventory" class="text-4xl mb-4" />
+          <Icon name="ic:outline-inventory" class="text-4xl mb-4" />
           <p>No products found</p>
           <NuxtLink to="/payment/createProduct">
             <rs-button class="mt-4">

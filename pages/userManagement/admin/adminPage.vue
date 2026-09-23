@@ -30,11 +30,11 @@ async function loadAdmins() {
     if (result.statusCode === 200) {
       rawData.value = result.data.map(admin => ({
         userID: admin.userID,
-        username: admin.username || '',
         fullName: admin.fullName || '',
         email: admin.email || '',
         phone: admin.phone || '',
         ic: admin.ic || '',
+        registeredAt: admin.registeredAt || null,
         status: admin.status || '',
         role: admin.role || '',
       }));
@@ -49,7 +49,7 @@ async function loadAdmins() {
 }
 
 async function viewAdminDetails(rowData) {
-  const original = getOriginalData(rowData.username);
+  const original = getOriginalData(rowData.userID);
   if (!original) return;
 
   isViewLoading.value = true;
@@ -72,12 +72,12 @@ async function viewAdminDetails(rowData) {
 }
 
 const columns = [
-  { name: 'username', label: 'Username' },
   { name: 'fullName', label: 'Full Name' },
   { name: 'email', label: 'Email' },
   { name: 'phone', label: 'Phone' },
   { name: 'ic', label: 'IC' },
   { name: 'role', label: 'Role' },
+  { name: 'registeredAt', label: 'Registered', sortable: true },
   { name: 'status', label: 'Status', slot: true },
   { name: 'action', label: 'Actions', slot: true }
 ];
@@ -85,23 +85,24 @@ const columns = [
 // ✅ tableData with only display columns
 const tableData = computed(() =>
   rawData.value.map(p => ({
-    username: p.username,
+    userID: p.userID,
     fullName: p.fullName,
     email: p.email,
     phone: p.phone,
     ic: p.ic,
     role: p.role,
+    registeredAt: p.registeredAt ? new Date(p.registeredAt).toLocaleDateString() : '—',
     status: p.status,
     action: 'edit'
   }))
 );
 
-function getOriginalData(username) {
-  return rawData.value.find(p => p.username === username);
+function getOriginalData(userID) {
+  return rawData.value.find(p => p.userID === userID);
 }
 
 function confirmToggleStatus(rowData) {
-  const original = getOriginalData(rowData.username);
+  const original = getOriginalData(rowData.userID);
   if (original) {
     pendingToggleData.value = original;
     showConfirmToggleModal.value = true;
@@ -148,7 +149,7 @@ async function performToggleStatus() {
 
 // Delete functions
 function confirmDelete(rowData) {
-  const original = getOriginalData(rowData.username);
+  const original = getOriginalData(rowData.userID);
   if (original) {
     pendingDeleteData.value = original;
     showDeleteModal.value = true;
@@ -190,6 +191,7 @@ async function performDelete() {
 </script>
 
 <template>
+  <div>
   <div class="mb-4">
     <h1 class="text-2xl font-bold">Administrators</h1>
     <div class="card p-4 mt-4">
@@ -238,7 +240,7 @@ async function performDelete() {
               class="table-action-icon table-action-icon--primary"
               title="Edit Administrator"
               @click="() => {
-                const original = getOriginalData(row.value.username);
+                const original = getOriginalData(row.value.userID);
                 if (original) {
                   $router.push({ path: '/userManagement/admin/editAdmin', query: { userID: original.userID } });
                 }
@@ -284,7 +286,7 @@ async function performDelete() {
       Are you sure you want to
       <span v-if="pendingToggleData?.status === 'Active'">deactivate</span>
       <span v-else>activate</span>
-      this administrator (Username: {{ pendingToggleData?.username }})?
+      this administrator ({{ pendingToggleData?.fullName }})?
     </p>
     
     <div v-if="isTogglingStatus" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">
@@ -391,6 +393,8 @@ async function performDelete() {
       <rs-button @click="showViewModal = false">Close</rs-button>
     </template>
   </rs-modal>
+
+  </div>
 </template>
 
 <style scoped>

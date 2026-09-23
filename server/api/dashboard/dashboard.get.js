@@ -112,10 +112,6 @@ export default defineEventHandler(async (event) => {
     // Return different data based on user role
     if (isAdmin) {
       // Admin gets full statistics
-      const totalUsers = await prisma.user.count({
-        where: { userStatus: 'Active' },
-      });
-
       const totalParents = await prisma.user_parents.count({
         where: { deleted_at: null, parent_status: 'Active' },
       });
@@ -139,7 +135,6 @@ export default defineEventHandler(async (event) => {
       return {
         userRole: 'admin',
         appointments: formattedAppointments,
-        totalUsers,
         totalParents,
         totalDoctors,
         totalTherapists,

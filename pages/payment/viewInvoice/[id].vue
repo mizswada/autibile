@@ -117,13 +117,13 @@ onMounted(() => {
         <div class="flex flex-wrap gap-2">
           <NuxtLink to="/payment/invoices">
             <rs-button variant="ghost" size="sm">
-              <NuxtIcon name="ic:outline-arrow-back" class="mr-1" />
+              <Icon name="ic:outline-arrow-back" class="mr-1" />
               Back to Invoices
             </rs-button>
           </NuxtLink>
           <NuxtLink :to="`/payment/editInvoice/${invoiceId}`">
             <rs-button variant="outline" size="sm">
-              <NuxtIcon name="ic:outline-edit" class="mr-1" />
+              <Icon name="ic:outline-edit" class="mr-1" />
               Edit Invoice
             </rs-button>
           </NuxtLink>
@@ -133,7 +133,7 @@ onMounted(() => {
       <!-- Loading State -->
       <section v-if="isLoading" class="flex justify-center items-center py-12">
         <div class="text-center">
-          <NuxtIcon name="line-md:loading-twotone-loop" class="text-4xl mb-4" />
+          <Icon name="line-md:loading-twotone-loop" class="text-4xl mb-4" />
           <p>Loading invoice details...</p>
         </div>
       </section>
@@ -216,7 +216,7 @@ onMounted(() => {
               :disabled="isUpdating || hasPendingPayment"
               @click="updateStatus('Paid')"
             >
-              <NuxtIcon v-if="isUpdating" name="line-md:loading-twotone-loop" class="mr-2" />
+              <Icon v-if="isUpdating" name="line-md:loading-twotone-loop" class="mr-2" />
               <span>{{ isUpdating ? 'Updating...' : 'Mark as Paid' }}</span>
             </rs-button>
             <rs-button 
@@ -226,7 +226,7 @@ onMounted(() => {
               :disabled="isUpdating || hasPendingPayment"
               @click="updateStatus('Unpaid')"
             >
-              <NuxtIcon v-if="isUpdating" name="line-md:loading-twotone-loop" class="mr-2" />
+              <Icon v-if="isUpdating" name="line-md:loading-twotone-loop" class="mr-2" />
               <span>{{ isUpdating ? 'Updating...' : 'Mark as Unpaid' }}</span>
             </rs-button>
           </div>
@@ -256,7 +256,7 @@ onMounted(() => {
       <!-- Error State -->
       <section v-else class="flex justify-center items-center py-12">
         <div class="text-center text-red-500">
-          <NuxtIcon name="ic:outline-error" class="text-4xl mb-4" />
+          <Icon name="ic:outline-error" class="text-4xl mb-4" />
           <p>Failed to load invoice details</p>
           <rs-button @click="fetchInvoice" class="mt-4">
             Try Again

@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
     } = body;
 
     if (
-      !nickname || !gender || !icNumber || !dateOfBirth ||
+      !gender || !icNumber || !dateOfBirth ||
       availableSession === null || availableSession === undefined || !status || okuCard === null || okuCard === undefined || !treatmentType || !parentID || !userID
     ) {
       return {
@@ -45,7 +45,7 @@ export default defineEventHandler(async (event) => {
         data: {
           user_id: parseInt(userID), // parent's user ID
           fullname,
-          nickname,
+          nickname: nickname || null,
           gender,
           patient_ic: icNumber,
           dob: new Date(dateOfBirth),

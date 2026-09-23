@@ -35,7 +35,6 @@ function showMessage(msg, type = 'success') {
 
 const form = ref({
   fullname: '',
-  nickname: null,
   gender: '',
   icNumber: '',
   dateOfBirth: '',
@@ -105,16 +104,15 @@ async function saveChild() {
   console.log('Form values:', form.value);
   
   // Additional validation
-  if (!form.value.fullname || !form.value.nickname || !form.value.gender || 
+  if (!form.value.fullname || !form.value.gender ||
       !form.value.dateOfBirth ||
       !form.value.status || form.value.status === '-- Please select --' ||
       form.value.availableSession === null || form.value.availableSession === undefined ||
       form.value.okuCard === null || form.value.okuCard === undefined || !form.value.treatmentType) {
-    
+
     // Debug: Log which fields are missing
     console.log('Missing fields check:');
     console.log('fullname:', !!form.value.fullname);
-    console.log('nickname:', !!form.value.nickname);
     console.log('gender:', !!form.value.gender);
     console.log('dateOfBirth:', !!form.value.dateOfBirth);
     console.log('status:', !!form.value.status);
@@ -122,7 +120,7 @@ async function saveChild() {
     console.log('availableSession:', form.value.availableSession);
     console.log('okuCard:', form.value.okuCard);
     console.log('treatmentType:', form.value.treatmentType);
-    
+
     showMessage('Please fill in all required fields.', 'error');
     return;
   }
@@ -153,7 +151,6 @@ async function saveChild() {
       showAddForm.value = false;
       form.value = {
         fullname: '',
-        nickname: null,
         gender: '',
         icNumber: '',
         dateOfBirth: '',
@@ -279,8 +276,7 @@ async function addSelectedUserAsChild() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        fullname: selectedUser.value.fullname || selectedUser.value.nickname,
-        nickname: selectedUser.value.nickname,
+        fullname: selectedUser.value.fullname || 'Unknown',
         gender: selectedUser.value.gender || '',
         icNumber: selectedUser.value.icNumber,
         dateOfBirth: selectedUser.value.dateOfBirth || '',
@@ -355,7 +351,6 @@ function closeSearchICForm() {
         <thead class="bg-gray-100">
           <tr>
             <th class="px-3 py-2 border">Full Name</th>
-            <th class="px-3 py-2 border">Nickname</th>
             <th class="px-3 py-2 border">Gender</th>
             <th class="px-3 py-2 border">IC Number</th>
             <th class="px-3 py-2 border">Diagnosed Date</th>
@@ -370,7 +365,6 @@ function closeSearchICForm() {
         <tbody>
           <tr v-for="child in children" :key="child.childID">
             <td class="px-3 py-2 border">{{ child.fullname || '-' }}</td>
-            <td class="px-3 py-2 border">{{ child.nickname }}</td>
             <td class="px-3 py-2 border">{{ child.gender }}</td>
             <td class="px-3 py-2 border">{{ child.icNumber }}</td>
             <td class="px-3 py-2 border">{{ child.diagnosedDate }}</td>
@@ -409,7 +403,6 @@ function closeSearchICForm() {
       <h2 class="text-lg font-semibold mb-2">Add New Child</h2>
       <FormKit type="form" :actions="false">
         <FormKit type="text" v-model="form.fullname" label="Full Name" validation="required" validation-visibility="live"/>
-        <FormKit type="text" v-model="form.nickname" label="Nickname" validation="required" validation-visibility="live"/>
         <FormKit type="select" v-model="form.gender" label="Gender" :options="['-- Please select --', 'Male', 'Female']" validation="required"  />
         <FormKit type="text" v-model="form.icNumber" label="IC Number" validation="required" placeholder="Enter 12 digit IC number" />
         <p v-if="icError" class="text-red-500 text-sm mt-1 mb-2">{{ icError }}</p>
@@ -484,7 +477,6 @@ function closeSearchICForm() {
           <thead class="bg-gray-200 text-gray-700 uppercase tracking-wider">
             <tr>
               <th class="px-4 py-2 border">Full Name</th>
-              <th class="px-4 py-2 border">Nickname</th>
               <th class="px-4 py-2 border">Gender</th>
               <th class="px-4 py-2 border">IC Number</th>
               <th class="px-4 py-2 border">Diagnosed Date</th>
@@ -499,7 +491,6 @@ function closeSearchICForm() {
           <tbody>
             <tr v-for="u in searchResults" :key="u.userID" class="hover:bg-gray-100">
               <td class="px-4 py-2 border text-center">{{ u.fullname || '-' }}</td>
-              <td class="px-4 py-2 border text-center">{{ u.nickname }}</td>
               <td class="px-4 py-2 border text-center">{{ u.gender }}</td>
               <td class="px-4 py-2 border text-center">{{ u.icNumber }}</td>
               <td class="px-4 py-2 border text-center">{{ u.diagnosedDate }}</td>
@@ -541,7 +532,7 @@ function closeSearchICForm() {
         Are you sure you want to
         <span v-if="pendingToggleChild?.status === 'Active'">deactivate</span>
         <span v-else>activate</span>
-        this child (Nickname: {{ pendingToggleChild?.nickname }})?
+        this child ({{ pendingToggleChild?.fullname }})?
       </p>
 
       <div v-if="isTogglingStatus" class="flex justify-center items-center mt-4 p-2 bg-blue-50 rounded-md">

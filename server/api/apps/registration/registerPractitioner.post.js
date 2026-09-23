@@ -10,21 +10,20 @@ export default defineEventHandler(async (event) => {
 
       console.log(body);
 
-      const { 
-        username,
+      const {
         fullname,
         email,
         ic,
         phone,
         password,
-        role,   
+        role,
         type,
         department,
         workplace,
       } = body;
-  
+
       // Basic validation
-      if ( !username || !fullname || !email || !ic || !password || !role || !phone ) 
+      if ( !fullname || !email || !ic || !password || !role || !phone )
       {
         return {
           statusCode: 400,
@@ -40,7 +39,6 @@ export default defineEventHandler(async (event) => {
       // Step 1: Create user
       const user = await prisma.user.create({
         data: {
-          userUsername: username,
           userFullName: fullname,
           userEmail: normalizeEmail(email),
           userIC: ic,

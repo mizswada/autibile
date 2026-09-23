@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, onMounted, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -278,7 +278,7 @@ const saveInvoice = async () => {
 
     <div v-if="isLoading" class="flex justify-center items-center py-12">
       <div class="text-center">
-        <NuxtIcon name="line-md:loading-twotone-loop" class="text-4xl mb-4" />
+        <Icon name="line-md:loading-twotone-loop" class="text-4xl mb-4" />
         <p>Loading form data...</p>
       </div>
     </div>
@@ -386,7 +386,7 @@ const saveInvoice = async () => {
         <div class="flex gap-4 mt-6">
           <rs-button class="w-full" @click="saveInvoice" :disabled="isSubmitting">
             <div class="flex items-center justify-center">
-              <NuxtIcon v-if="isSubmitting" name="line-md:loading-twotone-loop" class="mr-2" />
+              <Icon v-if="isSubmitting" name="line-md:loading-twotone-loop" class="mr-2" />
               <span>{{ isSubmitting ? 'Saving...' : 'Save Invoice' }}</span>
             </div>
           </rs-button>

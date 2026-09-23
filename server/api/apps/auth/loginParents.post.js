@@ -130,6 +130,7 @@ export default defineEventHandler(async (event) => {
       message: "Login success",
       data: {
         username: user.userFullName,
+        fullName: user.userFullName,
         roles: roleNames,
         userID: user.userID,
         parentId: parentId,

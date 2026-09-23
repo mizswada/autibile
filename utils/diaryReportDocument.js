@@ -111,7 +111,6 @@ export async function renderDiaryReportPdf(jsPDF, options) {
   const {
     title = 'Patient Diary Report',
     childName,
-    childNickname,
     entries = [],
     reportScope = 'all',
     selectedDate = null,
@@ -200,10 +199,7 @@ export async function renderDiaryReportPdf(jsPDF, options) {
   y += 8;
 
   // — Meta strip
-  const childLabel = [childName, childNickname ? `(${childNickname})` : '']
-    .filter(Boolean)
-    .join(' ')
-    .trim() || 'N/A';
+  const childLabel = childName?.trim() || 'N/A';
 
   const metaRows = [
     { label: 'Child', value: childLabel },

@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import {
   buildDocumentHtml,
   buildInvoiceDocOptions,
@@ -400,7 +400,7 @@ const pageNumbers = computed(() => {
               :loading="isGeneratingAllPdf"
               :disabled="isGeneratingAllPdf"
             >
-              <NuxtIcon name="ic:outline-download" class="mr-1" />
+              <Icon name="ic:outline-download" class="mr-1" />
               {{ isGeneratingAllPdf ? 'Generating PDF...' : 'Download All Invoices' }}
             </rs-button>
             <rs-button 
@@ -410,12 +410,12 @@ const pageNumbers = computed(() => {
               :loading="isGeneratingAllPdf"
               :disabled="isGeneratingAllPdf"
             >
-              <NuxtIcon name="ic:outline-download" class="mr-1" />
+              <Icon name="ic:outline-download" class="mr-1" />
               {{ isGeneratingAllPdf ? 'Generating PDF...' : 'Download All Receipts' }}
             </rs-button>
             <NuxtLink to="/payment">
               <rs-button variant="outline">
-                <NuxtIcon name="ic:outline-payment" class="mr-1" />
+                <Icon name="ic:outline-payment" class="mr-1" />
                 Make a Payment
               </rs-button>
             </NuxtLink>
@@ -513,14 +513,14 @@ const pageNumbers = computed(() => {
 
         <!-- Error State -->
         <div v-else-if="error" class="text-center py-8">
-          <NuxtIcon name="ic:outline-error" class="text-6xl mb-4 text-red-400" />
+          <Icon name="ic:outline-error" class="text-6xl mb-4 text-red-400" />
           <p class="text-red-500 mb-4">{{ error }}</p>
           <rs-button @click="loadData" variant="outline">Retry</rs-button>
         </div>
 
         <!-- Empty State -->
         <div v-else-if="invoiceHistory.length === 0" class="text-center py-8">
-          <NuxtIcon name="ic:outline-receipt" class="text-6xl mb-4 text-gray-400" />
+          <Icon name="ic:outline-receipt" class="text-6xl mb-4 text-gray-400" />
           <p class="text-gray-500">No invoices found matching your criteria</p>
         </div>
         
@@ -626,14 +626,14 @@ const pageNumbers = computed(() => {
 
         <!-- Error State -->
         <div v-else-if="error" class="text-center py-8">
-          <NuxtIcon name="ic:outline-error" class="text-6xl mb-4 text-red-400" />
+          <Icon name="ic:outline-error" class="text-6xl mb-4 text-red-400" />
           <p class="text-red-500 mb-4">{{ error }}</p>
           <rs-button @click="loadData" variant="outline">Retry</rs-button>
         </div>
 
         <!-- Empty State -->
         <div v-else-if="paymentHistory.length === 0" class="text-center py-8">
-          <NuxtIcon name="ic:outline-credit-card" class="text-6xl mb-4 text-gray-400" />
+          <Icon name="ic:outline-credit-card" class="text-6xl mb-4 text-gray-400" />
           <p class="text-gray-500">No payments found matching your criteria</p>
         </div>
         

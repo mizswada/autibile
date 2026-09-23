@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -119,7 +119,7 @@ const handleClickSubmit = () => {
             @click="handleClickSubmit"
           >
             <div class="flex items-center justify-center">
-              <NuxtIcon v-if="isSubmitting" name="line-md:loading-twotone-loop" class="mr-2" />
+              <Icon v-if="isSubmitting" name="line-md:loading-twotone-loop" class="mr-2" />
               <span>{{ isSubmitting ? 'Saving...' : 'Save Package' }}</span>
             </div>
           </rs-button>

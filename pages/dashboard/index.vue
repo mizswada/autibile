@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 definePageMeta({
   title: "Dashboard",
   middleware: ["auth"],
@@ -26,7 +26,6 @@ watch(
 const userRole = computed(() => dashboardData.value?.userRole || 'unknown');
 
 // Admin statistics
-const totalUsers = computed(() => dashboardData.value?.totalUsers || 0);
 const totalParents = computed(() => dashboardData.value?.totalParents || 0);
 const totalDoctors = computed(() => dashboardData.value?.totalDoctors || 0);
 const totalTherapists = computed(() => dashboardData.value?.totalTherapists || 0);
@@ -49,7 +48,7 @@ const hasError = computed(() => error.value || dashboardData.value?.statusCode =
 
     <!-- Error State -->
     <div v-if="hasError" class="text-center py-8">
-      <NuxtIcon name="ic:outline-error" class="text-6xl mb-4 text-red-400" />
+      <Icon name="ic:outline-error" class="text-6xl mb-4 text-red-400" />
       <p class="text-red-500 mb-4">{{ dashboardData?.message || 'Something went wrong loading the dashboard.' }}</p>
       <rs-button @click="$router.go(0)" variant="outline">Retry</rs-button>
     </div>
@@ -65,20 +64,7 @@ const hasError = computed(() => error.value || dashboardData.value?.statusCode =
       <!-- Admin Dashboard -->
       <div v-if="userRole === 'admin'">
         <!-- Summary Cards -->
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-x-6">
-          <!-- Total Users -->
-          <rs-card>
-            <div class="pt-5 pb-3 px-5 flex items-center gap-4">
-              <div class="p-5 flex justify-center items-center bg-indigo-100 rounded-2xl">
-                <Icon class="text-indigo-500" name="ic:outline-account-circle"></Icon>
-              </div>
-              <div class="flex-1 truncate">
-                <span class="block font-semibold text-xl leading-tight">{{ totalUsers }}</span>
-                <span class="text-base font-semibold text-gray-500">Total Active Users</span>
-              </div>
-            </div>
-          </rs-card>
-
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-x-6">
           <!-- Total Parents -->
           <rs-card>
             <div class="pt-5 pb-3 px-5 flex items-center gap-4">

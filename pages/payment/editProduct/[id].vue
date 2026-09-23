@@ -106,7 +106,7 @@ onMounted(() => {
 
     <div v-if="isLoading" class="flex justify-center items-center py-12">
       <div class="text-center">
-        <NuxtIcon name="line-md:loading-twotone-loop" class="text-4xl mb-4" />
+        <Icon name="line-md:loading-twotone-loop" class="text-4xl mb-4" />
         <p>Loading product data...</p>
       </div>
     </div>
@@ -157,7 +157,7 @@ onMounted(() => {
             @click="handleClickSubmit"
           >
             <div class="flex items-center justify-center">
-              <NuxtIcon v-if="isSubmitting" name="line-md:loading-twotone-loop" class="mr-2" />
+              <Icon v-if="isSubmitting" name="line-md:loading-twotone-loop" class="mr-2" />
               <span>{{ isSubmitting ? 'Updating...' : 'Update Product' }}</span>
             </div>
           </rs-button>

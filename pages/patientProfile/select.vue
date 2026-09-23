@@ -18,7 +18,6 @@ const filteredPatients = computed(() => {
   if (searchQuery.value) {
     filtered = filtered.filter(patient => 
       patient.fullname?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      patient.nickname?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
       patient.icNumber?.includes(searchQuery.value)
     );
   }
@@ -136,7 +135,7 @@ function getStatusColor(status) {
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="Search by name, nickname, or IC..."
+            placeholder="Search by name or IC..."
             class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
           />
         </div>
@@ -210,7 +209,6 @@ function getStatusColor(status) {
               </div>
               <div>
                 <h3 class="font-semibold text-gray-900">{{ patient.fullname || 'Unknown' }}</h3>
-                <p class="text-sm text-gray-500">{{ patient.nickname || 'No nickname' }}</p>
               </div>
             </div>
             <span 

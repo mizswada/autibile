@@ -61,6 +61,14 @@ const props = defineProps({
     type: String,
     default: "70vh",
   },
+  okVariant: {
+    type: String,
+    default: "primary",
+  },
+  okDisabled: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const closeModal = () => {
@@ -138,6 +146,8 @@ watch(
               >
               <rs-button
                 v-if="!$slots.footer && !cancelOnly"
+                :variant="okVariant"
+                :disabled="okDisabled"
                 @click="okCallback"
                 >{{ okTitle }}</rs-button
               >

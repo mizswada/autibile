@@ -49,10 +49,11 @@ const isUnlockingAccessOutsideAge = computed(() => {
 // Diagnosed Date and Treatment Type are intentionally not table columns -- they
 // are viewed and edited on the manageEditChild screen behind the edit icon.
 const columns = [
-  { name: 'parentUsername', label: 'Parent Username' },
+  { name: 'parentFullName', label: 'Parent Full Name' },
   { name: 'fullname', label: 'Full Name' },
   { name: 'childIC', label: 'Child IC' },
   { name: 'availableSession', label: 'Available Sessions' },
+  { name: 'registeredAt', label: 'Registered', sortable: true },
   { name: 'status', label: 'Status' },
   { name: 'mchatrStatus', label: 'MCHAT-R Status' },
   { name: 'okuCard', label: 'OKU Card' },
@@ -301,7 +302,7 @@ onMounted(async () => {
         parentID: p.parentID,
         childID: p.childID,
         childIC: p.icNumber, // ensure your API returns ic field as 'ic'
-        parentUsername: p.parentUsername,
+        parentFullName: p.parentFullName,
         parentStatus: p.parentStatus || '',
         fullname: p.fullname || '',
         // nickname: p.nickname,
@@ -332,13 +333,16 @@ onMounted(async () => {
 
 const tableData = computed(() =>
   rawData.value.map(p => ({
-    parentUsername: p.parentUsername,
+    parentID: p.parentID,
+    childID: p.childID,
+    parentFullName: p.parentFullName,
     fullname: p.fullname,
     childIC: p.childIC,
     // nickname: p.nickname,
     //autismDiagnose: p.autismDiagnose,
     //diagnosedDate: p.diagnosedDate,
     availableSession: p.availableSession,
+    registeredAt: p.registeredAt ? new Date(p.registeredAt).toLocaleDateString() : '—',
     status: p.status,
     mchatrStatus: p.mchatrStatus,
     okuCard: p.okuCard,
@@ -348,8 +352,8 @@ const tableData = computed(() =>
 );
 
 
-function getOriginalData(childIC, parentUsername) {
-  return rawData.value.find(p => p.childIC === childIC && p.parentUsername === parentUsername);
+function getOriginalData(childID, parentID) {
+  return rawData.value.find(p => p.childID === childID && p.parentID === parentID);
 }
 </script>
 
@@ -384,11 +388,11 @@ function getOriginalData(childIC, parentUsername) {
             type="checkbox"
             class="toggle-checkbox"
             :checked="row.value.status === 'Active'"
-            :disabled="!isParentActive(getOriginalData(row.value.childIC, row.value.parentUsername))"
-            :title="!isParentActive(getOriginalData(row.value.childIC, row.value.parentUsername))
+            :disabled="!isParentActive(getOriginalData(row.value.childID, row.value.parentID))"
+            :title="!isParentActive(getOriginalData(row.value.childID, row.value.parentID))
               ? 'Parent is inactive — activate the parent first'
               : 'Toggle child status'"
-            @click.prevent="confirmToggleStatus(getOriginalData(row.value.childIC, row.value.parentUsername))"
+            @click.prevent="confirmToggleStatus(getOriginalData(row.value.childID, row.value.parentID))"
           />
         </template>
 
@@ -398,7 +402,7 @@ function getOriginalData(childIC, parentUsername) {
             type="checkbox"
             class="toggle-checkbox"
             :checked="row.value.mchatrStatus === 'Enable'"
-            @click.prevent="confirmMchatrToggleStatus(getOriginalData(row.value.childIC, row.value.parentUsername))"
+            @click.prevent="confirmMchatrToggleStatus(getOriginalData(row.value.childID, row.value.parentID))"
           />
         </template>
 
@@ -410,7 +414,7 @@ function getOriginalData(childIC, parentUsername) {
               class="table-action-icon table-action-icon--primary"
               title="Questionnaire Access"
               @click="() => {
-                const original = getOriginalData(row.value.childIC, row.value.parentUsername);
+                const original = getOriginalData(row.value.childID, row.value.parentID);
                 if (original) openQuestionnaireAccessModal(original);
               }"
             >
@@ -421,7 +425,7 @@ function getOriginalData(childIC, parentUsername) {
               class="table-action-icon table-action-icon--primary"
               title="Edit Child"
               @click="() => {
-                const original = getOriginalData(row.value.childIC, row.value.parentUsername);
+                const original = getOriginalData(row.value.childID, row.value.parentID);
                 if (original) {
                   router.push({
                     path: '/userManagement/parent/manageEditChild',
@@ -437,7 +441,7 @@ function getOriginalData(childIC, parentUsername) {
               class="table-action-icon table-action-icon--danger"
               title="Remove Child"
               @click="() => {
-                const original = getOriginalData(row.value.childIC, row.value.parentUsername);
+                const original = getOriginalData(row.value.childID, row.value.parentID);
                 if (original) {
                   confirmRemoveChild(original);
                 }
@@ -477,7 +481,7 @@ function getOriginalData(childIC, parentUsername) {
           <div class="ml-3">
             <p class="text-sm text-blue-700">
               <span class="font-bold">Child ID:</span> {{ pendingToggleChild?.childID }}<br>
-              <span class="font-bold">Parent:</span> {{ pendingToggleChild?.parentUsername }}<br>
+              <span class="font-bold">Parent:</span> {{ pendingToggleChild?.parentFullName }}<br>
               <span class="font-bold">Current Status:</span> {{ pendingToggleChild?.status }}
             </p>
           </div>
@@ -515,7 +519,7 @@ function getOriginalData(childIC, parentUsername) {
           <div class="ml-3">
             <p class="text-sm text-blue-700">
               <span class="font-bold">Child ID:</span> {{ pendingMchatrToggleChild?.childID }}<br>
-              <span class="font-bold">Parent:</span> {{ pendingMchatrToggleChild?.parentUsername }}<br>
+              <span class="font-bold">Parent:</span> {{ pendingMchatrToggleChild?.parentFullName }}<br>
               <span class="font-bold">Current MCHAT-R Status:</span> {{ pendingMchatrToggleChild?.mchatrStatus }}
             </p>
           </div>
@@ -663,7 +667,7 @@ function getOriginalData(childIC, parentUsername) {
       :overlay-close="false"
     >
       <p>
-        Are you sure you want to remove this child <span class="font-semibold">"{{ pendingRemoveChild?.fullname }}"</span> from parent <span class="font-semibold">"{{ pendingRemoveChild?.parentUsername }}"</span>?
+        Are you sure you want to remove this child <span class="font-semibold">"{{ pendingRemoveChild?.fullname }}"</span> from parent <span class="font-semibold">"{{ pendingRemoveChild?.parentFullName }}"</span>?
       </p>
       <p class="text-sm text-orange-600 mt-2">
         This will only remove the association between the parent and child. The child's record will still exist in the system.

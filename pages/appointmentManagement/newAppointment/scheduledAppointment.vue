@@ -1847,6 +1847,7 @@ const validatePatientData = (patient) => {
 </script>
 
 <template>
+  <div>
   <ClientOnly>
     <!-- Page Loading State -->
     <div v-if="isPageLoading" class="flex justify-center items-center h-screen">
@@ -2763,6 +2764,7 @@ const validatePatientData = (patient) => {
       </div>
     </template>
   </ClientOnly>
+  </div>
 </template>
 
 <style>

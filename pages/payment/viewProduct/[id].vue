@@ -88,7 +88,7 @@ onMounted(() => {
             size="sm"
             @click="() => $router.push(`/payment/editProduct/${productId}`)"
           >
-            <NuxtIcon name="ic:outline-edit" class="mr-1" />
+            <Icon name="ic:outline-edit" class="mr-1" />
             Edit Product
           </rs-button>
           <rs-button 
@@ -96,7 +96,7 @@ onMounted(() => {
             size="sm"
             @click="() => $router.push('/payment/products')"
           >
-            <NuxtIcon name="ic:outline-arrow-back" class="mr-1" />
+            <Icon name="ic:outline-arrow-back" class="mr-1" />
             Back to Products
           </rs-button>
         </div>
@@ -105,7 +105,7 @@ onMounted(() => {
       <!-- Loading State -->
       <section v-if="isLoading" class="flex justify-center items-center py-12">
         <div class="text-center">
-          <NuxtIcon name="line-md:loading-twotone-loop" class="text-4xl mb-4" />
+          <Icon name="line-md:loading-twotone-loop" class="text-4xl mb-4" />
           <p>Loading product details...</p>
         </div>
       </section>
@@ -113,7 +113,7 @@ onMounted(() => {
       <!-- Error State -->
       <section v-else-if="error" class="flex justify-center items-center py-12">
         <div class="text-center text-red-500">
-          <NuxtIcon name="ic:outline-error" class="text-4xl mb-4" />
+          <Icon name="ic:outline-error" class="text-4xl mb-4" />
           <p>{{ error }}</p>
           <rs-button @click="fetchProduct" class="mt-4">
             Try Again
@@ -190,7 +190,7 @@ onMounted(() => {
             class="flex-1"
             @click="() => $router.push(`/payment/editProduct/${productId}`)"
           >
-            <NuxtIcon name="ic:outline-edit" class="mr-2" />
+            <Icon name="ic:outline-edit" class="mr-2" />
             Edit Product
           </rs-button>
           <rs-button 
@@ -198,7 +198,7 @@ onMounted(() => {
             class="flex-1"
             @click="deleteProduct"
           >
-            <NuxtIcon name="ic:outline-delete" class="mr-2" />
+            <Icon name="ic:outline-delete" class="mr-2" />
             Delete Product
           </rs-button>
         </div>

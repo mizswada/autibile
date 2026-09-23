@@ -201,7 +201,6 @@ async function generateReport() {
     await downloadDiaryReportPdf({
       title: 'Patient Diary Report',
       childName: selectedPatient.value.fullname,
-      childNickname: selectedPatient.value.nickname,
       entries: (diaryEntries.value || []).map((entry) => ({
         ...entry,
         timestamp: entry.created_at || entry.timestamp,
@@ -355,10 +354,6 @@ onMounted(loadPatientDetails);
             <div>
               <p class="text-sm font-medium text-gray-500">Full Name</p>
               <p class="text-base">{{ selectedPatient.fullname || 'N/A' }}</p>
-            </div>
-            <div>
-              <p class="text-sm font-medium text-gray-500">Nickname</p>
-              <p class="text-base">{{ selectedPatient.nickname || 'N/A' }}</p>
             </div>
             <div>
               <p class="text-sm font-medium text-gray-500">IC Number</p>

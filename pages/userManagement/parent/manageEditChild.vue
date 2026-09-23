@@ -14,7 +14,6 @@ const isSubmitting = ref(false);
 
 const form = ref({
   fullname: '',
-  nickname: '',
   gender: '',
   icNumber: '',
   dateOfBirth: '',
@@ -39,7 +38,6 @@ onMounted(async () => {
 
         form.value = {
           fullname: child.fullname || '',
-          nickname: child.nickname,
           gender: child.gender,
           icNumber: child.patient_ic,
           dateOfBirth: child.dob?.split('T')[0] ?? '',
@@ -65,7 +63,6 @@ onMounted(async () => {
 async function saveChild() {
   const requiredFields = {
     fullname: 'Full Name',
-    nickname: 'Nickname',
     gender: 'Gender',
     icNumber: 'IC Number',
     dateOfBirth: 'Date of Birth',
@@ -132,7 +129,6 @@ async function saveChild() {
 
     <div v-else>
       <FormKit type="text" v-model="form.fullname" label="Full Name" />
-      <FormKit type="text" v-model="form.nickname" label="Nickname" />
       <FormKit
         type="select"
         v-model="form.gender"

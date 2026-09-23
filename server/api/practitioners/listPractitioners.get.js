@@ -31,7 +31,6 @@ export default defineEventHandler(async (event) => {
       include: {
         user: {
           select: {
-            userUsername: true,
             userFullName: true,
             userEmail: true,
             userPhone: true,
@@ -44,7 +43,6 @@ export default defineEventHandler(async (event) => {
     const formattedPractitioners = practitioners.map(p => ({
       practitionerID: p.practitioner_id,
       userID: p.user_id,
-      username: p.user?.userUsername || '',
       fullName: p.user?.userFullName || '',
       email: p.user?.userEmail || '',
       type: p.type || '',
@@ -57,6 +55,7 @@ export default defineEventHandler(async (event) => {
       experience: p.experience_years || '',
       signature: p.signature || '',
       workplace: p.workplace || '', // Add workplace field
+      registeredAt: p.created_at || null,
       status: p.status || '',
     }));
 

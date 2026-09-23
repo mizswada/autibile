@@ -83,7 +83,7 @@ onMounted(() => {
     <header class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
       <h1 class="text-2xl font-bold mb-4 md:mb-0">Package Details</h1>
       <rs-button variant="ghost" @click="router.push('/payment/packages')" size="sm">
-        <NuxtIcon name="ic:outline-arrow-back" class="mr-1" />
+        <Icon name="ic:outline-arrow-back" class="mr-1" />
         Back to Packages
       </rs-button>
     </header>
@@ -91,7 +91,7 @@ onMounted(() => {
     <!-- Loading State -->
     <section v-if="isLoading" class="flex justify-center items-center py-12">
       <div class="text-center">
-        <NuxtIcon name="line-md:loading-twotone-loop" class="text-4xl mb-4" />
+        <Icon name="line-md:loading-twotone-loop" class="text-4xl mb-4" />
         <p>Loading package data...</p>
       </div>
     </section>
@@ -169,7 +169,7 @@ onMounted(() => {
             @click="router.push(`/payment/editPackage/${packageId}`)" 
             class="flex-1"
           >
-            <NuxtIcon name="ic:outline-edit" class="mr-2" />
+            <Icon name="ic:outline-edit" class="mr-2" />
             Edit Package
           </rs-button>
           <rs-button 
@@ -177,7 +177,7 @@ onMounted(() => {
             @click="showDeleteConfirm = true" 
             class="flex-1"
           >
-            <NuxtIcon name="ic:outline-delete" class="mr-2" />
+            <Icon name="ic:outline-delete" class="mr-2" />
             Delete Package
           </rs-button>
         </div>
@@ -189,7 +189,7 @@ onMounted(() => {
       <div v-if="showDeleteConfirm" class="fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto flex items-center justify-center px-4">
         <div class="bg-white rounded-lg p-6 max-w-md w-full">
           <div class="flex items-center mb-4">
-            <NuxtIcon name="ic:outline-warning" class="text-red-500 text-2xl mr-3" />
+            <Icon name="ic:outline-warning" class="text-red-500 text-2xl mr-3" />
             <h3 class="text-lg font-semibold">Confirm Deletion</h3>
           </div>
           <p class="text-gray-600 mb-6">
@@ -200,7 +200,7 @@ onMounted(() => {
               Cancel
             </rs-button>
             <rs-button variant="danger" @click="deletePackage" :disabled="isDeleting" class="flex-1">
-              <NuxtIcon v-if="isDeleting" name="line-md:loading-twotone-loop" class="mr-2" />
+              <Icon v-if="isDeleting" name="line-md:loading-twotone-loop" class="mr-2" />
               {{ isDeleting ? 'Deleting...' : 'Delete' }}
             </rs-button>
           </div>

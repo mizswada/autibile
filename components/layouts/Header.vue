@@ -251,44 +251,46 @@ onMounted(() => {
           </template>
         </VDropdown> -->
 
-        <VDropdown placement="bottom-end" distance="13" name="profile">
-          <button class="icon-btn profile px-2">
-            <img
-              class="w-8 h-8 object-cover rounded-full"
-              src="@/assets/img/user/user.webp"
-            />
-            <div
-              v-if="isDesktop"
-              class="grid grid-cols-1 text-left ml-3 flex-none"
-            >
-              <p class="font-semibold text-sm truncate w-24 mb-0">{{ username }}</p>
-              <span class="text-xs px-2 py-1 rounded-full {{ roleBadgeColor }}">{{ userRoleDisplay }}</span>
-            </div>
-            <Icon name="ic:outline-keyboard-arrow-down" class="ml-3" />
-          </button>
-          <template #popper>
-            <ul class="header-dropdown w-full md:w-52">
-              <li>
-                <nuxt-link
-                  to="/profile/profileEdit"
-                  class="flex items-center cursor-pointer py-2 px-4 hover:bg-[rgb(var(--bg-1))]"
-                >
-                  <Icon name="ic:outline-person" class="mr-2" />
-                  Profile
-                </nuxt-link>
-              </li>
-              <li>
-                <a
-                  href="/logout"
-                  class="flex items-center cursor-pointer py-2 px-4 hover:bg-[rgb(var(--bg-1))]"
-                >
-                  <Icon name="ic:outline-logout" class="mr-2" />
-                  Logout
-                </a>
-              </li>
-            </ul>
-          </template>
-        </VDropdown>
+        <ClientOnly>
+          <VDropdown placement="bottom-end" distance="13" name="profile">
+            <button class="icon-btn profile px-2">
+              <img
+                class="w-8 h-8 object-cover rounded-full"
+                src="@/assets/img/user/user.webp"
+              />
+              <div
+                v-if="isDesktop"
+                class="grid grid-cols-1 text-left ml-3 flex-none"
+              >
+                <p class="font-semibold text-sm truncate w-24 mb-0">{{ username }}</p>
+                <span class="text-xs px-2 py-1 rounded-full {{ roleBadgeColor }}">{{ userRoleDisplay }}</span>
+              </div>
+              <Icon name="ic:outline-keyboard-arrow-down" class="ml-3" />
+            </button>
+            <template #popper>
+              <ul class="header-dropdown w-full md:w-52">
+                <li>
+                  <nuxt-link
+                    to="/profile/profileEdit"
+                    class="flex items-center cursor-pointer py-2 px-4 hover:bg-[rgb(var(--bg-1))]"
+                  >
+                    <Icon name="ic:outline-person" class="mr-2" />
+                    Profile
+                  </nuxt-link>
+                </li>
+                <li>
+                  <a
+                    href="/logout"
+                    class="flex items-center cursor-pointer py-2 px-4 hover:bg-[rgb(var(--bg-1))]"
+                  >
+                    <Icon name="ic:outline-logout" class="mr-2" />
+                    Logout
+                  </a>
+                </li>
+              </ul>
+            </template>
+          </VDropdown>
+        </ClientOnly>
       </div>
     </div>
   </div>

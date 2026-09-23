@@ -35,7 +35,6 @@ export default defineEventHandler(async (event) => {
       include: {
         user: {
           select: {
-            userUsername: true,
             userFullName: true,
             userEmail: true,
             userPhone: true,
@@ -66,7 +65,6 @@ export default defineEventHandler(async (event) => {
     const formattedParents = parents.map(parent => ({
       parentID: parent.parent_id,
       userID: parent.user_id,
-      username: parent.user?.userUsername || '',
       fullName: parent.user?.userFullName || '',
       email: parent.user?.userEmail || '',
       phone: parent.user?.userPhone || '',
@@ -75,6 +73,7 @@ export default defineEventHandler(async (event) => {
       nationality: parent.lookup_user_parents_parent_nationalityTolookup?.title || '',
       state: parent.lookup_user_parents_parent_stateTolookup?.title || '',
       status: parent.parent_status || '',
+      registeredAt: parent.created_at || null,
 
       // Added fields from fetchEdit API
       gender: parent.parent_gender || '',

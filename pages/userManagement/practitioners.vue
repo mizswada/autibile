@@ -61,7 +61,7 @@ function cancelEdit() {
 
 // Status toggle functions
 function confirmToggleStatus(row) {
-  const original = getOriginalData(row.username);
+  const original = getOriginalData(row.userID);
   if (original) {
     pendingToggleData.value = original;
     showConfirmToggleModal.value = true;
@@ -107,7 +107,7 @@ async function performToggleStatus() {
 
 // Delete functions
 function confirmDelete(row) {
-  const original = getOriginalData(row.username);
+  const original = getOriginalData(row.userID);
   if (original) {
     pendingDeleteData.value = original;
     showDeleteModal.value = true;
@@ -147,7 +147,7 @@ async function performDelete() {
 }
 
 function openPasswordModal(row) {
-  const original = getOriginalData(row.username);
+  const original = getOriginalData(row.userID);
   if (!original?.userID) {
     alert('Unable to set password: user ID not found.');
     return;
@@ -197,7 +197,7 @@ async function savePassword() {
     });
 
     if (result.statusCode === 200) {
-      alert(`Password updated for ${passwordTarget.value.fullName || passwordTarget.value.username}. Share the new password with them securely.`);
+      alert(`Password updated for ${passwordTarget.value.fullName}. Share the new password with them securely.`);
       cancelPasswordModal();
     } else {
       passwordError.value = result.message || 'Failed to update password';
@@ -223,7 +223,6 @@ async function loadPractitioners() {
       rawData.value = response.data.map(p => ({
         practitionerID: p.practitionerID,
         userID: p.userID,
-        username: p.username || '',
         fullName: p.fullName || '',
         email: p.email || '',
         phone: p.phone || '',
@@ -235,6 +234,7 @@ async function loadPractitioners() {
         qualification: p.qualification || '',
         experience: p.experience || '',
         signature: p.signature || '',
+        registeredAt: p.registeredAt || null,
         status: p.status || '',
         workplace: p.workplace || '', // Load workplace
       }));
@@ -279,20 +279,21 @@ function getDepartmentLabel(departmentId) {
 // ✅ Only display needed fields
 const tableData = computed(() =>
   rawData.value.map(p => ({
-    username: p.username,
+    userID: p.userID,
     fullName: p.fullName,
     email: p.email,
     phone: p.phone,
     ic: p.ic,
     type: p.type,
     registrationNo: p.registrationNo,
+    registeredAt: p.registeredAt ? new Date(p.registeredAt).toLocaleDateString() : '—',
     status: p.status,
     action: 'edit'
   }))
 );
 
-function getOriginalData(username) {
-  return rawData.value.find(p => p.username === username);
+function getOriginalData(userID) {
+  return rawData.value.find(p => p.userID === userID);
 }
 
 function openAddModal() {
@@ -312,7 +313,7 @@ function openAddModal() {
 }
 
 function openEditModal(row) {
-  const original = getOriginalData(row.username);
+  const original = getOriginalData(row.userID);
   if (!original) return;
 
   form.value = {
@@ -442,13 +443,13 @@ watch(() => showModal.value, (newVal) => {
         :data="tableData" 
         :options="{ variant: 'default', striped: true, borderless: true }"
         :columns="[
-          { name: 'username', label: 'Username' },
           { name: 'fullName', label: 'Full Name' },
           { name: 'email', label: 'Email' },
           { name: 'phone', label: 'Phone' },
           { name: 'ic', label: 'IC' },
           { name: 'type', label: 'Practitioner Type' },
           { name: 'registrationNo', label: 'Registration No' },
+          { name: 'registeredAt', label: 'Registered', sortable: true },
           { name: 'status', label: 'Status', slot: true },
           { name: 'action', label: 'Actions', slot: true },
         ]" advanced>
@@ -508,8 +509,8 @@ watch(() => showModal.value, (newVal) => {
     >
       <p class="mb-4 text-sm text-gray-600">
         Set a new password for
-        <span class="font-semibold">{{ passwordTarget?.fullName || passwordTarget?.username }}</span>
-        ({{ passwordTarget?.username }}). Share it with them securely after saving.
+        <span class="font-semibold">{{ passwordTarget?.fullName }}</span>.
+        Share it with them securely after saving.
       </p>
 
       <FormKit

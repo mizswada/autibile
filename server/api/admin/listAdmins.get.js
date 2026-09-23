@@ -21,12 +21,13 @@ export default defineEventHandler(async (event) => {
       },
       select: {
         userID: true,
-        userUsername: true,
         userFullName: true,
+        userUsername: true,
         userEmail: true,
         userPhone: true,
         userIC: true,
         userStatus: true,
+        userCreatedDate: true,
         userrole: {
           select: {
             role: {
@@ -49,11 +50,12 @@ export default defineEventHandler(async (event) => {
       
       return {
         userID: user.userID,
-        username: user.userUsername,
         fullName: user.userFullName,
+        username: user.userUsername || '',
         email: user.userEmail,
         phone: user.userPhone,
         ic: user.userIC,
+        registeredAt: user.userCreatedDate || null,
         status: user.userStatus,
         role: roles
       };

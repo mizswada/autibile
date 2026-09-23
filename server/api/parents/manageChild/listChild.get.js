@@ -18,6 +18,10 @@ export default defineEventHandler(async (event) => {
       query.activeOnly === "true" ||
       query.activeOnly === "1" ||
       query.activeOnly === true;
+    const hasDiary =
+      query.hasDiary === "true" ||
+      query.hasDiary === "1" ||
+      query.hasDiary === true;
 
     const parentFilter = activeOnly
       ? activeParentWhere()
@@ -26,6 +30,7 @@ export default defineEventHandler(async (event) => {
     const childFilter = {
       deleted_at: null,
       ...(activeOnly ? { status: ACTIVE_STATUS } : {}),
+      ...(hasDiary ? { diary_report: { some: {} } } : {}),
     };
 
     let relations;
@@ -103,7 +108,7 @@ export default defineEventHandler(async (event) => {
       return {
         childID: c.patient_id,
         parentID: r.parent_id,
-        parentUsername: p.user?.userUsername || '', // <-- add parent username here
+        parentFullName: p.user?.userFullName || '', // <-- add parent full name here
         parentStatus: p.parent_status || '',
         parentCity: p.parent_city || '',
         fullname: c.fullname || '',
@@ -120,6 +125,7 @@ export default defineEventHandler(async (event) => {
         mchatrAgeRangeLabel: mchatrRangeLabel,
         okuCard: c.OKUCard,
         treatmentType: mapTreatmentType(c.treatment_type),
+        registeredAt: c.created_at || null,
       };
     });
 

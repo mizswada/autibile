@@ -48,7 +48,7 @@ export default defineEventHandler(async (event) => {
           data: {
             user_id: parseInt(userID), // parent's user ID
             fullname,
-            nickname,
+            nickname: nickname || null,
             gender,
             patient_ic: icNumber,
             dob: new Date(dateOfBirth),

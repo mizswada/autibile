@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router';
 
 const router = useRouter();
 const showStep2Modal = ref(false);
-const usernameError = ref('');
 const message = ref('');
 const messageType = ref('success');
 const togglePasswordVisibility = ref(false);
@@ -27,7 +26,6 @@ function showMessage(msg, type = 'success') {
 }
 
 const step1Form = ref({
-  username: '',
   fullname: '',
   email: '',
   ic: '',
@@ -54,20 +52,6 @@ const step2Form = ref({
 const relationshipOptions = ref([]);
 const nationalityOptions = ref([]);
 const stateOptions = ref([]);
-
-watch(() => step1Form.value.username, async (newVal) => {
-  usernameError.value = '';
-  if (!newVal) return;
-  try {
-    const res = await fetch(`/api/parents/checkUsername?username=${encodeURIComponent(newVal)}`);
-    const result = await res.json();
-    if (result.statusCode === 409) {
-      usernameError.value = 'Username already exists !';
-    }
-  } catch (err) {
-    usernameError.value = 'Could not check username';
-  }
-});
 
 watch(
   [() => step1Form.value.password, () => step1Form.value.confirmPassword],
@@ -163,7 +147,7 @@ onMounted(async () => {
 
 async function handleStep1Submit() {
   // Check for validation errors
-  if (usernameError.value || emailError.value || phoneError.value || icError.value || passwordError.value || confirmPasswordError.value) {
+  if (emailError.value || phoneError.value || icError.value || passwordError.value || confirmPasswordError.value) {
     showMessage('Please fix all validation errors before submitting.', 'error');
     return;
   }
@@ -280,16 +264,6 @@ async function submitStep2() {
 
     <!-- Step 1 Form -->
     <FormKit type="form" :actions="false">
-      <FormKit
-        type="text"
-        name="parentUsername"
-        v-model="step1Form.username"
-        label="Username"
-        validation="required"
-        placeholder="Enter Username"
-      />
-      <p v-if="usernameError" class="text-red-500 text-sm mt-1 mb-2">{{ usernameError }}</p>
-      
       <FormKit
         type="text"
         name="parentFullname"

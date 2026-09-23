@@ -413,11 +413,6 @@ const scoreInterpretation = computed(() => {
                 <div class="font-medium">{{ patientDetails?.fullname || selectedResponse.patient_name }}</div>
               </div>
               
-              <div class="mb-3" v-if="patientDetails?.nickname">
-                <div class="text-sm text-gray-500">Nickname</div>
-                <div class="font-medium">{{ patientDetails.nickname }}</div>
-              </div>
-              
               <div class="mb-3" v-if="patientDetails?.gender">
                 <div class="text-sm text-gray-500">Gender</div>
                 <div class="font-medium">{{ patientDetails.gender }}</div>

@@ -14,7 +14,6 @@ export default defineEventHandler(async (event) => {
     const body = await readBody(event);
 
     const {
-      username,
       fullname,
       email,
       ic,
@@ -23,7 +22,7 @@ export default defineEventHandler(async (event) => {
       role,
     } = body;
 
-    if (!username || !fullname || !email || !ic || !password || !role || !phone) {
+    if (!fullname || !email || !ic || !password || !role || !phone) {
       return {
         statusCode: 400,
         message: "Missing required user fields",
@@ -38,7 +37,6 @@ export default defineEventHandler(async (event) => {
     // Step 1: Create user
     const user = await prisma.user.create({
       data: {
-        userUsername: username,
         userFullName: fullname,
         userEmail: normalizeEmail(email),
         userIC: ic,
