@@ -91,7 +91,7 @@ const tableData = computed(() =>
     phone: p.phone,
     ic: p.ic,
     role: p.role,
-    registeredAt: p.registeredAt ? new Date(p.registeredAt).toLocaleDateString() : '—',
+    registeredAt: p.registeredAt ? new Date(p.registeredAt).toLocaleString() : '—',
     status: p.status,
     action: 'edit'
   }))

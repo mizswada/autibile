@@ -286,7 +286,7 @@ const tableData = computed(() =>
     ic: p.ic,
     type: p.type,
     registrationNo: p.registrationNo,
-    registeredAt: p.registeredAt ? new Date(p.registeredAt).toLocaleDateString() : '—',
+    registeredAt: p.registeredAt ? new Date(p.registeredAt).toLocaleString() : '—',
     status: p.status,
     action: 'edit'
   }))

@@ -320,6 +320,7 @@ onMounted(async () => {
         mchatrAgeRangeLabel: p.mchatrAgeRangeLabel,
         okuCard: p.okuCard === 1 ? 'Yes' : 'No',
         treatmentType: p.treatmentType || '-',
+        registeredAt: p.registeredAt || null,
       }));
     } else {
       console.error('Failed to load children:', result.message);
@@ -333,21 +334,18 @@ onMounted(async () => {
 
 const tableData = computed(() =>
   rawData.value.map(p => ({
-    parentID: p.parentID,
-    childID: p.childID,
+    // Fields in exact same order as :field array (RsTable uses positional indexing)
     parentFullName: p.parentFullName,
     fullname: p.fullname,
     childIC: p.childIC,
-    // nickname: p.nickname,
-    //autismDiagnose: p.autismDiagnose,
-    //diagnosedDate: p.diagnosedDate,
     availableSession: p.availableSession,
-    registeredAt: p.registeredAt ? new Date(p.registeredAt).toLocaleDateString() : '—',
+    registeredAt: p.registeredAt ? new Date(p.registeredAt).toLocaleString() : '—',
     status: p.status,
     mchatrStatus: p.mchatrStatus,
     okuCard: p.okuCard,
-    //treatmentType: p.treatmentType,
-    action: 'edit',
+    // IDs kept after display columns so row.value.childID/parentID still work in slots
+    parentID: p.parentID,
+    childID: p.childID,
   }))
 );
 
@@ -377,7 +375,7 @@ function getOriginalData(childID, parentID) {
       <rs-table
         v-else
         :data="tableData"
-        :columns="columns"
+        :field="['parentFullName', 'fullname', 'childIC', 'availableSession', 'registeredAt', 'status', 'mchatrStatus', 'okuCard', 'action']"
         :options="{ variant: 'default', striped: true, borderless: true }"
         :options-advanced="{ sortable: true, responsive: true, filterable: false }"
         advanced

@@ -119,7 +119,7 @@ const tableData = computed(() =>
     email: p.email,
     phoneNumber: p.phoneNumber,
     icNumber: p.icNumber,
-    registeredAt: p.registeredAt ? new Date(p.registeredAt).toLocaleDateString() : '—',
+    registeredAt: p.registeredAt ? new Date(p.registeredAt).toLocaleString() : '—',
     status: p.status,
     action: 'edit'
   }))
