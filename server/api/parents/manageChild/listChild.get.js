@@ -125,7 +125,7 @@ export default defineEventHandler(async (event) => {
         mchatrAgeRangeLabel: mchatrRangeLabel,
         okuCard: c.OKUCard,
         treatmentType: mapTreatmentType(c.treatment_type),
-        registeredAt: c.created_at || null,
+        registeredAt: c.created_at || c.update_at || null,
       };
     });
 

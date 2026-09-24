@@ -286,7 +286,7 @@ const tableData = computed(() =>
     ic: p.ic,
     type: p.type,
     registrationNo: p.registrationNo,
-    registeredAt: p.registeredAt ? new Date(p.registeredAt).toLocaleString() : '—',
+    registeredAt: p.registeredAt ? new Date(p.registeredAt).getTime() : null,
     status: p.status,
     action: 'edit'
   }))
@@ -453,6 +453,10 @@ watch(() => showModal.value, (newVal) => {
           { name: 'status', label: 'Status', slot: true },
           { name: 'action', label: 'Actions', slot: true },
         ]" advanced>
+        <template #registeredAt="row">
+          {{ row.value.registeredAt ? new Date(row.value.registeredAt).toLocaleString('en-GB') : '—' }}
+        </template>
+
         <template #status="row">
           <input
             type="checkbox"

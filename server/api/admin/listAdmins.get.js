@@ -28,6 +28,7 @@ export default defineEventHandler(async (event) => {
         userIC: true,
         userStatus: true,
         userCreatedDate: true,
+        emailVerifiedAt: true,
         userrole: {
           select: {
             role: {
@@ -55,7 +56,7 @@ export default defineEventHandler(async (event) => {
         email: user.userEmail,
         phone: user.userPhone,
         ic: user.userIC,
-        registeredAt: user.userCreatedDate || null,
+        registeredAt: user.userCreatedDate || user.emailVerifiedAt || null,
         status: user.userStatus,
         role: roles
       };

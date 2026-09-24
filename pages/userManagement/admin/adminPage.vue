@@ -91,7 +91,7 @@ const tableData = computed(() =>
     phone: p.phone,
     ic: p.ic,
     role: p.role,
-    registeredAt: p.registeredAt ? new Date(p.registeredAt).toLocaleString() : '—',
+    registeredAt: p.registeredAt ? new Date(p.registeredAt).getTime() : null,
     status: p.status,
     action: 'edit'
   }))
@@ -222,6 +222,10 @@ async function performDelete() {
         :options-advanced="{ sortable: true, responsive: true, filterable: false }"
         advanced
       >
+        <template v-slot:registeredAt="row">
+          {{ row.value.registeredAt ? new Date(row.value.registeredAt).toLocaleString('en-GB') : '—' }}
+        </template>
+
         <template v-slot:action="row">
           <div class="table-action-group">
             <!-- View Icon -->

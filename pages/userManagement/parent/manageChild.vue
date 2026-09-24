@@ -339,7 +339,7 @@ const tableData = computed(() =>
     fullname: p.fullname,
     childIC: p.childIC,
     availableSession: p.availableSession,
-    registeredAt: p.registeredAt ? new Date(p.registeredAt).toLocaleString() : '—',
+    registeredAt: p.registeredAt ? new Date(p.registeredAt).getTime() : null,
     status: p.status,
     mchatrStatus: p.mchatrStatus,
     okuCard: p.okuCard,
@@ -380,6 +380,11 @@ function getOriginalData(childID, parentID) {
         :options-advanced="{ sortable: true, responsive: true, filterable: false }"
         advanced
       >
+        <!-- SLOT for registeredAt column -->
+        <template v-slot:registeredAt="row">
+          {{ row.value.registeredAt ? new Date(row.value.registeredAt).toLocaleString('en-GB') : '—' }}
+        </template>
+
         <!-- SLOT for status column -->
         <template v-slot:status="row">
           <input
