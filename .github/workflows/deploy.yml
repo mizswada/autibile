@@ -23,6 +23,7 @@ jobs:
           command_timeout: 20m
           script: |
             set -e
+            export PATH=/root/.nvm/versions/node/v20.19.5/bin:$PATH
             cd /home/autibile
             git fetch origin deploy
             git reset --hard origin/deploy
