@@ -335,11 +335,11 @@ onMounted(async () => {
 const tableData = computed(() =>
   rawData.value.map(p => ({
     // Fields in exact same order as :field array (RsTable uses positional indexing)
+    registeredAt: p.registeredAt ? new Date(p.registeredAt).getTime() : null,
     parentFullName: p.parentFullName,
     fullname: p.fullname,
     childIC: p.childIC,
     availableSession: p.availableSession,
-    registeredAt: p.registeredAt ? new Date(p.registeredAt).getTime() : null,
     status: p.status,
     mchatrStatus: p.mchatrStatus,
     okuCard: p.okuCard,
@@ -375,7 +375,7 @@ function getOriginalData(childID, parentID) {
       <rs-table
         v-else
         :data="tableData"
-        :field="['parentFullName', 'fullname', 'childIC', 'availableSession', 'registeredAt', 'status', 'mchatrStatus', 'okuCard', 'action']"
+        :field="['registeredAt', 'parentFullName', 'fullname', 'childIC', 'availableSession', 'status', 'mchatrStatus', 'okuCard', 'action']"
         :options="{ variant: 'default', striped: true, borderless: true }"
         :options-advanced="{ sortable: true, responsive: true, filterable: false }"
         advanced

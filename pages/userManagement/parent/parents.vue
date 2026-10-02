@@ -114,14 +114,13 @@ const columns = [
 
 const tableData = computed(() =>
   rawData.value.map(p => ({
-    userID: p.userID,
+    registeredAt: p.registeredAt ? new Date(p.registeredAt).getTime() : null,
     fullName: p.fullName,
     email: p.email,
     phoneNumber: p.phoneNumber,
     icNumber: p.icNumber,
-    registeredAt: p.registeredAt ? new Date(p.registeredAt).getTime() : null,
     status: p.status,
-    action: 'edit'
+    userID: p.userID,
   }))
 );
 
@@ -310,7 +309,7 @@ async function savePassword() {
       <rs-table
         v-else
         :data="tableData"
-        :columns="columns"
+        :field="['registeredAt', 'fullName', 'email', 'phoneNumber', 'icNumber', 'status', 'action']"
         :options="{ variant: 'default', striped: true, borderless: true }"
         :options-advanced="{ sortable: true, responsive: true, filterable: false }"
         advanced

@@ -276,19 +276,17 @@ function getDepartmentLabel(departmentId) {
   return department ? department.label : departmentId;
 }
 
-// ✅ Only display needed fields
 const tableData = computed(() =>
   rawData.value.map(p => ({
-    userID: p.userID,
+    registeredAt: p.registeredAt ? new Date(p.registeredAt).getTime() : null,
     fullName: p.fullName,
     email: p.email,
     phone: p.phone,
     ic: p.ic,
     type: p.type,
     registrationNo: p.registrationNo,
-    registeredAt: p.registeredAt ? new Date(p.registeredAt).getTime() : null,
     status: p.status,
-    action: 'edit'
+    userID: p.userID,
   }))
 );
 
@@ -439,20 +437,12 @@ watch(() => showModal.value, (newVal) => {
     </div>
 
     <rs-card v-else class="p-4">
-      <rs-table 
-        :data="tableData" 
+      <rs-table
+        :data="tableData"
+        :field="['registeredAt', 'fullName', 'email', 'phone', 'ic', 'type', 'registrationNo', 'status', 'action']"
         :options="{ variant: 'default', striped: true, borderless: true }"
-        :columns="[
-          { name: 'fullName', label: 'Full Name' },
-          { name: 'email', label: 'Email' },
-          { name: 'phone', label: 'Phone' },
-          { name: 'ic', label: 'IC' },
-          { name: 'type', label: 'Practitioner Type' },
-          { name: 'registrationNo', label: 'Registration No' },
-          { name: 'registeredAt', label: 'Registered', sortable: true },
-          { name: 'status', label: 'Status', slot: true },
-          { name: 'action', label: 'Actions', slot: true },
-        ]" advanced>
+        :options-advanced="{ sortable: true, responsive: true, filterable: false }"
+        advanced>
         <template #registeredAt="row">
           {{ row.value.registeredAt ? new Date(row.value.registeredAt).toLocaleString('en-GB') : '—' }}
         </template>

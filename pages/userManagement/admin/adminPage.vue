@@ -82,18 +82,16 @@ const columns = [
   { name: 'action', label: 'Actions', slot: true }
 ];
 
-// ✅ tableData with only display columns
 const tableData = computed(() =>
   rawData.value.map(p => ({
-    userID: p.userID,
+    registeredAt: p.registeredAt ? new Date(p.registeredAt).getTime() : null,
     fullName: p.fullName,
     email: p.email,
     phone: p.phone,
     ic: p.ic,
     role: p.role,
-    registeredAt: p.registeredAt ? new Date(p.registeredAt).getTime() : null,
     status: p.status,
-    action: 'edit'
+    userID: p.userID,
   }))
 );
 
@@ -217,7 +215,7 @@ async function performDelete() {
       <rs-table
         v-else
         :data="tableData"
-        :columns="columns"
+        :field="['registeredAt', 'fullName', 'email', 'phone', 'ic', 'role', 'status', 'action']"
         :options="{ variant: 'default', striped: true, borderless: true }"
         :options-advanced="{ sortable: true, responsive: true, filterable: false }"
         advanced
