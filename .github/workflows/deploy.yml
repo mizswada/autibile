@@ -27,6 +27,5 @@ jobs:
             cd /home/autibile
             git fetch origin deploy
             git reset --hard origin/deploy
-            yarn install --frozen-lockfile
             NODE_OPTIONS="--max-old-space-size=4096" yarn build
             pm2 restart autibile
