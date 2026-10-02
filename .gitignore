@@ -8,3 +8,8 @@ node_modules
 dist
 sw.*
 prisma/json/
+
+# Signing keys & certificates — never commit these
+*.keystore
+*.jks
+*.pem
