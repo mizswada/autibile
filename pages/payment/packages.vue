@@ -129,7 +129,7 @@ onMounted(() => {
 
       <section v-else-if="packages.length === 0" class="flex justify-center items-center py-12">
         <div class="text-center text-gray-500">
-          <Icon name="ic:outline-package" class="text-4xl mb-4" />
+          <Icon name="ic:outline-inventory-2" class="text-4xl mb-4" />
           <p>No packages found</p>
           <NuxtLink to="/payment/createPackage">
             <rs-button class="mt-4">

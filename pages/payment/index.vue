@@ -104,7 +104,7 @@ onMounted(() => {
             <div class="flex space-x-2">
             <NuxtLink to="/payment/packages">
                 <rs-button variant="primary">
-                <Icon name="ic:outline-package" class="mr-1" />
+                <Icon name="ic:outline-inventory-2" class="mr-1" />
                 View Packages
                 </rs-button>
             </NuxtLink>
