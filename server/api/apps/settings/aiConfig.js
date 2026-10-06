@@ -1,17 +1,21 @@
 import CryptoJS from 'crypto-js'
 
 export default defineEventHandler(async (event) => {
-  const { user } = event.context
-  if (!user) {
+  const method = event.node.req.method
+
+  // Reading needs a logged-in admin; changing also needs the admin to have
+  // unlocked the settings with their own email and password.
+  const access = await requireAiSettingsAccess(event, { unlocked: method === 'POST' })
+  if (!access.ok) {
     return {
-      statusCode: 401,
-      message: 'Unauthorized'
+      statusCode: access.statusCode,
+      message: access.message
     }
   }
 
-  if (event.node.req.method === 'GET') {
+  if (method === 'GET') {
     return handleGet()
-  } else if (event.node.req.method === 'POST') {
+  } else if (method === 'POST') {
     const body = await readBody(event)
     return handlePost(body)
   }
@@ -75,6 +79,23 @@ async function handlePost(body) {
       }
     }
 
+    if (apiUrl !== undefined && apiUrl !== '' && !/^https?:\/\//i.test(String(apiUrl).trim())) {
+      return {
+        statusCode: 400,
+        message: 'API URL must start with http:// or https://'
+      }
+    }
+
+    if (timeoutMs !== undefined) {
+      const timeout = Number(timeoutMs)
+      if (!Number.isInteger(timeout) || timeout < 1000 || timeout > 60000) {
+        return {
+          statusCode: 400,
+          message: 'Timeout must be a whole number between 1000 and 60000 milliseconds'
+        }
+      }
+    }
+
     const updates = []
 
     if (enabled !== undefined) {
@@ -107,7 +128,8 @@ async function handlePost(body) {
       )
     }
 
-    if (apiKey !== undefined && apiKey !== '***SET***') {
+    // A blank key never overwrites the stored one.
+    if (typeof apiKey === 'string' && apiKey.trim() !== '' && apiKey !== '***SET***') {
       const encrypted = CryptoJS.AES.encrypt(apiKey, encryptionKey).toString()
       updates.push(
         prisma.app_settings.upsert({

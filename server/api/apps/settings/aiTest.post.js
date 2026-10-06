@@ -1,9 +1,10 @@
 export default defineEventHandler(async (event) => {
-  const { user } = event.context
-  if (!user) {
+  // Testing sends the stored key to the configured URL, so it needs the unlock too.
+  const access = await requireAiSettingsAccess(event, { unlocked: true })
+  if (!access.ok) {
     return {
-      statusCode: 401,
-      message: 'Unauthorized'
+      statusCode: access.statusCode,
+      message: access.message
     }
   }
 
