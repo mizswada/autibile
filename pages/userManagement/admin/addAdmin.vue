@@ -79,7 +79,7 @@ watch(() => form.value.ic, (newVal) => {
   if (!newVal) return;
   
   if (newVal.toString().length !== 12) {
-    icError.value = 'IC number must be exactly 12 digits';
+    icError.value = 'MyKad number must be exactly 12 digits';
   }
 });
 
@@ -286,9 +286,9 @@ function isRoleSelected(roleId) {
           type="text"
           name="adminIC"
           v-model="form.ic"
-          label="IC Number *"
+          label="MyKad / Passport *"
           validation="required"
-          placeholder="Enter IC number (12 digits)"
+          placeholder="Enter MyKad number (12 digits)"
         />
         <p v-if="icError" class="text-red-500 text-xs mt-1">{{ icError }}</p>
       </div>

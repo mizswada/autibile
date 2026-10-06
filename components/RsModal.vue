@@ -87,6 +87,12 @@ watch(
     else document.body.style.overflow = "auto";
   }
 );
+
+// A modal removed while still open (e.g. the page changes) must not leave the
+// whole page unscrollable.
+onBeforeUnmount(() => {
+  if (props.modelValue) document.body.style.overflow = "auto";
+});
 </script>
 
 <template>

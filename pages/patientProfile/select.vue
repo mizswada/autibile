@@ -252,7 +252,7 @@ function getStatusColor(status) {
 
           <div class="mt-4 pt-4 border-t border-gray-100">
             <div class="flex justify-between items-center">
-              <span class="text-xs text-gray-500">Parent: {{ patient.parentUsername || 'N/A' }}</span>
+              <span class="text-xs text-gray-500">Parent: {{ patient.parentFullName || 'N/A' }}</span>
               <rs-button variant="primary" size="sm">
                 <Icon name="material-symbols:visibility" class="mr-1" />
                 View Profile

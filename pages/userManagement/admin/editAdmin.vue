@@ -203,12 +203,12 @@ function isRoleSelected(roleId) {
           />
         </div>
 
-        <!-- IC Number -->
+        <!-- MyKad / Passport -->
         <div>
           <FormKit
             type="text"
             v-model="form.ic"
-            label="IC Number *"
+            label="MyKad / Passport *"
             validation="required"
           />
         </div>

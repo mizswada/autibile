@@ -75,7 +75,7 @@ const columns = [
   { name: 'fullName', label: 'Full Name' },
   { name: 'email', label: 'Email' },
   { name: 'phone', label: 'Phone' },
-  { name: 'ic', label: 'IC' },
+  { name: 'ic', label: 'MyKad / Passport' },
   { name: 'role', label: 'Role' },
   { name: 'registeredAt', label: 'Registered', sortable: true },
   { name: 'status', label: 'Status', slot: true },
@@ -216,6 +216,7 @@ async function performDelete() {
         v-else
         :data="tableData"
         :field="['registeredAt', 'fullName', 'email', 'phone', 'ic', 'role', 'status', 'action']"
+        :column-labels="{ ic: 'MyKad / Passport' }"
         :options="{ variant: 'default', striped: true, borderless: true }"
         :options-advanced="{ sortable: true, responsive: true, filterable: false }"
         advanced
@@ -349,7 +350,7 @@ async function performDelete() {
         { label: 'Full Name', key: 'fullName', value: viewData.fullName },
         { label: 'Email', key: 'email', value: viewData.email },
         { label: 'Phone', key: 'phone', value: viewData.phone },
-        { label: 'IC', key: 'ic', value: viewData.ic },
+        { label: 'MyKad / Passport', key: 'ic', value: viewData.ic },
       ]" :key="field.key" class="flex flex-col gap-1">
         <label class="text-gray-600 text-sm">{{ field.label }}</label>
         <div class="bg-gray-50 border border-gray-200 rounded px-3 py-2">

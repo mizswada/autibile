@@ -214,7 +214,7 @@ onMounted(async () => {
       
       <rs-table
         :data="services"
-        :columns="columns"
+        :column-labels="{ no: 'No', name: 'Service Name', description: 'Description', center_name: 'Therapy Center', action: 'Action' }"
         :options="{
           variant: 'default',
           striped: true,

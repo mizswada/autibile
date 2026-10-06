@@ -300,8 +300,8 @@ function togglePasswordVisibility() {
               type="text"
               v-model="profile.ic"
               name="ic"
-              label="IC Number"
-              placeholder="Enter your IC number"
+              label="MyKad / Passport"
+              placeholder="Enter your MyKad / Passport number"
               disabled
             />
             

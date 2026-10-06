@@ -383,7 +383,7 @@ function handleMchatrFNavigateBack() {
                 :key="patient.childID" 
                 :value="patient.childID"
               >
-                {{ patient.fullname }} (Parent: {{ patient.parentUsername }})
+                {{ patient.fullname }}<template v-if="patient.parentFullName"> (Parent: {{ patient.parentFullName }})</template>
               </option>
             </select>
           </div>

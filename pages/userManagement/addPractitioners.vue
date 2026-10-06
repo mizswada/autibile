@@ -106,7 +106,7 @@ watch(() => step1Form.value.ic, (newVal) => {
   if (!newVal) return;
   
   if (newVal.toString().length !== 12) {
-    icError.value = 'IC number must be exactly 12 digits';
+    icError.value = 'MyKad number must be exactly 12 digits';
   }
 });
 
@@ -201,8 +201,8 @@ async function handleStep1Submit() {
   
   // Validate IC
   if (step1Form.value.ic.toString().length !== 12) {
-    icError.value = 'IC number must be exactly 12 digits';
-    showMessage('IC number must be exactly 12 digits.', 'error');
+    icError.value = 'MyKad number must be exactly 12 digits';
+    showMessage('MyKad number must be exactly 12 digits.', 'error');
     return;
   }
   
@@ -421,7 +421,7 @@ function removeFile() {
               type="text"
               name="ic"
               v-model="step1Form.ic"
-              label="IC / MyKid / Passport"
+              label="MyKad / Passport"
               validation="required"
               placeholder="Enter identification number"
             />

@@ -14,6 +14,11 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  // Optional header text per field key, e.g. { ic: "MyKad / Passport" }
+  columnLabels: {
+    type: Object,
+    default: () => ({}),
+  },
   data: {
     type: Array,
     default: () => [],
@@ -114,6 +119,8 @@ const camelCasetoTitle = (str, exclusions = []) => {
     });
   }
 };
+
+const columnTitle = (key) => props.columnLabels?.[key] ?? camelCasetoTitle(key);
 
 const spacingCharactertoCamelCase = (array) => {
   // Loop array string and convert to camel case
@@ -528,7 +535,7 @@ const computedColumnTitle = computed(() => {
         v-if="optionsAdvanced.filterable"
       >
         <rs-dropdown
-          :title="camelCasetoTitle(val)"
+          :title="columnTitle(val)"
           size="sm"
           class="mt-3"
           v-for="(val, index) in dataTitle"
@@ -555,7 +562,7 @@ const computedColumnTitle = computed(() => {
           v-for="(val, index) in filterComputed"
           :key="index"
         >
-          {{ val ? camelCasetoTitle(val.title) : "" }}
+          {{ val ? columnTitle(val.title) : "" }}
           <Icon
             name="ic:round-close"
             class="mr-0 md:mr-1 hover:text-red-500 cursor-pointer"
@@ -622,7 +629,7 @@ const computedColumnTitle = computed(() => {
                 v-for="(val, index) in computedColumnTitle"
                 :key="index"
               >
-                {{ camelCasetoTitle(val) }}
+                {{ columnTitle(val) }}
                 <div
                   v-if="optionsAdvanced.sortable && advanced"
                   class="sortable"
@@ -742,7 +749,7 @@ const computedColumnTitle = computed(() => {
                   :key="index1"
                 >
                   <span>
-                    {{ camelCasetoTitle(val1[0]) }}
+                    {{ columnTitle(val1[0]) }}
                   </span>
                   <span>
                     {{ val1[1] }}
@@ -757,8 +764,8 @@ const computedColumnTitle = computed(() => {
     <div v-if="advanced" class="table-footer">
       <div class="flex justify-center items-center gap-x-2">
         <span class="text-sm text-[rgb(var(--text-color))] hidden md:block"
-          >Showing {{ pageSize * currentPage - pageSize + 1 }} to
-          {{ pageSize * currentPage }} of {{ totalEntries }} entries</span
+          >Showing {{ totalEntries === 0 ? 0 : pageSize * currentPage - pageSize + 1 }} to
+          {{ Math.min(pageSize * currentPage, totalEntries) }} of {{ totalEntries }} entries</span
         >
       </div>
       <div class="table-footer-page">

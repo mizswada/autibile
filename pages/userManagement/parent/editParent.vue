@@ -132,7 +132,7 @@ async function updateParent() {
     <FormKit type="form" :actions="false">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <FormKit type="text" v-model="form.fullName" label="Full Name" validation="required" />
-        <FormKit type="text" v-model="form.ic" label="IC Number" validation="required" />
+        <FormKit type="text" v-model="form.ic" label="MyKad / Passport" validation="required" />
         <FormKit type="email" v-model="form.email" label="Email" validation="required|email" />
         <FormKit type="text" v-model="form.phone" label="Phone" validation="required" />
         <FormKit

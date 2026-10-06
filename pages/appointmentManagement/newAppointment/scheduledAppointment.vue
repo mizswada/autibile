@@ -99,6 +99,8 @@ const syncCalendarEventsFromRawData = () => {
       practitioner_name: appt.practitionerName,
       service_name: appt.serviceName,
       time_slot: appt.timeSlot,
+      start_time: appt.startTime,
+      end_time: appt.endTime,
       status: appt.status,
       patient_id: appt.patientId,
       practitioner_id: appt.practitionerId,
@@ -142,6 +144,8 @@ function handleEventClick(info) {
       date: new Date(eventData.start).toLocaleDateString(),
       originalDate: eventData.start.toISOString(),
       timeSlot: extendedProps.time_slot || 'Unknown Time',
+      startTime: extendedProps.start_time || '',
+      endTime: extendedProps.end_time || '',
       status: extendedProps.status || 36,
       patientId: extendedProps.patient_id,
       practitionerId: extendedProps.practitioner_id,
@@ -1171,6 +1175,38 @@ const editAppointment = (id) => {
   }
 };
 
+// "Edit" button inside the calendar's Appointment Details pop-up
+function openEditFromDetails() {
+  const id = selectedAppointment.value?.id;
+  showDetailsModal.value = false;
+  if (id !== undefined && id !== null) editAppointment(id);
+}
+
+// Deep link: .../scheduledAppointment?editId=<appointment id> opens that
+// appointment's edit form once the appointments and form options have loaded.
+const route = useRoute();
+const router = useRouter();
+const pendingEditId = ref(route.query.editId ? Number(route.query.editId) : null);
+
+watch(
+  [appointmentsData, optionsData],
+  ([appointments, options]) => {
+    if (!pendingEditId.value || !appointments || !options) return;
+    const id = pendingEditId.value;
+    pendingEditId.value = null;
+
+    if (getOriginalData(id)) {
+      editAppointment(id);
+    } else {
+      errorMessage.value = "That appointment could not be found. It may have been deleted.";
+    }
+
+    const { editId, ...otherQuery } = route.query;
+    router.replace({ query: otherQuery });
+  },
+  { immediate: true },
+);
+
 // Save edited appointment
 const saveEditedAppointment = async () => {
   try {
@@ -1374,7 +1410,8 @@ const saveComment = async () => {
 
 // Helper function to get original data from ID
 function getOriginalData(id) {
-  return rawData.value.find(appt => appt.id === id);
+  // FullCalendar event ids are strings while API ids are numbers
+  return rawData.value.find(appt => String(appt.id) === String(id));
 }
 
 // Function to extract only the time part from the time slot string
@@ -2479,6 +2516,10 @@ const validatePatientData = (patient) => {
               />
               <span v-if="printingAppointmentId === selectedAppointment.id">Generating PDF...</span>
               <span v-else>Download PDF</span>
+            </rs-button>
+            <rs-button variant="primary-outline" @click="openEditFromDetails">
+              <Icon name="material-symbols:edit-outline-rounded" size="18" class="mr-1" />
+              Edit
             </rs-button>
             <rs-button
               v-if="selectedAppointment.status !== 37"

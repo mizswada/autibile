@@ -877,7 +877,7 @@ async function printReferralLetter(referral) {
               <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 mb-4">
                 <div class="flex"><span class="font-medium w-32 text-left">Full Name</span><span class="mx-2">:</span><span>{{ parentDetails.fullName }}</span></div>
                 <div class="flex"><span class="font-medium w-32 text-left">Email</span><span class="mx-2">:</span><span>{{ parentDetails.email }}</span></div>
-                <div class="flex"><span class="font-medium w-32 text-left">IC</span><span class="mx-2">:</span><span>{{ parentDetails.ic }}</span></div>
+                <div class="flex"><span class="font-medium w-32 text-left">MyKad / Passport</span><span class="mx-2">:</span><span>{{ parentDetails.ic }}</span></div>
                 <div class="flex"><span class="font-medium w-32 text-left">Phone</span><span class="mx-2">:</span><span>{{ parentDetails.phone }}</span></div>
                 <div class="flex"><span class="font-medium w-32 text-left">Relationship</span><span class="mx-2">:</span><span>{{ parentDetails.relationship }}</span></div>
                 <div class="flex"><span class="font-medium w-32 text-left">Gender</span><span class="mx-2">:</span><span>{{ parentDetails.gender }}</span></div>
