@@ -28,6 +28,12 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    // A name must be unique across packages and products
+    const nameConflict = await findCatalogNameConflict(productName);
+    if (nameConflict) {
+      return { statusCode: 409, message: catalogNameConflictMessage(productName, nameConflict) };
+    }
+
     // Create product
     const product = await prisma.products.create({
       data: {

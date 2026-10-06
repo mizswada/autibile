@@ -110,7 +110,15 @@ const adminNavigation = [
           {
             title: "Payment History",
             path: "/payment/history",
-          }
+          },
+          {
+            title: "Packages",
+            path: "/payment/packages",
+          },
+          {
+            title: "Products",
+            path: "/payment/products",
+          },
         ],
       },
       {

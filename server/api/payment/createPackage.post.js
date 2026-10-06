@@ -53,6 +53,12 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    // A name must be unique across packages and products
+    const nameConflict = await findCatalogNameConflict(packageName);
+    if (nameConflict) {
+      return { statusCode: 409, message: catalogNameConflictMessage(packageName, nameConflict) };
+    }
+
     // Create package record
     const packageData = await prisma.renamedpackage.create({
       data: {

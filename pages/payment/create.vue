@@ -36,14 +36,14 @@ const invoiceTypeOptions = computed(() => {
   // Add package names
   packages.value.forEach(pkg => {
     if (pkg.status === 'Active') {
-      options.push({ label: pkg.package_name, value: pkg.package_name });
+      options.push({ label: `${pkg.package_name} (Package)`, value: pkg.package_name });
     }
   });
   
   // Add product names
   products.value.forEach(product => {
     if (product.status === 'Active') {
-      options.push({ label: product.product_name, value: product.product_name });
+      options.push({ label: `${product.product_name} (Product)`, value: product.product_name });
     }
   });
   
@@ -294,7 +294,7 @@ const saveInvoice = async () => {
           :options="[
             { label: '-- Please select --', value: '' },
             ...patients.map(p => ({ 
-              label: `${p.fullname} (${p.parentUsername})`, 
+              label: p.parentFullName ? `${p.fullname} (${p.parentFullName})` : p.fullname, 
               value: p.childID.toString() 
             }))
           ]"
@@ -332,6 +332,10 @@ const saveInvoice = async () => {
             <div><span class="font-medium">Amount:</span> RM {{ selectedPackage.amount }}</div>
             <div><span class="font-medium">Status:</span> {{ selectedPackage.status }}</div>
           </div>
+          <p class="text-xs text-blue-700 mt-2">
+            The sessions and amount come from the package.
+            <NuxtLink :to="`/payment/editPackage/${selectedPackage.package_id}`" class="underline font-medium">Edit this package</NuxtLink>
+          </p>
         </div>
 
         <!-- Product Info (shown when a product is selected) -->

@@ -431,10 +431,10 @@ export const buildDocumentHtml = (opts) => {
           </div>
         </div>
 
-        <div class="terms">
+        ${terms.length ? `<div class="terms">
           <div class="terms-title">Terms &amp; Conditions</div>
           <ul>${termsHtml}</ul>
-        </div>
+        </div>` : ''}
 
         <div class="footer">
           <p>Thank you for choosing <strong>${COMPANY_INFO.name}</strong>.</p>
@@ -454,7 +454,6 @@ export const buildInvoiceDocOptions = (invoice) => ({
   metaRows: [
     { label: 'Invoice No', value: formatInvoiceId(invoice.invoice_id) },
     { label: 'Sales Date', value: formatDate(invoice.date) },
-    { label: 'Due Date', value: formatDate(invoice.due_date) },
     { label: 'Issued Date', value: new Date().toLocaleDateString('en-MY') },
   ],
   statusBadge: { text: invoice.status, paid: invoice.status === 'Paid' },
@@ -471,11 +470,7 @@ export const buildInvoiceDocOptions = (invoice) => ({
   ],
   grandTotal: `RM ${formatPrice(invoice.amount)}`,
   paymentInfo: null,
-  terms: [
-    'Payment is due within 30 days of the invoice date.',
-    'Late payments may incur additional charges.',
-    'This is a computer generated invoice.',
-  ],
+  terms: [],
   remark: 'This is a computer generated invoice. No signature required.',
 });
 
@@ -516,11 +511,7 @@ export const buildReceiptDocOptions = (payment) => {
     ],
     grandTotal: `RM ${formatPrice(payment.amount)}`,
     paymentInfo,
-    terms: [
-      'This receipt confirms that payment has been received in full.',
-      'Please retain this receipt for your records.',
-      'This is a computer generated receipt.',
-    ],
+    terms: [],
     remark: 'Payment received with thanks. No signature required.',
   };
 };
@@ -800,6 +791,7 @@ export const renderDocumentPdf = async (jsPDF, opts) => {
 
   // ---- Terms ----
   const terms = opts.terms || [];
+  if (terms.length) {
   y = ensureSpace(y, 12 + terms.length * 4);
   setDraw(border);
   pdf.setLineWidth(0.3);
@@ -819,6 +811,7 @@ export const renderDocumentPdf = async (jsPDF, opts) => {
     y += lines.length * 3.6;
   });
   y += 8;
+  }
 
   // ---- Footer ----
   y = ensureSpace(y, 18);

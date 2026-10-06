@@ -36,6 +36,13 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    const nameConflict = await findCatalogNameConflict(productName, {
+      excludeProductId: productId,
+    });
+    if (nameConflict) {
+      return { statusCode: 409, message: catalogNameConflictMessage(productName, nameConflict) };
+    }
+
     // Check if product exists
     const existingProduct = await prisma.products.findFirst({
       where: {

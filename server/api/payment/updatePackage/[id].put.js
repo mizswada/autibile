@@ -64,6 +64,13 @@ export default defineEventHandler(async (event) => {
     }
 
     // Check if package exists
+    const nameConflict = await findCatalogNameConflict(packageName, {
+      excludePackageId: parseInt(packageId),
+    });
+    if (nameConflict) {
+      return { statusCode: 409, message: catalogNameConflictMessage(packageName, nameConflict) };
+    }
+
     const existingPackage = await prisma.renamedpackage.findFirst({
       where: {
         package_id: parseInt(packageId),

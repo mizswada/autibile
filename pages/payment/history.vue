@@ -533,7 +533,6 @@ const pageNumbers = computed(() => {
                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Patient</th>
                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Description</th>
                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Issue Date</th>
-                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Due Date</th>
                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Amount</th>
                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Status</th>
                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Actions</th>
@@ -545,7 +544,6 @@ const pageNumbers = computed(() => {
                 <td class="px-6 py-4 whitespace-nowrap">{{ invoice.patient_name }}</td>
                 <td class="px-6 py-4">{{ invoice.description }}</td>
                 <td class="px-6 py-4 whitespace-nowrap">{{ formatDate(invoice.date) }}</td>
-                <td class="px-6 py-4 whitespace-nowrap">{{ formatDate(invoice.due_date) }}</td>
                 <td class="px-6 py-4 whitespace-nowrap">RM {{ formatPrice(invoice.amount) }}</td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <rs-badge :variant="invoice.status === 'Paid' ? 'success' : 'warning'">
@@ -761,10 +759,6 @@ const pageNumbers = computed(() => {
           <div>
             <p class="text-sm text-gray-500">Issue Date</p>
             <p class="font-medium">{{ formatDate(selectedInvoice.date) }}</p>
-          </div>
-          <div>
-            <p class="text-sm text-gray-500">Due Date</p>
-            <p class="font-medium">{{ formatDate(selectedInvoice.due_date) }}</p>
           </div>
           <div class="md:col-span-2">
             <p class="text-sm text-gray-500">Description</p>

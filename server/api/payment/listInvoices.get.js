@@ -113,7 +113,6 @@ export default defineEventHandler(async (event) => {
         description: invoice.description,
         amount: invoice.amount,
         date: invoice.date,
-        due_date: invoice.date ? new Date(invoice.date.getTime() + 30 * 24 * 60 * 60 * 1000) : null, // 30 days from invoice date
         status: invoice.status,
         payment_date: latestPayment?.created_at || null,
         payment_method: latestPayment?.method || null,
