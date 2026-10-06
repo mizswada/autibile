@@ -27,5 +27,6 @@ jobs:
             cd /home/autibile
             git fetch origin deploy
             git reset --hard origin/deploy
+            npx --no-install prisma generate
             NODE_OPTIONS="--max-old-space-size=4096" yarn build
             pm2 restart autibile

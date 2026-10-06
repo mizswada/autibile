@@ -625,3 +625,19 @@ model ai_analysis_results {
   @@index([qr_id], map: "qr_id")
   @@index([questionnaire_id], map: "questionnaire_id")
 }
+
+model user_deletion_audit {
+  audit_id           Int      @id @default(autoincrement())
+  deleted_user_id    Int
+  deleted_user_name  String?  @db.VarChar(255)
+  deleted_user_email String?  @db.VarChar(255)
+  deleted_roles      String?  @db.VarChar(255)
+  admin_user_id      Int
+  admin_email        String?  @db.VarChar(255)
+  ip                 String?  @db.VarChar(64)
+  counts             String?  @db.Text
+  created_at         DateTime @default(now()) @db.Timestamp(0)
+
+  @@index([deleted_user_id], map: "idx_user_deletion_audit_deleted_user")
+  @@index([admin_user_id], map: "idx_user_deletion_audit_admin")
+}

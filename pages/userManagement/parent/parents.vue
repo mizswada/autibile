@@ -17,6 +17,23 @@ const showDeleteModal = ref(false);
 const pendingDeleteData = ref(null);
 const isDeleting = ref(false);
 
+// Permanent (hard) delete of an Inactive account, with triple confirmation
+const showHardDeleteModal = ref(false);
+const hardDeleteTarget = ref(null);
+
+function isInactiveRow(row) {
+  return String(row?.status || '').toLowerCase() === 'inactive';
+}
+
+function openHardDelete(row) {
+  hardDeleteTarget.value = { userID: row.userID, name: row.fullName };
+  showHardDeleteModal.value = true;
+}
+
+function onHardDeleted(userID) {
+  rawData.value = rawData.value.filter(p => p.userID !== userID);
+}
+
 // Set password (admin reset for forgotten passwords)
 const showPasswordModal = ref(false);
 const passwordTarget = ref(null);
@@ -106,7 +123,7 @@ const columns = [
   { name: 'fullName', label: 'Full Name' },
   { name: 'email', label: 'Email' },
   { name: 'phoneNumber', label: 'Phone' },
-  { name: 'icNumber', label: 'IC' },
+  { name: 'icNumber', label: 'MyKad / Passport' },
   { name: 'registeredAt', label: 'Registered', sortable: true },
   { name: 'status', label: 'Status' },
   { name: 'action', label: 'Actions' }
@@ -310,6 +327,7 @@ async function savePassword() {
         v-else
         :data="tableData"
         :field="['registeredAt', 'fullName', 'email', 'phoneNumber', 'icNumber', 'status', 'action']"
+        :column-labels="{ icNumber: 'MyKad / Passport' }"
         :options="{ variant: 'default', striped: true, borderless: true }"
         :options-advanced="{ sortable: true, responsive: true, filterable: false }"
         advanced
@@ -381,6 +399,17 @@ async function savePassword() {
               @click="() => confirmDelete(row.value)"
             >
               <Icon name="material-symbols:delete-outline" size="22" />
+            </button>
+
+            <!-- Permanent Delete Icon (Inactive accounts only) -->
+            <button
+              v-if="isInactiveRow(row.value)"
+              type="button"
+              class="table-action-icon table-action-icon--danger"
+              title="Permanently delete (cannot be undone)"
+              @click="() => openHardDelete(row.value)"
+            >
+              <Icon name="material-symbols:delete-forever-outline" size="22" />
             </button>
           </div>
         </template>
@@ -521,7 +550,7 @@ async function savePassword() {
       <div v-for="field in [
         { label: 'Full Name', key: 'fullName', value: viewData.fullName },
         { label: 'Email', key: 'email', value: viewData.email },
-        { label: 'IC', key: 'ic', value: viewData.ic },
+        { label: 'MyKad / Passport', key: 'ic', value: viewData.ic },
         { label: 'Phone', key: 'phone', value: viewData.phone },
         { label: 'Relationship', key: 'relationship', value: viewData.relationship },
         { label: 'Gender', key: 'gender', value: viewData.gender },
@@ -561,6 +590,12 @@ async function savePassword() {
       <rs-button @click="showViewModal = false">Close</rs-button>
     </template>
   </rs-modal>
+
+  <HardDeleteUserModal
+    v-model="showHardDeleteModal"
+    :target="hardDeleteTarget"
+    @deleted="onHardDeleted"
+  />
 
   </div>
 </template>

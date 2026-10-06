@@ -2353,6 +2353,60 @@
           "$ref": "#/definitions/questionnaires_responds"
         }
       }
+    },
+    "user_deletion_audit": {
+      "type": "object",
+      "properties": {
+        "audit_id": {
+          "type": "integer"
+        },
+        "deleted_user_id": {
+          "type": "integer"
+        },
+        "deleted_user_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "deleted_user_email": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "deleted_roles": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "admin_user_id": {
+          "type": "integer"
+        },
+        "admin_email": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ip": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "counts": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
     }
   },
   "type": "object",
@@ -2461,6 +2515,9 @@
     },
     "ai_analysis_results": {
       "$ref": "#/definitions/ai_analysis_results"
+    },
+    "user_deletion_audit": {
+      "$ref": "#/definitions/user_deletion_audit"
     }
   }
 }

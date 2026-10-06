@@ -19,6 +19,23 @@ const showDeleteModal = ref(false);
 const pendingDeleteData = ref(null);
 const isDeleting = ref(false);
 
+// Permanent (hard) delete of an Inactive account, with triple confirmation
+const showHardDeleteModal = ref(false);
+const hardDeleteTarget = ref(null);
+
+function isInactiveRow(row) {
+  return String(row?.status || '').toLowerCase() === 'inactive';
+}
+
+function openHardDelete(row) {
+  hardDeleteTarget.value = { userID: row.userID, name: row.fullName };
+  showHardDeleteModal.value = true;
+}
+
+function onHardDeleted(userID) {
+  rawData.value = rawData.value.filter(p => p.userID !== userID);
+}
+
 // Set password (admin reset for forgotten passwords)
 const showPasswordModal = ref(false);
 const passwordTarget = ref(null);
@@ -440,6 +457,7 @@ watch(() => showModal.value, (newVal) => {
       <rs-table
         :data="tableData"
         :field="['registeredAt', 'fullName', 'email', 'phone', 'ic', 'type', 'registrationNo', 'status', 'action']"
+        :column-labels="{ ic: 'MyKad / Passport' }"
         :options="{ variant: 'default', striped: true, borderless: true }"
         :options-advanced="{ sortable: true, responsive: true, filterable: false }"
         advanced>
@@ -486,6 +504,17 @@ watch(() => showModal.value, (newVal) => {
               @click="() => confirmDelete(row.value)"
             >
               <Icon name="material-symbols:delete-outline" size="22" />
+            </button>
+
+            <!-- Permanent Delete Icon (Inactive accounts only) -->
+            <button
+              v-if="isInactiveRow(row.value)"
+              type="button"
+              class="table-action-icon table-action-icon--danger"
+              title="Permanently delete (cannot be undone)"
+              @click="() => openHardDelete(row.value)"
+            >
+              <Icon name="material-symbols:delete-forever-outline" size="22" />
             </button>
           </div>
         </template>
@@ -558,7 +587,7 @@ watch(() => showModal.value, (newVal) => {
           { label: 'Full Name', key: 'fullName' },
           { label: 'Email', key: 'email' },
           { label: 'Phone', key: 'phone' },
-          { label: 'IC', key: 'ic' },
+          { label: 'MyKad / Passport', key: 'ic' },
           { label: 'Practitioner Type', key: 'type' },
           { label: 'Registration No', key: 'registrationNo' },
           { label: 'Specialty', key: 'specialty' },
@@ -687,6 +716,12 @@ watch(() => showModal.value, (newVal) => {
         <span>Deleting...</span>
       </div>
     </rs-modal>
+
+    <HardDeleteUserModal
+      v-model="showHardDeleteModal"
+      :target="hardDeleteTarget"
+      @deleted="onHardDeleted"
+    />
   </div>
 </template>
 <style scoped>
