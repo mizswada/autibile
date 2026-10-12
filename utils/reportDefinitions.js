@@ -183,6 +183,7 @@ const patients = {
     { key: "diagnosed_on", label: "Diagnosed On", type: "date", width: 14 },
     { key: "treatment_type", label: "Treatment Type", type: "string", width: 16 },
     { key: "available_session", label: "Available Sessions", type: "number", width: 16 },
+    { key: "owed_session", label: "Owed Sessions", type: "number", width: 14 },
     { key: "status", label: "Status", type: "string", width: 12 },
     { key: "mchatr_status", label: "M-CHAT-R Status", type: "string", width: 18 },
     { key: "parent_name", label: "Parent", type: "string", width: 24 },
@@ -249,11 +250,15 @@ const patients = {
     "dob",
     "diagnosed_on",
     "available_session",
+    "owed_session",
     "status",
     "gender",
   ],
   defaultSort: { key: "fullname", dir: "asc" },
-  summable: [{ key: "available_session", agg: "sum" }],
+  summable: [
+    { key: "available_session", agg: "sum" },
+    { key: "owed_session", agg: "sum" },
+  ],
 };
 
 const therapyServices = {
@@ -359,6 +364,7 @@ const payment = {
 const INVOICE_STATUS = [
   { value: "Paid", label: "Paid" },
   { value: "Unpaid", label: "Unpaid" },
+  { value: "Void", label: "Void" },
 ];
 
 const invoices = {
@@ -471,6 +477,7 @@ const sessionUtilization = {
     { key: "parent_name", label: "Parent", type: "string", width: 24 },
     { key: "treatment_type", label: "Treatment Type", type: "string", width: 16 },
     { key: "available_session", label: "Sessions Remaining", type: "number", width: 16 },
+    { key: "owed_session", label: "Sessions Owed", type: "number", width: 14 },
     { key: "sessions_booked", label: "Sessions Booked", type: "number", width: 14 },
     { key: "sessions_completed", label: "Sessions Completed", type: "number", width: 16 },
     { key: "last_session_date", label: "Last Session", type: "date", width: 14 },
@@ -511,6 +518,7 @@ const sessionUtilization = {
   sortableKeys: [
     "patient_name",
     "available_session",
+    "owed_session",
     "sessions_booked",
     "sessions_completed",
     "last_session_date",
@@ -518,6 +526,7 @@ const sessionUtilization = {
   defaultSort: { key: "patient_name", dir: "asc" },
   summable: [
     { key: "available_session", agg: "sum" },
+    { key: "owed_session", agg: "sum" },
     { key: "sessions_booked", agg: "sum" },
     { key: "sessions_completed", agg: "sum" },
   ],

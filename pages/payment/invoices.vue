@@ -10,13 +10,12 @@ const loading = ref(true);
 const error = ref('');
 const selectedStatus = ref('');
 
-// Fetch invoices from API
-const fetchInvoices = async (status = '') => {
+// Fetch invoices from API. `query` is the query string, e.g. "?status=Unpaid".
+const fetchInvoices = async (query = '') => {
   loading.value = true;
   error.value = '';
-  
+
   try {
-    const query = status ? `?status=${status}` : '';
     const response = await $fetch(`/api/payment/listInvoices${query}`);
     
     if (response.statusCode === 200) {
@@ -32,15 +31,25 @@ const fetchInvoices = async (status = '') => {
   }
 };
 
-const ZAKAT_STATUS = "Zakat: awaiting payment";
+// Zakat is only a label, so it is a filter on the label, not a status.
+const ZAKAT_FILTER = "Zakat";
 
 const filterByStatus = (status) => {
   selectedStatus.value = status;
-  if (status === "Pending Approval" || status === ZAKAT_STATUS) {
-    fetchInvoices("Unpaid");
+  if (status === ZAKAT_FILTER) {
+    fetchInvoices("?payLater=1");
     return;
   }
-  fetchInvoices(status);
+  if (status === "Pending Approval") {
+    fetchInvoices("?status=Unpaid");
+    return;
+  }
+  fetchInvoices(status ? `?status=${status}` : '');
+};
+
+const matchesFilter = (invoice) => {
+  if (!selectedStatus.value || selectedStatus.value === ZAKAT_FILTER) return true;
+  return getInvoiceDisplayStatus(invoice) === selectedStatus.value;
 };
 
 const formatPrice = (price) => {
@@ -64,15 +73,15 @@ const formatInvoiceId = (id) => {
 
 const getInvoiceDisplayStatus = (invoice) => {
   if (invoice.status === "Paid") return "Paid";
+  if (invoice.status === "Void") return "Void";
   if (invoice.payment_status === "Pending") return "Pending Approval";
-  if (invoice.pay_later) return ZAKAT_STATUS;
   return "Unpaid";
 };
 
 const getStatusBadgeVariant = (status) => {
   if (status === "Paid") return "success";
   if (status === "Pending Approval") return "info";
-  if (status === ZAKAT_STATUS) return "secondary";
+  if (status === "Void") return "secondary";
   return "warning";
 };
 
@@ -142,10 +151,18 @@ onMounted(() => {
         <rs-button
           variant="ghost"
           size="sm"
-          :class="selectedStatus === ZAKAT_STATUS ? 'bg-primary text-white' : ''"
-          @click="filterByStatus(ZAKAT_STATUS)"
+          :class="selectedStatus === 'Void' ? 'bg-primary text-white' : ''"
+          @click="filterByStatus('Void')"
         >
-          Zakat awaiting payment
+          Void
+        </rs-button>
+        <rs-button
+          variant="ghost"
+          size="sm"
+          :class="selectedStatus === ZAKAT_FILTER ? 'bg-primary text-white' : ''"
+          @click="filterByStatus(ZAKAT_FILTER)"
+        >
+          Zakat
         </rs-button>
       </div>
 
@@ -196,7 +213,7 @@ onMounted(() => {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="invoice in invoices.filter((item) => !selectedStatus || getInvoiceDisplayStatus(item) === selectedStatus)" :key="invoice.invoice_id" class="border-b border-gray-100 hover:bg-gray-50">
+              <tr v-for="invoice in invoices.filter(matchesFilter)" :key="invoice.invoice_id" class="border-b border-gray-100 hover:bg-gray-50">
                 <td class="py-3 px-4">
                   <span class="font-mono text-sm">{{ formatInvoiceId(invoice.invoice_id) }}</span>
                 </td>
@@ -225,6 +242,7 @@ onMounted(() => {
                   >
                     {{ getInvoiceDisplayStatus(invoice) }}
                   </rs-badge>
+                  <rs-badge v-if="invoice.pay_later" variant="secondary" class="text-xs ml-1">Zakat</rs-badge>
                 </td>
                 <td class="py-3 px-4">
                   <div class="flex gap-2">
@@ -236,15 +254,6 @@ onMounted(() => {
                     >
                       <Icon name="material-symbols:visibility-outline-rounded" size="22" class="mr-1" />
                       View
-                    </rs-button>
-                    <rs-button 
-                      variant="outline" 
-                      size="sm"
-                      title="Edit Invoice"
-                      @click="() => $router.push(`/payment/editInvoice/${invoice.invoice_id}`)"
-                    >
-                      <Icon name="material-symbols:edit-outline-rounded" size="22" class="mr-1" />
-                      Edit
                     </rs-button>
                   </div>
                 </td>

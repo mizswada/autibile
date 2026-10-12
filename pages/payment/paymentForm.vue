@@ -83,7 +83,10 @@ const fetchInvoice = async () => {
   isLoading.value = true;
   try {
     const response = await $fetch(`/api/payment/getInvoice/${invoiceId}`);
-    if (response.statusCode === 200) {
+    if (response.statusCode === 200 && response.data.status === 'Void') {
+      showMessage('This invoice is void and cannot be paid', 'error');
+      router.push('/payment');
+    } else if (response.statusCode === 200) {
       invoiceData.value = response.data;
     } else {
       showMessage('Failed to load invoice data', 'error');
@@ -254,7 +257,7 @@ onMounted(() => {
               </ul>
             </div>
             <div v-if="invoiceData.pay_later" class="md:col-span-2 text-sm text-purple-700">
-              Zakat (pay later) invoice: the sessions were already credited, so this payment will not add them again.
+              Zakat invoice. Recording this payment credits the sessions to the patient, as for any invoice.
             </div>
             <div class="md:col-span-2">
               <span class="text-sm text-gray-500">Amount:</span>

@@ -73,7 +73,7 @@ export default defineEventHandler(async (event) => {
       patient_id: paymentData.patient_id,
       patient_name: paymentData.user_patients?.fullname || 'Unknown Patient',
       patient_nickname: paymentData.user_patients?.nickname,
-      patient_available_sessions: paymentData.user_patients?.available_session || 0,
+      patient_available_sessions: Math.max(0, paymentData.user_patients?.available_session || 0),
       amount: paymentData.amount,
       method: paymentData.method,
       bank_name: paymentData.bank_name,

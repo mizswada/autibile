@@ -1,12 +1,13 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 
 definePageMeta({
   title: "Create Invoice",
 });
 
 const router = useRouter();
+const route = useRoute();
 const isSubmitting = ref(false);
 const message = ref('');
 const messageType = ref('success');
@@ -70,7 +71,8 @@ const rowSubtotal = (row) => {
 
 const totalAmount = computed(() => items.value.reduce((sum, row) => sum + rowSubtotal(row), 0));
 
-const totalSessions = computed(() =>
+// Sessions the package rows give: also the most appointments this invoice can bill.
+const packageSessions = computed(() =>
   items.value.reduce((sum, row) => {
     if (row.type !== 'Package') return sum;
     const pkg = findPackage(row);
@@ -78,13 +80,56 @@ const totalSessions = computed(() =>
   }, 0),
 );
 
-// Pay later (Zakat) only makes sense when the invoice credits therapy sessions.
-const hasPackageRow = computed(() =>
-  items.value.some((row) => row.type === 'Package' && findPackage(row)),
-);
-watch(hasPackageRow, (value) => {
-  if (!value) form.value.payLater = false;
-});
+// Appointments booked without a prepaid session that this patient still has to be billed for.
+const unbilled = ref([]);
+const selectedAppointmentIds = ref([]);
+const selectedCount = computed(() => selectedAppointmentIds.value.length);
+const coverageShortBy = computed(() => Math.max(0, selectedCount.value - packageSessions.value));
+
+const formatSessionDate = (value) =>
+  new Date(value).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' });
+
+async function loadUnbilled(patientId, preselect = null) {
+  unbilled.value = [];
+  selectedAppointmentIds.value = [];
+  if (!patientId) return;
+
+  try {
+    const response = await $fetch(`/api/appointments/unbilled?patient_id=${patientId}`);
+    if (response.success) {
+      unbilled.value = response.data;
+      const ids = response.data.map((appointment) => appointment.appointment_id);
+      selectedAppointmentIds.value = preselect && preselect.length
+        ? ids.filter((id) => preselect.includes(id))
+        : ids;
+      autoFillPackageRow();
+    }
+  } catch (error) {
+    console.error('Error fetching unbilled appointments:', error);
+  }
+}
+
+// With sessions to bill and an empty first row, suggest the single-session package.
+function autoFillPackageRow() {
+  const row = items.value[0];
+  if (!selectedCount.value || !row || row.type !== 'Package' || row.refId) return;
+  const single = packages.value.find((pkg) => pkg.status === 'Active' && pkg.avail_session === 1);
+  if (!single) return;
+  row.refId = String(single.package_id);
+  row.unitPrice = String(single.amount ?? '');
+  row.qty = selectedCount.value;
+}
+
+// Set the first package row's quantity so its sessions cover the selected appointments.
+function matchPackageQuantity() {
+  const row = items.value.find((item) => item.type === 'Package' && findPackage(item));
+  if (!row) {
+    showMessage('Add a therapy package row first.', 'error');
+    return;
+  }
+  const perPackage = findPackage(row).avail_session || 1;
+  row.qty = Math.max(1, Math.ceil(selectedCount.value / perPackage));
+}
 
 function showMessage(msg, type = 'success') {
   message.value = msg;
@@ -99,6 +144,22 @@ onMounted(async () => {
     fetchPackages(),
     fetchProducts()
   ]);
+
+  if (!form.value.invoiceDate) {
+    form.value.invoiceDate = new Date().toISOString().slice(0, 10);
+  }
+
+  // Deep link from the appointment screen / To Bill list: ?patientId=12&appointmentIds=5,6
+  // Setting the patient triggers the watcher below, which loads that patient's unbilled sessions.
+  const queryPatient = route.query.patientId;
+  if (queryPatient) {
+    pendingPreselect = String(route.query.appointmentIds || '')
+      .split(',')
+      .map((id) => parseInt(id, 10))
+      .filter((id) => Number.isInteger(id));
+    form.value.patientID = String(queryPatient);
+  }
+
   isLoading.value = false;
 });
 
@@ -141,15 +202,29 @@ async function fetchProducts() {
   }
 }
 
-// Handle patient selection
-const handlePatientChange = (patientID) => {
+// Handle patient selection. This runs from a watcher on the selected patient (a FormKit
+// @change listener receives the browser event, not the value), so it works for both a
+// user choosing a patient and the patient being preselected from the URL.
+let pendingPreselect = null;
+watch(() => form.value.patientID, (patientID) => {
+  const preselect = pendingPreselect;
+  pendingPreselect = null;
+  handlePatientChange(patientID, preselect);
+});
+
+const handlePatientChange = async (patientID, preselect = null) => {
   if (patientID) {
     const selectedPatient = patients.value.find(p => p.childID === parseInt(patientID));
     if (selectedPatient) {
       form.value.patientName = selectedPatient.fullname;
+      // Zakat patients get the Zakat label by default (it can still be changed).
+      form.value.payLater = !!selectedPatient.isZakat;
     }
+    await loadUnbilled(patientID, Array.isArray(preselect) ? preselect : null);
   } else {
     form.value.patientName = '';
+    form.value.payLater = false;
+    await loadUnbilled(null);
   }
 };
 
@@ -173,19 +248,19 @@ function handleTypeChange(row) {
 }
 
 // Picking a package / product fills in the catalog price. The picked id comes from the
-// event payload, so this does not depend on when v-model updates the row.
+// event payload, so this does not depend on when v-model updates the row. The quantity is
+// left alone (it may have been set to match the appointments being billed).
 function handleItemChange(row, pickedId) {
   if (row.type === 'Package') {
     const pkg = packages.value.find((item) => String(item.package_id) === String(pickedId));
     row.unitPrice = pkg ? String(pkg.amount ?? '') : '';
-    row.qty = 1;
   } else if (row.type === 'Product') {
     const product = products.value.find((item) => String(item.product_id) === String(pickedId));
     row.unitPrice = product ? String(product.amount ?? '') : '';
   }
 }
 
-const saveInvoice = async () => {
+const saveInvoice = async (goToPayment = false) => {
   // Fallback: Set patient name if missing but patientID is selected
   if (form.value.patientID && !form.value.patientName) {
     const selectedPatient = patients.value.find(p => p.childID === parseInt(form.value.patientID));
@@ -238,6 +313,15 @@ const saveInvoice = async () => {
     });
   }
 
+  // The invoice must give at least as many sessions as the appointments it bills.
+  if (selectedCount.value > packageSessions.value) {
+    showMessage(
+      `The invoice covers ${packageSessions.value} session(s) but ${selectedCount.value} appointment(s) are selected. Add package sessions or untick some appointments.`,
+      'error',
+    );
+    return;
+  }
+
   isSubmitting.value = true;
 
   try {
@@ -250,16 +334,21 @@ const saveInvoice = async () => {
         notes: form.value.notes,
         payLater: form.value.payLater,
         items: payloadItems,
+        appointmentIds: selectedAppointmentIds.value,
       },
     });
 
     if (response.statusCode === 201) {
       showMessage(response.message || 'Invoice created successfully', 'success');
 
-      // Redirect immediately without resetting form
+      // Redirect immediately without resetting form. "Save and record payment" goes straight
+      // to the payment form for this invoice (payment received at the counter).
+      const target = goToPayment === true
+        ? `/payment/paymentForm?invoiceId=${response.data.invoice_id}`
+        : '/payment';
       setTimeout(() => {
-        router.push('/payment');
-      }, 1500);
+        router.push(target);
+      }, goToPayment === true ? 400 : 1500);
     } else {
       showMessage(response.message || 'Failed to create invoice', 'error');
     }
@@ -299,10 +388,42 @@ const saveInvoice = async () => {
             }))
           ]"
           validation="required"
-          @change="handlePatientChange"
         />
 
         <FormKit type="date" v-model="form.invoiceDate" label="Date" validation="required" />
+
+        <!-- Appointments booked without a prepaid session: this invoice can bill them -->
+        <div v-if="unbilled.length" class="p-3 mb-4 border border-amber-300 bg-amber-50 rounded-md">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <h2 class="font-semibold text-amber-900">Bill unbilled sessions</h2>
+            <span class="text-sm text-amber-900">
+              {{ selectedCount }} selected / {{ packageSessions }} session(s) on this invoice
+            </span>
+          </div>
+          <p class="text-xs text-amber-800 mb-2">
+            These appointments were booked when the patient had no sessions left. Tick the ones this invoice covers, and add a therapy package row for the price (for example the single-session package).
+          </p>
+          <label
+            v-for="appointment in unbilled"
+            :key="appointment.appointment_id"
+            class="flex items-center gap-2 text-sm py-1 cursor-pointer"
+          >
+            <input
+              v-model="selectedAppointmentIds"
+              type="checkbox"
+              :value="appointment.appointment_id"
+              class="rounded border-gray-300"
+            />
+            <span>{{ formatSessionDate(appointment.date) }}</span>
+            <span class="text-gray-600">{{ appointment.time_slot }} · {{ appointment.service_name }}</span>
+          </label>
+          <div class="flex flex-wrap items-center gap-3 mt-2">
+            <rs-button size="sm" variant="primary-outline" @click="matchPackageQuantity">Match package quantity</rs-button>
+            <span v-if="coverageShortBy > 0" class="text-sm text-red-700">
+              Short by {{ coverageShortBy }} session(s): add package sessions or untick appointments.
+            </span>
+          </div>
+        </div>
 
         <!-- Invoice items: therapy packages, products and other charges on one invoice -->
         <div class="mb-4">
@@ -374,7 +495,6 @@ const saveInvoice = async () => {
                   v-model="row.qty"
                   label="Qty"
                   min="1"
-                  :disabled="row.type === 'Package'"
                 />
               </div>
 
@@ -409,13 +529,13 @@ const saveInvoice = async () => {
 
         <FormKit type="text" v-model="form.notes" label="Notes (optional)" placeholder="Anything to add to the invoice description" />
 
-        <!-- Zakat: sessions are given now, the invoice stays Unpaid until the money arrives -->
-        <div v-if="hasPackageRow" class="p-3 bg-purple-50 border border-purple-200 rounded-md mb-4">
+        <!-- Zakat is only a label (it defaults to the patient's Zakat flag) -->
+        <div class="p-3 bg-purple-50 border border-purple-200 rounded-md mb-4">
           <FormKit
             type="checkbox"
             v-model="form.payLater"
-            label="Pay later (Zakat)"
-            :help="`The patient gets ${totalSessions} session(s) now. The invoice stays Unpaid until the payment is recorded.`"
+            label="Zakat"
+            help="Label only. Sessions are credited when the payment is recorded."
           />
         </div>
 
@@ -425,17 +545,21 @@ const saveInvoice = async () => {
           <p class="text-sm text-amber-800">
             <span class="font-medium">Note:</span> This invoice will be created as
             <span class="font-semibold">Unpaid</span>. To mark it as paid, use
-            <span class="font-medium">Make a Payment</span> so a receipt is issued<template v-if="!form.payLater"> and
-            the patient's sessions are counted</template>.
+            <span class="font-medium">Make a Payment</span> so a receipt is issued and
+            the patient's sessions are counted.
           </p>
         </div>
 
-        <div class="flex gap-4 mt-6">
-          <rs-button class="w-full" @click="saveInvoice" :disabled="isSubmitting">
+        <div class="flex flex-col sm:flex-row gap-4 mt-6">
+          <rs-button class="w-full" @click="saveInvoice(false)" :disabled="isSubmitting">
             <div class="flex items-center justify-center">
               <Icon v-if="isSubmitting" name="line-md:loading-twotone-loop" class="mr-2" />
               <span>{{ isSubmitting ? 'Saving...' : 'Save Invoice' }}</span>
             </div>
+          </rs-button>
+
+          <rs-button class="w-full" variant="success" @click="saveInvoice(true)" :disabled="isSubmitting">
+            Save and record payment
           </rs-button>
 
           <rs-button variant="ghost" class="w-full bg-gray-200" @click="router.push('/payment')" :disabled="isSubmitting">

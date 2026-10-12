@@ -61,13 +61,20 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    // Appointments this invoice bills (booked earlier without a prepaid session)
+    const billedAppointments = await prisma.appointments.findMany({
+      where: { invoice_id: invoiceData.invoice_id, deleted_at: null },
+      select: { appointment_id: true, date: true, status: true },
+      orderBy: [{ date: 'asc' }, { appointment_id: 'asc' }],
+    });
+
     // Transform the data to include patient information
     const transformedInvoice = {
       invoice_id: invoiceData.invoice_id,
       patient_id: invoiceData.patient_id,
       patient_name: invoiceData.user_patients?.fullname || 'Unknown Patient',
       patient_nickname: invoiceData.user_patients?.nickname,
-      patient_available_sessions: invoiceData.user_patients?.available_session || 0,
+      patient_available_sessions: Math.max(0, invoiceData.user_patients?.available_session || 0),
       invoice_type: invoiceData.invoice_type,
       description: invoiceData.description,
       amount: invoiceData.amount,
@@ -75,6 +82,9 @@ export default defineEventHandler(async (event) => {
       status: invoiceData.status,
       pay_later: invoiceData.pay_later,
       sessions_credited: invoiceData.sessions_credited,
+      void_reason: invoiceData.void_reason,
+      voided_at: invoiceData.voided_at,
+      billed_appointments: billedAppointments,
       items: invoiceData.invoice_item,
       latest_payment: invoiceData.payment[0] || null,
       created_at: invoiceData.created_at,

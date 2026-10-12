@@ -34,7 +34,7 @@ export default defineEventHandler(async (event) => {
       },
     });
 
-    if (!invoice) {
+    if (!invoice || invoice.status === "Void") {
       return { statusCode: 404, message: "Invoice not found" };
     }
 

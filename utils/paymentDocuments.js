@@ -894,11 +894,13 @@ export const renderInvoiceHistoryReportPdf = async (jsPDF, invoices = []) => {
   const setText = (c) => pdf.setTextColor(c[0], c[1], c[2]);
   const setDraw = (c) => pdf.setDrawColor(c[0], c[1], c[2]);
 
-  const totalInvoices = invoices.length;
-  const paidInvoices = invoices.filter((inv) => inv.status === 'Paid').length;
+  // Void invoices are listed but are neither owed nor counted in the totals.
+  const countedInvoices = invoices.filter((inv) => inv.status !== 'Void');
+  const totalInvoices = countedInvoices.length;
+  const paidInvoices = countedInvoices.filter((inv) => inv.status === 'Paid').length;
   const unpaidInvoices = totalInvoices - paidInvoices;
-  const totalAmount = invoices.reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
-  const paidAmount = invoices
+  const totalAmount = countedInvoices.reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
+  const paidAmount = countedInvoices
     .filter((inv) => inv.status === 'Paid')
     .reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
   const outstandingAmount = totalAmount - paidAmount;

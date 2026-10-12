@@ -34,14 +34,13 @@ export default defineEventHandler(async (event) => {
       whereClause.patient_id = patientIdValue;
     }
 
-    // Zakat "pay later" invoices that are still waiting for payment
+    // Zakat-labelled invoices (the label does not change how the invoice is paid)
     if (payLater === '1' || payLater === 'true') {
       whereClause.pay_later = true;
-      whereClause.status = 'Unpaid';
     }
 
     // Add status filter if provided
-    if (status && ['Paid', 'Unpaid'].includes(status)) {
+    if (status && ['Paid', 'Unpaid', 'Void'].includes(status)) {
       whereClause.status = status;
     }
 
@@ -134,6 +133,7 @@ export default defineEventHandler(async (event) => {
         status: invoice.status,
         pay_later: invoice.pay_later,
         sessions_credited: invoice.sessions_credited,
+        void_reason: invoice.void_reason,
         items: invoice.invoice_item,
         payment_id: latestPayment?.payment_id || null,
         payment_date: latestPayment?.created_at || null,

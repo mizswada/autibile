@@ -1,4 +1,5 @@
 import { requireAdmin } from "~/server/utils/reports/guard";
+import { unbilledAppointmentsWhere } from "~/server/utils/adminNotifications";
 
 const round2 = (value) => Math.round(value * 100) / 100;
 
@@ -31,6 +32,31 @@ export default defineEventHandler(async (event) => {
       },
     });
 
+    // Appointments each invoice bills, and how many are still waiting for an invoice.
+    const patient = await prisma.user_patients.findUnique({
+      where: { patient_id: patientId },
+      select: { available_session: true },
+    });
+    const balance = patient?.available_session || 0;
+
+    const [billedAppointments, unbilledCount] = await Promise.all([
+      invoices.length
+        ? prisma.appointments.findMany({
+            where: { invoice_id: { in: invoices.map((invoice) => invoice.invoice_id) }, deleted_at: null },
+            select: { appointment_id: true, invoice_id: true, date: true },
+            orderBy: [{ date: "asc" }, { appointment_id: "asc" }],
+          })
+        : [],
+      prisma.appointments.count({ where: unbilledAppointmentsWhere({ patient_id: patientId }) }),
+    ]);
+    const billedByInvoice = {};
+    for (const appointment of billedAppointments) {
+      (billedByInvoice[appointment.invoice_id] ||= []).push({
+        appointment_id: appointment.appointment_id,
+        date: appointment.date,
+      });
+    }
+
     // Invoices created before items existed carry only a name in `invoice_type`.
     // Classify those by matching the name against the catalog.
     const hasLegacy = invoices.some((invoice) => invoice.invoice_item.length === 0);
@@ -56,12 +82,15 @@ export default defineEventHandler(async (event) => {
       const amount = Number(invoice.amount || 0);
       const latestPayment = invoice.payment[0] || null;
 
+      // Zakat is only a label (returned as pay_later), it does not change the status.
       let displayStatus = "Unpaid";
       if (invoice.status === "Paid") displayStatus = "Paid";
+      else if (invoice.status === "Void") displayStatus = "Void";
       else if (latestPayment?.status === "Pending") displayStatus = "Pending Approval";
-      else if (invoice.pay_later) displayStatus = "Zakat: awaiting payment";
 
-      if (invoice.status === "Paid") {
+      if (invoice.status === "Void") {
+        // A void invoice is neither a sale nor money still owed.
+      } else if (invoice.status === "Paid") {
         totalSales += amount;
         if (latestPayment && (!lastPaymentDate || latestPayment.created_at > lastPaymentDate)) {
           lastPaymentDate = latestPayment.created_at;
@@ -95,6 +124,8 @@ export default defineEventHandler(async (event) => {
         status: invoice.status,
         display_status: displayStatus,
         pay_later: invoice.pay_later,
+        void_reason: invoice.void_reason,
+        billed_appointments: billedByInvoice[invoice.invoice_id] || [],
         items: invoice.invoice_item,
         payment_id: latestPayment?.status === "Approved" ? latestPayment.payment_id : null,
         payment_method: latestPayment?.method || null,
@@ -110,8 +141,11 @@ export default defineEventHandler(async (event) => {
         summary: {
           totalSales: round2(totalSales),
           outstanding: round2(outstanding),
-          invoiceCount: invoices.length,
+          invoiceCount: invoices.filter((invoice) => invoice.status !== "Void").length,
           paidCount: invoices.filter((invoice) => invoice.status === "Paid").length,
+          unbilledCount,
+          availableSessions: Math.max(0, balance),
+          owedSessions: Math.max(0, -balance),
           lastPaymentDate,
           therapySales: round2(therapySales),
           productSales: round2(productSales),

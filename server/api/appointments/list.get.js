@@ -3,6 +3,7 @@ import {
   formatAppointmentCalendarEvent,
   buildSessionNumberMap,
 } from "~/server/utils/appointmentTime";
+import { attachBillingToEvents } from "~/server/utils/appointmentBilling";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -90,12 +91,21 @@ export default defineEventHandler(async (event) => {
       appointments.map((appointment) => appointment.patient_id),
     );
 
-    const formattedAppointments = appointments.map((appointment) =>
+    let formattedAppointments = appointments.map((appointment) =>
       formatAppointmentCalendarEvent(
         appointment,
         sessionNumberMap[appointment.appointment_id] ?? null,
       ),
     );
+
+    // Billing information is for administrators only.
+    if (isAdmin) {
+      formattedAppointments = await attachBillingToEvents(
+        prisma,
+        appointments,
+        formattedAppointments,
+      );
+    }
 
     return { success: true, data: formattedAppointments };
   } catch (error) {

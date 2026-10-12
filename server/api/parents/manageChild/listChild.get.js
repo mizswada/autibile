@@ -7,6 +7,7 @@ import {
   evaluateAgeAgainstLimits,
   formatAgeRange,
 } from "~/server/utils/questionnaireAge";
+import { unbilledAppointmentsListWhere } from "~/server/utils/adminNotifications";
 
 const MCHATR_QUESTIONNAIRE_ID = 1;
 
@@ -97,43 +98,43 @@ export default defineEventHandler(async (event) => {
       mchatrConfig?.max_age_months,
     );
 
-    // Optional billing summary (unpaid invoices per child) for list screens that show a payment badge.
+    // Optional billing summary for list screens that show payment badges: unpaid invoices
+    // and appointments still waiting to be billed. Billing data is for administrators only.
+    const roles = event.context.user?.roles || [];
+    const isAdmin = roles.some((role) => String(role).includes("Admin"));
     const includeBilling =
-      query.includeBilling === "true" ||
-      query.includeBilling === "1" ||
-      query.includeBilling === true;
+      isAdmin &&
+      (query.includeBilling === "true" ||
+        query.includeBilling === "1" ||
+        query.includeBilling === true);
     const billingByPatient = new Map();
     if (includeBilling && relations.length) {
       const patientIds = [...new Set(relations.map((r) => r.user_patients.patient_id))];
-      const unpaidWhere = { deleted_at: null, status: "Unpaid", patient_id: { in: patientIds } };
-      const [unpaidRows, payLaterRows] = await Promise.all([
+      const [unpaidRows, unbilledRows] = await Promise.all([
         prisma.invoice.groupBy({
           by: ["patient_id"],
-          where: unpaidWhere,
+          where: { deleted_at: null, status: "Unpaid", patient_id: { in: patientIds } },
           _sum: { amount: true },
           _count: { _all: true },
         }),
-        prisma.invoice.groupBy({
+        prisma.appointments.groupBy({
           by: ["patient_id"],
-          where: { ...unpaidWhere, pay_later: true },
-          _sum: { amount: true },
+          where: unbilledAppointmentsListWhere({ patient_id: { in: patientIds } }),
           _count: { _all: true },
         }),
       ]);
       for (const row of unpaidRows) {
         billingByPatient.set(row.patient_id, {
+          ...(billingByPatient.get(row.patient_id) || {}),
           unpaidAmount: Number(row._sum.amount || 0),
           unpaidCount: row._count._all,
-          payLaterAmount: 0,
-          payLaterCount: 0,
         });
       }
-      for (const row of payLaterRows) {
-        const entry = billingByPatient.get(row.patient_id);
-        if (entry) {
-          entry.payLaterAmount = Number(row._sum.amount || 0);
-          entry.payLaterCount = row._count._all;
-        }
+      for (const row of unbilledRows) {
+        billingByPatient.set(row.patient_id, {
+          ...(billingByPatient.get(row.patient_id) || {}),
+          unbilledCount: row._count._all,
+        });
       }
     }
 
@@ -158,7 +159,10 @@ export default defineEventHandler(async (event) => {
         dateOfBirth: c.dob,
         autismDiagnose: c.autism_diagnose,
         diagnosedDate: c.diagnosed_on,
-        availableSession: c.available_session,
+        // Owed (negative) sessions are shown separately, never as a negative balance
+        availableSession: Math.max(0, c.available_session || 0),
+        owedSessions: Math.max(0, -(c.available_session || 0)),
+        isZakat: !!c.is_zakat,
         status: c.status,
         mchatr_status: c.mchatr_status,
         mchatrAgeInRange: mchatrAgeEval.inRange,
@@ -170,8 +174,7 @@ export default defineEventHandler(async (event) => {
           ? {
               unpaidAmount: 0,
               unpaidCount: 0,
-              payLaterAmount: 0,
-              payLaterCount: 0,
+              unbilledCount: 0,
               ...(billingByPatient.get(c.patient_id) || {}),
             }
           : {}),

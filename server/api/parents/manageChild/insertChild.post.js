@@ -12,17 +12,17 @@ export default defineEventHandler(async (event) => {
       dateOfBirth,
       autismDiagnose,
       diagnosedDate,
-      availableSession,
       status,
       okuCard,
       treatmentType,
       parentID,
       userID,
+      isZakat,
     } = body;
 
     if (
       !gender || !icNumber || !dateOfBirth ||
-      availableSession === null || availableSession === undefined || !status || okuCard === null || okuCard === undefined || !treatmentType || !parentID || !userID
+      !status || okuCard === null || okuCard === undefined || !treatmentType || !parentID || !userID
     ) {
       return {
         statusCode: 400,
@@ -52,9 +52,12 @@ export default defineEventHandler(async (event) => {
           autism_diagnose: autismDiagnose || null,
           diagnosed_on: diagnosedDate ? new Date(diagnosedDate) : null,
           status,
-          available_session: parseInt(availableSession) || 0,
+          // New children start with 0 sessions; sessions come from paid invoices
+          // or a logged admin adjustment, never from the form.
+          available_session: 0,
           OKUCard: parseInt(okuCard),
           treatment_type: treatmentType,
+          is_zakat: isZakat === true,
           created_at: new Date(),
         },
       });

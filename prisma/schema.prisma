@@ -115,6 +115,9 @@ model appointments {
   created_at               DateTime            @db.Timestamp(0)
   updated_at               DateTime            @default(now()) @db.Timestamp(0)
   deleted_at               DateTime?           @db.Timestamp(0)
+  needs_billing            Boolean             @default(false)
+  billing_waived           Boolean             @default(false)
+  invoice_id               Int?
   user                     user?               @relation(fields: [book_by], references: [userID], onUpdate: NoAction, map: "fk_book_by")
   user_patients            user_patients?      @relation(fields: [patient_id], references: [patient_id], onUpdate: NoAction, map: "fk_patient_id")
   user_practitioners       user_practitioners? @relation(fields: [practitioner_id], references: [practitioner_id], onUpdate: NoAction, map: "fk_practitioner")
@@ -126,6 +129,8 @@ model appointments {
   @@index([practitioner_id], map: "fk_practitioner")
   @@index([service_id], map: "fk_service_id")
   @@index([slot_ID], map: "fk_slotId")
+  @@index([invoice_id], map: "idx_appointments_invoice_id")
+  @@index([needs_billing, invoice_id], map: "idx_appointments_needs_billing")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -330,6 +335,7 @@ model user_patients {
   mchatr_status           String?                   @db.VarChar(255)
   OKUCard                 Int?
   treatment_type          String?                   @db.VarChar(50)
+  is_zakat                Boolean                   @default(false)
   created_at              DateTime?                 @db.Timestamp(0)
   update_at               DateTime?                 @default(now()) @db.Timestamp(0)
   deleted_at              DateTime?                 @db.Timestamp(0)
@@ -510,6 +516,8 @@ model invoice {
   status            String?        @db.VarChar(255)
   pay_later         Boolean        @default(false)
   sessions_credited Boolean        @default(false)
+  voided_at         DateTime?      @db.Timestamp(0)
+  void_reason       String?        @db.VarChar(500)
   created_at        DateTime       @db.Timestamp(0)
   update_at         DateTime       @db.Timestamp(0)
   deleted_at        DateTime?      @db.Timestamp(0)
@@ -645,6 +653,21 @@ model ai_analysis_results {
 
   @@index([qr_id], map: "qr_id")
   @@index([questionnaire_id], map: "questionnaire_id")
+}
+
+model session_adjustment {
+  adjustment_id  Int      @id @default(autoincrement())
+  patient_id     Int
+  delta          Int
+  balance_before Int
+  balance_after  Int
+  reason         String   @db.VarChar(500)
+  admin_user_id  Int
+  admin_email    String?  @db.VarChar(255)
+  ip             String?  @db.VarChar(64)
+  created_at     DateTime @default(now()) @db.Timestamp(0)
+
+  @@index([patient_id], map: "patient_id")
 }
 
 model user_deletion_audit {

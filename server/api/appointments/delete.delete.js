@@ -1,4 +1,5 @@
 import prisma from "~/server/utils/prisma";
+import { releaseSession } from "~/server/utils/sessionBalance";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -43,23 +44,23 @@ export default defineEventHandler(async (event) => {
       if (shouldRefund) {
         const patient = await tx.user_patients.findUnique({
           where: { patient_id: existingAppointment.patient_id },
-          select: { patient_id: true, available_session: true },
+          select: { patient_id: true },
         });
 
         if (patient) {
-          await tx.user_patients.update({
-            where: { patient_id: existingAppointment.patient_id },
-            data: {
-              available_session: (patient.available_session || 0) + 1,
-              update_at: new Date(),
-            },
-          });
+          await releaseSession(tx, existingAppointment.patient_id);
         }
       }
 
+      // A deleted appointment can no longer be billed (billing fields are cleared).
       return tx.appointments.update({
         where: { appointment_id: parseInt(id) },
-        data: { deleted_at: new Date() },
+        data: {
+          deleted_at: new Date(),
+          needs_billing: false,
+          billing_waived: false,
+          invoice_id: null,
+        },
       });
     });
 

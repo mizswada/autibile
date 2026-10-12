@@ -236,14 +236,21 @@ function getStatusColor(status) {
               <span class="text-gray-500">Available Sessions:</span>
               <span class="font-medium text-primary">{{ patient.availableSession || 0 }}</span>
             </div>
-            <div v-if="patient.unpaidCount > 0" class="flex justify-between items-center">
+            <div
+              v-if="patient.isZakat || patient.unbilledCount > 0 || patient.owedSessions > 0 || patient.unpaidCount > 0"
+              class="flex justify-between items-center"
+            >
               <span class="text-gray-500">Payment:</span>
               <span class="flex flex-wrap gap-1 justify-end">
-                <rs-badge v-if="patient.payLaterCount > 0" variant="secondary">
-                  Zakat: RM {{ Number(patient.payLaterAmount).toFixed(2) }} due
+                <rs-badge v-if="patient.isZakat" variant="secondary">Zakat</rs-badge>
+                <rs-badge v-if="patient.unbilledCount > 0" variant="warning">
+                  {{ patient.unbilledCount }} to bill
                 </rs-badge>
-                <rs-badge v-if="patient.unpaidCount > patient.payLaterCount" variant="danger">
-                  Unpaid: RM {{ (Number(patient.unpaidAmount) - Number(patient.payLaterAmount)).toFixed(2) }}
+                <rs-badge v-if="patient.owedSessions > 0" variant="danger">
+                  Owes {{ patient.owedSessions }} session{{ patient.owedSessions > 1 ? 's' : '' }}
+                </rs-badge>
+                <rs-badge v-if="patient.unpaidCount > 0" variant="danger">
+                  Unpaid: RM {{ Number(patient.unpaidAmount).toFixed(2) }}
                 </rs-badge>
               </span>
             </div>

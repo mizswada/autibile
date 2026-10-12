@@ -97,6 +97,13 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    if (invoice.status === 'Void') {
+      return {
+        statusCode: 400,
+        message: "This invoice is void and cannot be paid",
+      };
+    }
+
     // Verify patient exists, is active, and linked to an active parent
     const patient = await findLinkedActivePatient(prisma, patientIdValue);
 

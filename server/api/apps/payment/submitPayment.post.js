@@ -46,6 +46,10 @@ export default defineEventHandler(async (event) => {
       return { statusCode: 400, message: "Invoice is already paid" };
     }
 
+    if (invoice.status === "Void") {
+      return { statusCode: 400, message: "This invoice is no longer valid" };
+    }
+
     const existingPending = await prisma.payment.findFirst({
       where: {
         invoice_id: invoiceID,

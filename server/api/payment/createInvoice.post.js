@@ -1,7 +1,11 @@
 import { findLinkedActivePatient } from "~/server/utils/activeEntities";
-import { creditInvoiceSessions } from "~/server/utils/invoiceSessions";
+import { unbilledAppointmentsWhere } from "~/server/utils/adminNotifications";
 
 const ITEM_TYPES = ["Package", "Product", "Other"];
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// DB dates are stored at UTC midnight, so read them in UTC.
+const formatShortDate = (date) => `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]}`;
 
 const round2 = (value) => Math.round(value * 100) / 100;
 const truncate = (text, max) => (text.length > max ? `${text.slice(0, max - 3)}...` : text);
@@ -112,7 +116,15 @@ export default defineEventHandler(async (event) => {
 
     const body = await readBody(event);
 
-    const { patientID, patientName, date, items, notes, payLater } = body;
+    const {
+      patientID,
+      patientName,
+      date,
+      items,
+      notes,
+      payLater,
+      appointmentIds: appointmentIdsRaw,
+    } = body;
 
     // Basic validation
     if (!patientID || !patientName || !date) {
@@ -175,23 +187,67 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    const isPayLater = payLater === true || payLater === "true";
-    const hasSessions = invoiceItems.some((item) => item.item_type === "Package" && item.sessions > 0);
-    if (isPayLater && !hasSessions) {
-      return {
-        statusCode: 400,
-        message: "Pay later (Zakat) only applies to invoices that include a therapy package",
-      };
+    // Zakat is only a label (pay_later column). It defaults to the patient's Zakat flag
+    // and never changes sessions: they are credited when the invoice is paid.
+    const isZakat =
+      payLater === undefined || payLater === null
+        ? !!patientExists.is_zakat
+        : payLater === true || payLater === "true";
+
+    // Appointments this invoice bills (booked earlier without a prepaid session).
+    const appointmentIds = [
+      ...new Set(
+        (Array.isArray(appointmentIdsRaw) ? appointmentIdsRaw : [])
+          .map((id) => parseInt(id, 10))
+          .filter((id) => Number.isInteger(id) && id > 0),
+      ),
+    ];
+    let billedAppointments = [];
+    if (appointmentIds.length) {
+      const roles = event.context.user?.roles || [];
+      if (!roles.some((role) => String(role).includes("Admin"))) {
+        return {
+          statusCode: 403,
+          message: "Only administrators can bill appointments",
+        };
+      }
+
+      billedAppointments = await prisma.appointments.findMany({
+        where: unbilledAppointmentsWhere({
+          appointment_id: { in: appointmentIds },
+          patient_id: patientIdValue,
+        }),
+        select: { appointment_id: true, date: true },
+        orderBy: [{ date: "asc" }, { appointment_id: "asc" }],
+      });
+      if (billedAppointments.length !== appointmentIds.length) {
+        return {
+          statusCode: 400,
+          message:
+            "Some of the selected appointments are no longer unbilled (already billed, waived or cancelled). Refresh and try again.",
+        };
+      }
+
+      const packageSessions = invoiceItems
+        .filter((item) => item.item_type === "Package")
+        .reduce((sum, item) => sum + (item.sessions || 0), 0);
+      if (appointmentIds.length > packageSessions) {
+        return {
+          statusCode: 400,
+          message: `The invoice covers ${packageSessions} session(s) but ${appointmentIds.length} appointment(s) are selected. Add package sessions or select fewer appointments.`,
+        };
+      }
     }
 
     // Summary strings keep every existing screen (and the mobile app) working.
     const itemLabels = invoiceItems.map((item) => (item.qty > 1 ? `${item.name} x${item.qty}` : item.name));
     const invoiceType = truncate(itemLabels.join(" + "), 255);
     const extraNotes = notes ? String(notes).trim() : "";
-    const description = truncate(
-      extraNotes ? `${itemLabels.join("; ")} - ${extraNotes}` : itemLabels.join("; "),
-      500,
-    );
+    const sessionDates = billedAppointments.length
+      ? `Sessions: ${billedAppointments.map((a) => formatShortDate(a.date)).join(", ")}`
+      : "";
+    const descriptionParts = [itemLabels.join("; "), sessionDates, extraNotes].filter(Boolean);
+    const description = truncate(descriptionParts.join(" - "), 500);
 
     const now = new Date();
     const invoiceData = await prisma.$transaction(async (tx) => {
@@ -203,10 +259,9 @@ export default defineEventHandler(async (event) => {
           amount: totalAmount,
           date: invoiceDate,
           // Invoices are always created as Unpaid. Payment must go through the
-          // "make payment" flow so a receipt is generated. A pay-later (Zakat)
-          // invoice only gets its sessions credited up front.
+          // "make payment" flow so a receipt is generated and sessions are credited.
           status: "Unpaid",
-          pay_later: isPayLater,
+          pay_later: isZakat,
           created_at: now,
           update_at: now,
           invoice_item: { create: invoiceItems },
@@ -214,8 +269,24 @@ export default defineEventHandler(async (event) => {
         include: { invoice_item: true },
       });
 
-      if (isPayLater) {
-        await creditInvoiceSessions(created.invoice_id, tx);
+      if (appointmentIds.length) {
+        // Atomic attach: only appointments that are still unbilled can be linked, so two
+        // admins can never put the same appointment on two invoices.
+        const attached = await tx.appointments.updateMany({
+          where: unbilledAppointmentsWhere({
+            appointment_id: { in: appointmentIds },
+            patient_id: patientIdValue,
+          }),
+          data: { invoice_id: created.invoice_id, updated_at: now },
+        });
+        if (attached.count !== appointmentIds.length) {
+          // Rolls the whole transaction back (no invoice is left behind).
+          const conflict = new Error(
+            "Some of the selected appointments were billed by someone else at the same time. Refresh and try again.",
+          );
+          conflict.code = "APPOINTMENT_CONFLICT";
+          throw conflict;
+        }
       }
 
       return created;
@@ -223,9 +294,7 @@ export default defineEventHandler(async (event) => {
 
     return {
       statusCode: 201,
-      message: isPayLater
-        ? "Invoice created successfully. Sessions were credited now; the invoice stays unpaid."
-        : "Invoice created successfully",
+      message: "Invoice created successfully",
       data: {
         invoice_id: invoiceData.invoice_id,
         patient_id: invoiceData.patient_id,
@@ -236,12 +305,16 @@ export default defineEventHandler(async (event) => {
         date: invoiceData.date,
         status: invoiceData.status,
         pay_later: invoiceData.pay_later,
+        billed_appointments: appointmentIds.length,
         items: invoiceData.invoice_item,
         created_at: invoiceData.created_at,
       },
     };
 
   } catch (error) {
+    if (error?.code === "APPOINTMENT_CONFLICT") {
+      return { statusCode: 409, message: error.message };
+    }
     console.error("Error creating invoice:", error);
     return {
       statusCode: 500,

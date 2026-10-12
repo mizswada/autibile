@@ -24,6 +24,7 @@ export default defineEventHandler(async (event) => {
           status: true,
           OKUCard: true,
           treatment_type: true,
+          is_zakat: true,
         }
       });
   
@@ -62,6 +63,9 @@ export default defineEventHandler(async (event) => {
       // Map treatment type and OKU card if they exist
       const mappedChild = child ? {
         ...child,
+        // Owed (negative) sessions are shown separately, never as a negative balance
+        available_session: Math.max(0, child.available_session || 0),
+        owed_session: Math.max(0, -(child.available_session || 0)),
         treatment_type: mapTreatmentType(child.treatment_type),
         OKUCard: mapOKUCard(child.OKUCard)
       } : null;

@@ -3,20 +3,21 @@ import {
   findLinkedActivePatient,
   isActiveStatus,
 } from "~/server/utils/activeEntities";
+import { getMaxUnbilled } from "~/server/utils/sessionBalance";
 
 export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
-    
+
     const { patient_id } = query;
-    
+
     if (!patient_id) {
       return {
         success: false,
         message: 'Patient ID is required'
       };
     }
-    
+
     // Get patient information including available sessions
     const patient = await findLinkedActivePatient(prisma, patient_id, {
       patient_id: true,
@@ -24,7 +25,7 @@ export default defineEventHandler(async (event) => {
       available_session: true,
       status: true,
     });
-    
+
     if (!patient) {
       return {
         success: false,
@@ -32,23 +33,42 @@ export default defineEventHandler(async (event) => {
           'Patient not found, inactive, or not linked to an active parent',
       };
     }
-    
-    const availableSessions = patient.available_session || 0;
-    const canBookAppointment =
-      availableSessions > 0 && isActiveStatus(patient.status);
-    
+
+    // The balance can go below zero (owed / unbilled sessions) up to the admin-set cap.
+    const balance = patient.available_session || 0;
+    const maxUnbilled = await getMaxUnbilled(prisma);
+    const balanceAfter = balance - 1;
+    const withinCap = balanceAfter >= 0 - maxUnbilled;
+    const canBookAppointment = withinCap && isActiveStatus(patient.status);
+    const willBeUnbilled = balance <= 0;
+
+    let message;
+    if (!canBookAppointment) {
+      message =
+        maxUnbilled === 0
+          ? `Patient has no available sessions (${Math.max(0, balance)}). Cannot book appointment.`
+          : `Patient has reached the limit of ${maxUnbilled} unbilled session(s). Cannot book appointment.`;
+    } else if (willBeUnbilled) {
+      message = 'Patient has no sessions left. This booking will be marked unbilled.';
+    } else {
+      message = `Patient has ${balance} available session(s)`;
+    }
+
     return {
       success: true,
       data: {
         patient_id: patient.patient_id,
         patient_name: patient.fullname,
-        available_sessions: availableSessions,
+        available_sessions: Math.max(0, balance),
+        owed_sessions: Math.max(0, -balance),
+        sessions_after_booking: Math.max(0, balanceAfter),
+        owed_after_booking: Math.max(0, -balanceAfter),
+        max_unbilled: maxUnbilled,
+        will_be_unbilled: willBeUnbilled,
         can_book_appointment: canBookAppointment,
         status: patient.status
       },
-      message: canBookAppointment 
-        ? `Patient has ${availableSessions} available session(s)` 
-        : `Patient has no available sessions (${availableSessions}). Cannot book appointment.`
+      message
     };
   } catch (error) {
     console.error('Error checking patient sessions:', error);
@@ -58,4 +78,4 @@ export default defineEventHandler(async (event) => {
       error: error.message
     };
   }
-}); 
+});

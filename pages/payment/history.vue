@@ -463,7 +463,8 @@ const pageNumbers = computed(() => {
               :options="activeTab === 'invoices' ? [
                 { label: 'All', value: 'all' },
                 { label: 'Paid', value: 'Paid' },
-                { label: 'Unpaid', value: 'Unpaid' }
+                { label: 'Unpaid', value: 'Unpaid' },
+                { label: 'Void', value: 'Void' }
               ] : [
                 { label: 'All', value: 'all' }
               ]"
@@ -546,10 +547,10 @@ const pageNumbers = computed(() => {
                 <td class="px-6 py-4 whitespace-nowrap">{{ formatDate(invoice.date) }}</td>
                 <td class="px-6 py-4 whitespace-nowrap">RM {{ formatPrice(invoice.amount) }}</td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <rs-badge :variant="invoice.status === 'Paid' ? 'success' : 'warning'">
+                  <rs-badge :variant="invoice.status === 'Paid' ? 'success' : invoice.status === 'Void' ? 'secondary' : 'warning'">
                     {{ invoice.status }}
                   </rs-badge>
-                  <rs-badge v-if="invoice.pay_later && invoice.status !== 'Paid'" variant="secondary" class="ml-1">
+                  <rs-badge v-if="invoice.pay_later" variant="secondary" class="ml-1">
                     Zakat
                   </rs-badge>
                 </td>

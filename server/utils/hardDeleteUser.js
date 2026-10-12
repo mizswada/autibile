@@ -169,6 +169,7 @@ export async function collectDeletionPlan(db, userID) {
     diary_reports: await countByPatient("diary_report"),
     referrals: await countByPatient("referrals"),
     invoices: await countByPatient("invoice"),
+    session_adjustments: await countByPatient("session_adjustment"),
     payments: payments.length,
     progress_notes: progressIds.length,
     account_requests: await db.account_requests.count({ where: { user_id: userID } }),
@@ -287,6 +288,7 @@ export async function executeHardDelete(db, { userID, admin, ip }) {
         await tx.diary_report.deleteMany({ where: { patient_id: { in: deleteIds } } });
         await tx.referrals.deleteMany({ where: { patient_id: { in: deleteIds } } });
         await tx.payment.deleteMany({ where: { patient_id: { in: deleteIds } } });
+        await tx.session_adjustment.deleteMany({ where: { patient_id: { in: deleteIds } } });
         await tx.invoice_item.deleteMany({ where: { invoice: { patient_id: { in: deleteIds } } } });
         await tx.invoice.deleteMany({ where: { patient_id: { in: deleteIds } } });
       }

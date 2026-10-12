@@ -44,6 +44,7 @@ const form = ref({
   status: '',
   okuCard: null,
   treatmentType: '',
+  isZakat: false,
 });
 
 // IC validation
@@ -160,6 +161,7 @@ async function saveChild() {
         status: '',
         okuCard: null,
         treatmentType: '',
+        isZakat: false,
       };
       await fetchChildren();
     } else {
@@ -427,6 +429,13 @@ function closeSearchICForm() {
           label="Treatment Type"
           :options="['-- Please select --', 'Centre', 'Online', 'In House']"
           validation="required"
+        />
+
+        <FormKit
+          type="checkbox"
+          v-model="form.isZakat"
+          label="Zakat patient"
+          help="Label only. New invoices for this patient are marked Zakat by default."
         />
 
         <div class="flex gap-4 mt-4">

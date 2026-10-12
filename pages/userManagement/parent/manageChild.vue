@@ -315,10 +315,11 @@ onMounted(async () => {
           ? new Date(p.diagnosedDate).toISOString().split('T')[0]
           : '',
         availableSession: p.availableSession || 0, // Use actual session count directly
+        owedSessions: p.owedSessions || 0,
+        isZakat: !!p.isZakat,
         unpaidAmount: p.unpaidAmount || 0,
         unpaidCount: p.unpaidCount || 0,
-        payLaterAmount: p.payLaterAmount || 0,
-        payLaterCount: p.payLaterCount || 0,
+        unbilledCount: p.unbilledCount || 0,
         status: p.status,
         mchatrStatus: p.mchatr_status || 'Enable', // Default to Enable if not set
         mchatrAgeInRange: p.mchatrAgeInRange,
@@ -352,10 +353,11 @@ const tableData = computed(() =>
     // IDs kept after display columns so row.value.childID/parentID still work in slots
     parentID: p.parentID,
     childID: p.childID,
+    owedSessions: p.owedSessions,
+    isZakat: p.isZakat,
     unpaidAmount: p.unpaidAmount,
     unpaidCount: p.unpaidCount,
-    payLaterAmount: p.payLaterAmount,
-    payLaterCount: p.payLaterCount,
+    unbilledCount: p.unbilledCount,
   }))
 );
 
@@ -395,14 +397,21 @@ function getOriginalData(childID, parentID) {
           {{ row.value.registeredAt ? new Date(row.value.registeredAt).toLocaleString('en-GB') : '—' }}
         </template>
 
-        <!-- SLOT for payment column: unpaid invoices, Zakat (pay later) shown separately -->
+        <!-- SLOT for payment column: Zakat label, sessions to bill, owed sessions, unpaid invoices -->
         <template v-slot:payment="row">
-          <div v-if="row.value.unpaidCount > 0" class="flex flex-col gap-1">
-            <rs-badge v-if="row.value.payLaterCount > 0" variant="secondary" class="w-fit">
-              Zakat: RM {{ row.value.payLaterAmount.toFixed(2) }} due
+          <div
+            v-if="row.value.isZakat || row.value.unbilledCount > 0 || row.value.owedSessions > 0 || row.value.unpaidCount > 0"
+            class="flex flex-col gap-1"
+          >
+            <rs-badge v-if="row.value.isZakat" variant="secondary" class="w-fit">Zakat</rs-badge>
+            <rs-badge v-if="row.value.unbilledCount > 0" variant="warning" class="w-fit">
+              {{ row.value.unbilledCount }} to bill
             </rs-badge>
-            <rs-badge v-if="row.value.unpaidCount > row.value.payLaterCount" variant="danger" class="w-fit">
-              Unpaid: RM {{ (row.value.unpaidAmount - row.value.payLaterAmount).toFixed(2) }}
+            <rs-badge v-if="row.value.owedSessions > 0" variant="danger" class="w-fit">
+              Owes {{ row.value.owedSessions }} session{{ row.value.owedSessions > 1 ? 's' : '' }}
+            </rs-badge>
+            <rs-badge v-if="row.value.unpaidCount > 0" variant="danger" class="w-fit">
+              Unpaid: RM {{ row.value.unpaidAmount.toFixed(2) }}
             </rs-badge>
           </div>
           <span v-else class="text-gray-400">—</span>

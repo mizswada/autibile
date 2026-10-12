@@ -6,6 +6,7 @@ function emptyCounts() {
     diaryUnseenCount: 0,
     accountRequestPendingCount: 0,
     userApprovalPendingCount: 0,
+    toBillCount: 0,
     diaryUnseenPatientIds: [],
   };
 }
@@ -37,6 +38,7 @@ export function useAdminNotificationCounts(isEnabled = () => true) {
           result.data.accountRequestPendingCount || 0;
         counts.userApprovalPendingCount =
           result.data.userApprovalPendingCount || 0;
+        counts.toBillCount = result.data.toBillCount || 0;
         counts.diaryUnseenPatientIds = Array.isArray(
           result.data.diaryUnseenPatientIds
         )

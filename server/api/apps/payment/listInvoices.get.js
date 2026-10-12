@@ -25,6 +25,8 @@ export default defineEventHandler(async (event) => {
 
     const whereClause = {
       deleted_at: null,
+      // Void invoices are never shown to (or payable by) parents
+      status: { not: "Void" },
       patient_id: { in: auth.patientIds.length ? auth.patientIds : [-1] },
     };
 

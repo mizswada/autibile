@@ -5,6 +5,7 @@ import { useToast } from 'vue-toastification';
 import { jsPDF } from 'jspdf';
 import { useUserStore } from '~/stores/user';
 import { APPOINTMENT_STATUS_MAP, getAppointmentStatus } from '~/utils/appointmentStatus';
+import { getBillingStateMeta } from '~/utils/billingState';
 import { getDiaryEntryLines } from '~/utils/diaryReport';
 import { COMPANY_INFO } from '~/utils/paymentDocuments';
 import {
@@ -852,7 +853,7 @@ async function printReferralLetter(referral) {
               <div class="flex"><span class="font-medium w-32 text-left">Autism Diagnosis</span><span class="mx-2">:</span><span>{{ patientDetails.autism_diagnose }}</span></div>
               <div class="flex"><span class="font-medium w-32 text-left">Diagnosed On</span><span class="mx-2">:</span><span>{{ formatDateOnly(patientDetails.diagnosed_on) }}</span></div>
               <div class="flex"><span class="font-medium w-32 text-left">Status</span><span class="mx-2">:</span><span>{{ patientDetails.status }}</span></div>
-              <div class="flex"><span class="font-medium w-32 text-left">Available Sessions</span><span class="mx-2">:</span><span>{{ patientDetails.available_session }}</span></div>
+              <div class="flex"><span class="font-medium w-32 text-left">Available Sessions</span><span class="mx-2">:</span><span>{{ patientDetails.available_session }}<span v-if="isAdmin && patientDetails.owed_session > 0" class="ml-2 text-red-600 font-medium">(owes {{ patientDetails.owed_session }})</span></span></div>
               <div class="flex"><span class="font-medium w-32 text-left">OKU Card</span><span class="mx-2">:</span><span>{{ patientDetails.OKUCard || 'N/A' }}</span></div>
               <div class="flex"><span class="font-medium w-32 text-left">Treatment Type</span><span class="mx-2">:</span><span>{{ patientDetails.treatment_type || 'N/A' }}</span></div>
             </div>
@@ -987,6 +988,14 @@ async function printReferralLetter(referral) {
                             :class="getAppointmentStatus((appt.extendedProps && appt.extendedProps.status) || appt.status).badgeClass"
                           >
                             {{ getStatus(appt) }}
+                          </span>
+                          <!-- Billing state: administrators only (the API omits it for doctors) -->
+                          <span
+                            v-if="isAdmin && getBillingStateMeta(appt.extendedProps?.billing_state)"
+                            class="ml-1 px-2 py-1 text-xs font-semibold rounded-full"
+                            :class="getBillingStateMeta(appt.extendedProps.billing_state).badgeClass"
+                          >
+                            {{ getBillingStateMeta(appt.extendedProps.billing_state).label }}
                           </span>
                         </td>
                         <td class="px-6 py-4 text-sm text-gray-900">

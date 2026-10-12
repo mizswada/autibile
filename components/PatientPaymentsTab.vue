@@ -44,9 +44,23 @@ const formatDate = (value) =>
 const statusBadge = (status) => {
   if (status === 'Paid') return 'success';
   if (status === 'Pending Approval') return 'info';
-  if (status === 'Zakat: awaiting payment') return 'secondary';
+  if (status === 'Void') return 'secondary';
   return 'warning';
 };
+
+const formatShortDate = (value) =>
+  value ? new Date(value).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' }) : '';
+
+// Manual session adjustments (who changed the balance, when and why)
+const adjustments = ref([]);
+async function loadAdjustments() {
+  try {
+    const response = await $fetch(`/api/parents/manageChild/sessionAdjustments?patientId=${props.patientId}`);
+    adjustments.value = response.statusCode === 200 ? response.data : [];
+  } catch (error) {
+    console.error('Error loading session adjustments:', error);
+  }
+}
 
 async function loadPayments() {
   isLoading.value = true;
@@ -57,6 +71,7 @@ async function loadPayments() {
       summary.value = response.data.summary;
       invoices.value = response.data.invoices;
       currentPage.value = 1;
+      loadAdjustments();
     } else {
       loadError.value = response.message || 'Failed to load payments';
     }
@@ -130,6 +145,54 @@ onMounted(loadPayments);
     </div>
 
     <template v-else>
+      <!-- Sessions: read-only balance, adjust action and the adjustment log -->
+      <div class="bg-white rounded-xl shadow p-6">
+        <h2 class="text-xl font-semibold mb-4 bg-purple-50 text-purple-800 border-b border-purple-200 p-2 rounded-lg">
+          Sessions
+        </h2>
+        <SessionBalance
+          :patient-id="patientId"
+          :available="summary.availableSessions"
+          :owed="summary.owedSessions"
+          @adjusted="loadPayments"
+        />
+
+        <div v-if="summary.unbilledCount > 0" class="p-3 mb-4 rounded-lg border border-amber-300 bg-amber-50 flex flex-wrap items-center justify-between gap-2">
+          <span class="text-sm text-amber-900">
+            <strong>{{ summary.unbilledCount }}</strong> session{{ summary.unbilledCount > 1 ? 's' : '' }} booked without a prepaid session, not billed yet.
+          </span>
+          <NuxtLink :to="`/payment/create?patientId=${patientId}`">
+            <rs-button size="sm">Create invoice</rs-button>
+          </NuxtLink>
+        </div>
+
+        <div v-if="adjustments.length" class="border rounded-lg overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200 text-sm">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-2 text-left font-medium text-gray-500">Date</th>
+                <th class="px-4 py-2 text-left font-medium text-gray-500">Change</th>
+                <th class="px-4 py-2 text-left font-medium text-gray-500">Balance</th>
+                <th class="px-4 py-2 text-left font-medium text-gray-500">Reason</th>
+                <th class="px-4 py-2 text-left font-medium text-gray-500">By</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+              <tr v-for="row in adjustments" :key="row.adjustment_id">
+                <td class="px-4 py-2 whitespace-nowrap">{{ formatDate(row.created_at) }}</td>
+                <td class="px-4 py-2 font-medium" :class="row.delta > 0 ? 'text-green-700' : 'text-red-700'">
+                  {{ row.delta > 0 ? '+' : '' }}{{ row.delta }}
+                </td>
+                <td class="px-4 py-2 whitespace-nowrap">{{ row.balance_before }} to {{ row.balance_after }}</td>
+                <td class="px-4 py-2">{{ row.reason }}</td>
+                <td class="px-4 py-2">{{ row.admin_email || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-else class="text-sm text-gray-400">No manual session adjustments.</p>
+      </div>
+
       <!-- Summary -->
       <div class="bg-white rounded-xl shadow p-6">
         <h2 class="text-xl font-semibold mb-4 bg-purple-50 text-purple-800 border-b border-purple-200 p-2 rounded-lg">
@@ -205,8 +268,15 @@ onMounted(loadPayments);
                   <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">RM {{ formatPrice(invoice.amount) }}</td>
                   <td class="px-6 py-4 text-sm whitespace-nowrap">
                     <rs-badge :variant="statusBadge(invoice.display_status)">{{ invoice.display_status }}</rs-badge>
+                    <rs-badge v-if="invoice.pay_later" variant="secondary" class="ml-1">Zakat</rs-badge>
                     <div v-if="invoice.status === 'Paid' && invoice.payment_date" class="text-xs text-gray-500 mt-1">
                       {{ formatDate(invoice.payment_date) }}<span v-if="invoice.payment_method"> · {{ invoice.payment_method }}</span>
+                    </div>
+                    <div v-if="invoice.billed_appointments.length" class="text-xs text-gray-500 mt-1">
+                      Sessions: {{ invoice.billed_appointments.map((a) => formatShortDate(a.date)).join(', ') }}
+                    </div>
+                    <div v-if="invoice.status === 'Void' && invoice.void_reason" class="text-xs text-gray-500 mt-1">
+                      Void: {{ invoice.void_reason }}
                     </div>
                   </td>
                   <td class="px-6 py-4 text-sm whitespace-nowrap">

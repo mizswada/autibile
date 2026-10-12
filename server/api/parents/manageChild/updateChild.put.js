@@ -11,11 +11,13 @@ export default defineEventHandler(async (event) => {
       dateOfBirth,
       autismDiagnose,
       diagnosedDate,
-      availableSession,
       status,
       okuCard,
       treatmentType,
+      isZakat,
     } = body;
+    // The session balance is never written here. Admins change it with the logged
+    // "Adjust sessions" action; any availableSession sent by older clients is ignored.
   
     if (!childID) {
       return { statusCode: 400, message: 'Missing child ID' };
@@ -94,10 +96,10 @@ export default defineEventHandler(async (event) => {
           dob: new Date(dateOfBirth),
           autism_diagnose: autismDiagnose || null,
           diagnosed_on: diagnosedDate ? new Date(diagnosedDate) : null,
-          available_session: parseInt(availableSession),
           status,
           OKUCard: convertOKUCard(okuCard),
           treatment_type: convertTreatmentType(treatmentType),
+          is_zakat: typeof isZakat === 'boolean' ? isZakat : undefined,
           update_at: new Date(),
         },
       });

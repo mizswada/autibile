@@ -49,7 +49,8 @@ export default defineEventHandler(async (event) => {
         autismDiagnose: u.autism_diagnose,
         diagnosedDate: u.diagnosed_on ? new Date(u.diagnosed_on).toISOString().split('T')[0] : '',
         status: u.status,
-        availableSession: u.available_session,
+        // The app never shows owed (negative) sessions
+        availableSession: Math.max(0, u.available_session || 0),
         okuCard: u.OKUCard,
         treatmentType: u.treatment_type,
       }));

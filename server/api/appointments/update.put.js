@@ -13,6 +13,7 @@ import {
   toDateOnlyString,
 } from "~/server/utils/appointmentTime";
 import { normalizeAppointmentStatus } from "~/utils/appointmentStatus";
+import { releaseSession, takeSession } from "~/server/utils/sessionBalance";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -203,8 +204,6 @@ export default defineEventHandler(async (event) => {
       if (acquireNew) {
         const targetPatient = await findLinkedActivePatient(tx, newPatientId, {
           patient_id: true,
-          fullname: true,
-          available_session: true,
         });
 
         if (!targetPatient) {
@@ -213,36 +212,23 @@ export default defineEventHandler(async (event) => {
           );
         }
 
-        const availableSessions = targetPatient.available_session || 0;
-        if (availableSessions <= 0) {
-          throw new Error(
-            `Cannot update appointment. Patient ${targetPatient.fullname} has no available sessions (${availableSessions}). Please purchase more sessions first.`,
-          );
-        }
-
-        await tx.user_patients.update({
-          where: { patient_id: newPatientId },
-          data: {
-            available_session: availableSessions - 1,
-            update_at: new Date(),
-          },
-        });
+        // Booking / re-activating without a prepaid session is allowed up to the cap
+        // of unbilled sessions; the appointment then needs billing.
+        const { needsBilling } = await takeSession(tx, newPatientId);
+        updateData.needs_billing = needsBilling;
+        updateData.billing_waived = false;
+        updateData.invoice_id = null;
       }
 
       if (releaseOld && existingPatientId != null) {
-        const oldPatient = await tx.user_patients.findUnique({
-          where: { patient_id: existingPatientId },
-          select: { patient_id: true, available_session: true },
-        });
+        await releaseSession(tx, existingPatientId);
 
-        if (oldPatient) {
-          await tx.user_patients.update({
-            where: { patient_id: existingPatientId },
-            data: {
-              available_session: (oldPatient.available_session || 0) + 1,
-              update_at: new Date(),
-            },
-          });
+        if (!acquireNew) {
+          // Cancelled: no session is held any more, so there is nothing left to bill
+          // (an invoice that already bills it keeps its amount; the admin was warned).
+          updateData.needs_billing = false;
+          updateData.billing_waived = false;
+          updateData.invoice_id = null;
         }
       }
 

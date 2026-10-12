@@ -56,7 +56,6 @@ export default defineEventHandler(async (event) => {
           autism_diagnose: autismDiagnose || null,
           diagnosed_on: diagnosedDate ? new Date(diagnosedDate) : null,
           status,
-          available_session: availableSession ? parseInt(availableSession) : undefined,
           OKUCard: convertOKUCard(okuCard),
           treatment_type: convertTreatmentType(treatmentType),
           mchatr_status: mchatrStatus,

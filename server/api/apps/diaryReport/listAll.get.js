@@ -120,7 +120,8 @@ export default defineEventHandler(async (event) => {
         autism_diagnose: report.user_patients.autism_diagnose,
         diagnosed_on: report.user_patients.diagnosed_on,
         status: report.user_patients.status,
-        available_session: report.user_patients.available_session,
+        // The app never shows owed (negative) sessions
+        available_session: Math.max(0, report.user_patients.available_session || 0),
         okuCard: report.user_patients.OKUCard,
         treatmentType: report.user_patients.treatment_type,
         created_at: report.user_patients.created_at,

@@ -63,9 +63,15 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    if (currentInvoice.status === 'Void') {
+      return {
+        statusCode: 400,
+        message: "This invoice is void and cannot be changed.",
+      };
+    }
+
     // Status change and session credit happen together. creditInvoiceSessions
-    // credits at most once per invoice, so a Zakat "pay later" invoice that was
-    // already credited at creation is not credited again.
+    // credits at most once per invoice, so toggling Paid again never adds sessions twice.
     const updatedInvoice = await prisma.$transaction(async (tx) => {
       if (status === 'Paid' && currentInvoice.status === 'Unpaid') {
         const result = await creditInvoiceSessions(invoiceIdValue, tx);
@@ -110,7 +116,7 @@ export default defineEventHandler(async (event) => {
         patient_name: updatedInvoice.user_patients?.fullname,
         invoice_type: updatedInvoice.invoice_type,
         status: updatedInvoice.status,
-        available_sessions: updatedInvoice.user_patients?.available_session,
+        available_sessions: Math.max(0, updatedInvoice.user_patients?.available_session || 0),
         updated_at: updatedInvoice.update_at,
       },
     };

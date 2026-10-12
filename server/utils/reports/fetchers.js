@@ -209,7 +209,9 @@ async function fetchPatientRows(filters = {}) {
     autism_diagnose: c.autism_diagnose || "",
     diagnosed_on: toDate(c.diagnosed_on),
     treatment_type: mapTreatmentType(c.treatment_type),
-    available_session: toNumber(c.available_session),
+    // Owed (negative) sessions are reported separately so totals do not net credit against debt
+    available_session: Math.max(0, toNumber(c.available_session) || 0),
+    owed_session: Math.max(0, -(toNumber(c.available_session) || 0)),
     status: c.status || "",
     mchatr_status: c.mchatr_status || "",
     parent_name: parentByPatient[c.patient_id]?.name || "",
@@ -411,7 +413,8 @@ async function fetchInvoiceRows(filters = {}) {
     const amountPaid = (inv.payment || [])
       .filter((p) => p.deleted_at == null && p.status === "Approved")
       .reduce((sum, p) => sum + (toNumber(p.amount) || 0), 0);
-    const balance = amount - amountPaid;
+    // A void invoice is not money still owed
+    const balance = inv.status === "Void" ? 0 : amount - amountPaid;
     return {
       invoice_id: inv.invoice_id,
       date: toDate(inv.date),
@@ -550,7 +553,8 @@ async function fetchSessionUtilizationRows(filters = {}) {
       patient_ic: c.patient_ic || "",
       parent_name: parentByPatient[c.patient_id] || "",
       treatment_type: mapTreatmentType(c.treatment_type),
-      available_session: toNumber(c.available_session) || 0,
+      available_session: Math.max(0, toNumber(c.available_session) || 0),
+      owed_session: Math.max(0, -(toNumber(c.available_session) || 0)),
       sessions_booked: st.booked,
       sessions_completed: st.completed,
       last_session_date: st.last ? toDate(st.last) : null,

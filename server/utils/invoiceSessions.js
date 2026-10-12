@@ -1,11 +1,12 @@
 import { findActivePatient } from "~/server/utils/activeEntities";
+import { creditSessions } from "~/server/utils/sessionBalance";
 
 /**
  * Credit the package sessions of an invoice to its patient - exactly once.
  *
  * The `invoice.sessions_credited` flag is the only guard: it is claimed with an
- * atomic updateMany, so normal payment, a manual Paid toggle and a Zakat
- * "pay later" invoice (credited at creation) can never double-credit.
+ * atomic updateMany, so normal payment and the manual Paid toggle can never
+ * double-credit. Sessions are credited when the invoice is paid; Zakat is only a label.
  *
  * Sessions come from the invoice items (package rows). Legacy invoices without
  * items fall back to matching the package by `invoice_type` name.
@@ -72,13 +73,7 @@ export async function creditInvoiceSessions(invoiceId, db = null) {
     return { credited: 0, alreadyCredited: true };
   }
 
-  await db.user_patients.update({
-    where: { patient_id: patient.patient_id },
-    data: {
-      available_session: (patient.available_session || 0) + sessions,
-      update_at: new Date(),
-    },
-  });
+  await creditSessions(db, patient.patient_id, sessions);
 
   return { credited: sessions };
 }

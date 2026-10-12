@@ -16,7 +16,43 @@ const invoiceId = route.params.id;
 const invoiceData = ref(null);
 
 const hasPendingPayment = computed(() => invoiceData.value?.latest_payment?.status === "Pending");
-const isZakatAwaiting = computed(() => !!invoiceData.value?.pay_later && invoiceData.value?.status === "Unpaid");
+const isVoid = computed(() => invoiceData.value?.status === "Void");
+
+// Void an unpaid invoice (appointments it billed go back to "unbilled").
+const voidInvoice = async () => {
+  const reason = prompt('Why is this invoice being voided? (required)');
+  if (reason === null) return;
+  if (reason.trim().length < 3) {
+    showMessage('A reason is required to void an invoice.', 'error');
+    return;
+  }
+  if (!confirm('Void this invoice? Any appointments it bills go back to the To Bill list, and a pending parent payment is rejected.')) {
+    return;
+  }
+
+  isUpdating.value = true;
+  try {
+    const response = await $fetch('/api/payment/voidInvoice', {
+      method: 'PUT',
+      body: { invoiceID: parseInt(invoiceId), reason: reason.trim() },
+    });
+
+    if (response.statusCode === 200) {
+      showMessage('Invoice voided', 'success');
+      await fetchInvoice();
+    } else {
+      showMessage(response.message || 'Failed to void the invoice', 'error');
+    }
+  } catch (error) {
+    console.error('Error voiding invoice:', error);
+    showMessage(error.data?.message || 'An error occurred while voiding the invoice', 'error');
+  } finally {
+    isUpdating.value = false;
+  }
+};
+
+const formatShortDate = (value) =>
+  new Date(value).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' });
 
 function showMessage(msg, type = 'success') {
   message.value = msg;
@@ -99,7 +135,9 @@ const formatInvoiceId = (id) => {
 };
 
 const getStatusBadgeVariant = (status) => {
-  return status === 'Paid' ? 'success' : 'warning';
+  if (status === 'Paid') return 'success';
+  if (status === 'Void') return 'secondary';
+  return 'warning';
 };
 
 onMounted(() => {
@@ -120,12 +158,6 @@ onMounted(() => {
             <rs-button variant="ghost" size="sm">
               <Icon name="ic:outline-arrow-back" class="mr-1" />
               Back to Invoices
-            </rs-button>
-          </NuxtLink>
-          <NuxtLink :to="`/payment/editInvoice/${invoiceId}`">
-            <rs-button variant="outline" size="sm">
-              <Icon name="ic:outline-edit" class="mr-1" />
-              Edit Invoice
             </rs-button>
           </NuxtLink>
         </div>
@@ -155,8 +187,8 @@ onMounted(() => {
               >
                 {{ invoiceData.status }}
               </rs-badge>
-              <rs-badge v-if="isZakatAwaiting" variant="warning" class="text-sm mb-2 block">
-                Zakat: awaiting payment
+              <rs-badge v-if="invoiceData.pay_later" variant="secondary" class="text-sm mb-2 block">
+                Zakat
               </rs-badge>
               <rs-badge v-if="hasPendingPayment" variant="info" class="text-sm mb-2 block">
                 Pending Parent Payment
@@ -245,11 +277,37 @@ onMounted(() => {
           </div>
         </div>
 
+        <!-- Appointments this invoice bills -->
+        <div v-if="invoiceData.billed_appointments && invoiceData.billed_appointments.length" class="bg-white border border-gray-200 p-6 rounded-lg">
+          <h6 class="font-semibold text-lg mb-2 text-gray-800">Billed sessions</h6>
+          <p class="text-sm text-gray-600 mb-3">Appointments booked without a prepaid session that this invoice asks the parent to pay for.</p>
+          <ul class="text-sm space-y-1">
+            <li v-for="appointment in invoiceData.billed_appointments" :key="appointment.appointment_id">
+              {{ formatShortDate(appointment.date) }}
+              <NuxtLink
+                :to="{ path: '/appointmentManagement/newAppointment/scheduledAppointment', query: { editId: String(appointment.appointment_id) } }"
+                class="ml-2 text-primary underline"
+              >
+                Open appointment
+              </NuxtLink>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Void notice -->
+        <div v-if="isVoid" class="bg-gray-50 border border-gray-200 p-6 rounded-lg">
+          <h6 class="font-semibold text-lg mb-2 text-gray-800">This invoice is void</h6>
+          <p class="text-sm text-gray-600">
+            It cannot be paid or changed.
+            <span v-if="invoiceData.void_reason">Reason: {{ invoiceData.void_reason }}</span>
+          </p>
+        </div>
+
         <!-- Status Management -->
-        <div class="bg-white border border-gray-200 p-6 rounded-lg">
+        <div v-else class="bg-white border border-gray-200 p-6 rounded-lg">
           <h6 class="font-semibold text-lg mb-4 text-gray-800">Status Management</h6>
           <div class="flex gap-4">
-            <rs-button 
+            <rs-button
               v-if="invoiceData.status === 'Unpaid'"
               variant="success" 
               size="sm"
@@ -269,12 +327,18 @@ onMounted(() => {
               <Icon v-if="isUpdating" name="line-md:loading-twotone-loop" class="mr-2" />
               <span>{{ isUpdating ? 'Updating...' : 'Mark as Unpaid' }}</span>
             </rs-button>
+            <rs-button
+              v-if="invoiceData.status === 'Unpaid'"
+              variant="danger"
+              size="sm"
+              :disabled="isUpdating"
+              @click="voidInvoice"
+            >
+              Void invoice
+            </rs-button>
           </div>
           <p class="text-sm text-gray-600 mt-2">
-            <strong>Note:</strong> When marking a package invoice as "Paid", the available sessions will be automatically added to the patient's account.
-          </p>
-          <p v-if="invoiceData.pay_later" class="text-sm text-purple-700 mt-2">
-            This is a Zakat (pay later) invoice. The sessions were already credited when the invoice was created, so paying it will not add them again.
+            <strong>Note:</strong> When an invoice with a therapy package is paid, the sessions are added to the patient's account (once).
           </p>
           <p v-if="hasPendingPayment" class="text-sm text-blue-600 mt-2">
             Parent payment submission is pending approval. Approve/reject it from Pending Approvals before changing invoice status manually.

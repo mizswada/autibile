@@ -424,6 +424,20 @@
           ],
           "format": "date-time"
         },
+        "needs_billing": {
+          "type": "boolean",
+          "default": false
+        },
+        "billing_waived": {
+          "type": "boolean",
+          "default": false
+        },
+        "invoice_id": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "user": {
           "anyOf": [
             {
@@ -1277,6 +1291,10 @@
             "null"
           ]
         },
+        "is_zakat": {
+          "type": "boolean",
+          "default": false
+        },
         "created_at": {
           "type": [
             "string",
@@ -1921,6 +1939,19 @@
           "type": "boolean",
           "default": false
         },
+        "voided_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "void_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "created_at": {
           "type": "string",
           "format": "date-time"
@@ -2423,6 +2454,48 @@
         }
       }
     },
+    "session_adjustment": {
+      "type": "object",
+      "properties": {
+        "adjustment_id": {
+          "type": "integer"
+        },
+        "patient_id": {
+          "type": "integer"
+        },
+        "delta": {
+          "type": "integer"
+        },
+        "balance_before": {
+          "type": "integer"
+        },
+        "balance_after": {
+          "type": "integer"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "admin_user_id": {
+          "type": "integer"
+        },
+        "admin_email": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ip": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
     "user_deletion_audit": {
       "type": "object",
       "properties": {
@@ -2587,6 +2660,9 @@
     },
     "ai_analysis_results": {
       "$ref": "#/definitions/ai_analysis_results"
+    },
+    "session_adjustment": {
+      "$ref": "#/definitions/session_adjustment"
     },
     "user_deletion_audit": {
       "$ref": "#/definitions/user_deletion_audit"

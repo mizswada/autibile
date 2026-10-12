@@ -19,13 +19,16 @@ export async function approvePaymentAndInvoice(paymentId, approvedByUserId) {
     return { ok: false, statusCode: 404, message: "Invoice not found for payment" };
   }
 
+  if (payment.invoice.status === "Void" || payment.invoice.deleted_at) {
+    return { ok: false, statusCode: 400, message: "This invoice is void, so its payment cannot be approved" };
+  }
+
   if (payment.status === "Approved" && payment.invoice.status === "Paid") {
     return { ok: true, statusCode: 200, message: "Payment already approved", payment };
   }
 
   // Sessions are credited at most once per invoice (sessions_credited flag), so a
-  // manual Paid toggle or a Zakat "pay later" invoice (credited at creation) is
-  // never credited a second time here.
+  // manual Paid toggle followed by an approval is never credited a second time here.
   const approvedAt = new Date();
   const updatedPayment = await prisma.$transaction(async (tx) => {
     const approved = await tx.payment.update({
@@ -82,7 +85,8 @@ export async function rejectPayment(paymentId, approvedByUserId, reason = null) 
     },
   });
 
-  if (payment.invoice && payment.invoice.status !== "Paid") {
+  // Only an Unpaid invoice goes back to Unpaid. A Paid or Void invoice keeps its status.
+  if (payment.invoice && payment.invoice.status === "Unpaid") {
     await prisma.invoice.update({
       where: { invoice_id: payment.invoice_id },
       data: {

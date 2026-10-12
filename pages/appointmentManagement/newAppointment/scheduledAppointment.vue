@@ -14,6 +14,7 @@ import {
   APPOINTMENT_STATUS_MAP,
   getAppointmentStatus,
 } from '@/utils/appointmentStatus';
+import { formatInvoiceNumber, getBillingStateMeta } from '@/utils/billingState';
 
 // FullCalendar is browser-only. Use the client plugin (same as pages/ui/component/calendar.vue)
 // instead of importing it here — top-level imports break SSR on hard reload.
@@ -54,6 +55,9 @@ const calendarOptions = ref({
     const serviceName = props.service_name || 'Unknown Service';
     const practitionerName = isAdmin ? 'Admin' : (props.practitioner_name || 'Unknown Practitioner');
 
+    // Billing state is only present (and only shown) for administrators.
+    const billing = userStore.isAdmin ? getBillingStateMeta(props.billing_state) : null;
+
     const make = (tag, classes = [], text = '') => {
       const el = document.createElement(tag);
       if (classes.length) el.classList.add(...classes);
@@ -68,7 +72,8 @@ const calendarOptions = ref({
       serviceName,
       practitionerName,
       `Session ${props.session_number ?? '-'}`,
-    ].join('\n');
+      billing ? `Billing: ${billing.label}` : '',
+    ].filter(Boolean).join('\n');
 
     // Month grid (and its "+N more" popover): one compact line with the status symbol.
     if (arg.view.type === 'dayGridMonth') {
@@ -77,6 +82,10 @@ const calendarOptions = ref({
       eventEl.appendChild(symbol);
       eventEl.appendChild(make('span', ['fc-event-compact__time'], timeText));
       eventEl.appendChild(make('span', ['fc-event-compact__name'], patientName));
+      // A "$" marks appointments that still need billing or wait for payment.
+      if (billing && (props.billing_state === 'unbilled' || props.billing_state === 'billed_unpaid')) {
+        eventEl.appendChild(make('span', ['fc-event-status-chip'], billing.symbol));
+      }
       if (isAdmin) {
         const adminEl = make('span', ['fc-event-status-chip'], 'Admin');
         adminEl.style.marginLeft = 'auto';
@@ -91,6 +100,9 @@ const calendarOptions = ref({
 
     const headerEl = make('div', ['flex', 'items-center', 'gap-2', 'mt-1']);
     headerEl.appendChild(make('span', ['fc-event-status-chip'], status.label));
+    if (billing) {
+      headerEl.appendChild(make('span', ['fc-event-status-chip'], `$ ${billing.label}`));
+    }
     headerEl.appendChild(make('span', ['text-xs', 'opacity-90'], timeText));
     eventEl.appendChild(headerEl);
 
@@ -147,6 +159,9 @@ const buildCalendarEvent = (appt) => {
       parent_rate: appt.parentRate,
       session_number: appt.sessionNumber,
       is_admin_appointment: appt.isAdminAppointment,
+      needs_billing: appt.needsBilling,
+      billing_state: appt.billingState,
+      invoice_id: appt.invoiceId,
     },
   };
 };
@@ -202,6 +217,9 @@ function handleEventClick(info) {
       therapistDoctorComment: extendedProps.therapist_doctor_comment,
       parentRate: extendedProps.parent_rate || 0,
       sessionNumber: extendedProps.session_number ?? null,
+      needsBilling: !!extendedProps.needs_billing,
+      billingState: extendedProps.billing_state ?? null,
+      invoiceId: extendedProps.invoice_id ?? null,
       rawExtendedProps: extendedProps
     };
     
@@ -414,6 +432,31 @@ const editBlocksDueToSessions = computed(
 
 const isCancellingEdit = computed(() => parseInt(appointmentForm.value.status, 10) === 37);
 
+// Session banner: green = prepaid session available, amber = no sessions left (the booking
+// will be marked unbilled), red = the admin-set limit of unbilled sessions is reached.
+const BANNER_TONES = {
+  green: { box: 'bg-green-50 border-green-200', icon: 'text-green-600', title: 'text-green-800', text: 'text-green-700' },
+  amber: { box: 'bg-amber-50 border-amber-300', icon: 'text-amber-600', title: 'text-amber-900', text: 'text-amber-800' },
+  red: { box: 'bg-red-50 border-red-200', icon: 'text-red-600', title: 'text-red-800', text: 'text-red-700' },
+};
+const sessionBannerTone = computed(() => {
+  const info = patientSessionInfo.value;
+  if (!info) return 'green';
+  if (!info.can_book_appointment) return 'red';
+  return info.will_be_unbilled ? 'amber' : 'green';
+});
+const sessionBanner = computed(() => BANNER_TONES[sessionBannerTone.value]);
+const sessionBannerIcon = computed(() => {
+  if (sessionBannerTone.value === 'green') return 'material-symbols:check-circle';
+  return sessionBannerTone.value === 'amber' ? 'material-symbols:info' : 'material-symbols:error';
+});
+function sessionCapText(info) {
+  if (info && info.max_unbilled === 0) {
+    return `has no available sessions (${info.available_sessions}). Please purchase more sessions first.`;
+  }
+  return `has reached the limit of ${info?.max_unbilled ?? 0} unbilled session(s). Bill the unbilled sessions first.`;
+}
+
 // Comment form
 const commentForm = ref({
   comment: "",
@@ -527,6 +570,9 @@ const { data: appointmentsData, pending: appointmentsLoading, refresh: _refreshA
           parentRate: appt.extendedProps.parent_rate || 0,
           sessionNumber: appt.extendedProps.session_number ?? null,
           isAdminAppointment: appt.extendedProps.is_admin_appointment || false,
+          needsBilling: !!appt.extendedProps.needs_billing,
+          billingState: appt.extendedProps.billing_state ?? null,
+          invoiceId: appt.extendedProps.invoice_id ?? null,
           rawExtendedProps: appt.extendedProps
         };
       });
@@ -908,8 +954,8 @@ const saveAppointment = async () => {
 
     // Check if patient has available sessions
     if (createBlocksDueToSessions.value) {
-      errorMessage.value = `Cannot create appointment. Patient ${patientSessionInfo.value.patient_name} has no available sessions (${patientSessionInfo.value.available_sessions}). Please purchase more sessions first.`;
-      console.log("Validation failed - patient has no available sessions");
+      errorMessage.value = `Cannot create appointment. ${patientSessionInfo.value.patient_name}: ${sessionCapText(patientSessionInfo.value)}`;
+      console.log("Validation failed - patient reached the unbilled session limit");
       return;
     }
 
@@ -940,11 +986,15 @@ const saveAppointment = async () => {
     console.log("API response:", data.value);
 
     if (data.value && data.value.success) {
+      // Booked without a prepaid session: it is marked unbilled until an invoice covers it.
+      const sessionNote = data.value.data?.needs_billing
+        ? "The patient had no sessions left, so this appointment is marked unbilled. Create an invoice to collect payment."
+        : "One session has been deducted from the patient's available sessions.";
       if (appointmentForm.value.therapistDoctor === 'admin') {
-        successMessage.value = "Admin appointment created successfully! One session has been deducted from the patient's available sessions. You can assign this to a doctor/therapist on the appointment date.";
+        successMessage.value = `Admin appointment created successfully! ${sessionNote} You can assign this to a doctor/therapist on the appointment date.`;
         console.log("Admin appointment created successfully");
       } else {
-        successMessage.value = "Appointment created successfully! One session has been deducted from the patient's available sessions.";
+        successMessage.value = `Appointment created successfully! ${sessionNote}`;
         console.log("Regular appointment created successfully");
       }
       
@@ -1056,6 +1106,7 @@ const updateAppointmentStatus = async (appointmentId, newStatus) => {
         successMessage.value = "Appointment status updated successfully!";
       }
       await refreshAppointments(); // Refresh the list
+      if (newStatus === 41) promptToBill(appointmentId);
     } else {
       errorMessage.value = data.value?.message || "Failed to update appointment status";
     }
@@ -1067,13 +1118,43 @@ const updateAppointmentStatus = async (appointmentId, newStatus) => {
   }
 };
 
+// Billing ("book first, bill later") is for administrators only.
+const canSeeBilling = computed(() => userStore.isAdmin);
+
+// Open the invoice form with this appointment ready to be billed.
+function billSession(appointment) {
+  if (!appointment) return;
+  router.push({
+    path: '/payment/create',
+    query: { patientId: String(appointment.patientId), appointmentIds: String(appointment.id) },
+  });
+}
+
+// When an unbilled appointment is completed, offer to bill it right away.
+function promptToBill(appointmentId) {
+  if (!canSeeBilling.value) return;
+  const appointment = getOriginalData(appointmentId);
+  if (appointment && appointment.billingState === 'unbilled' && Number(appointment.status) === 41) {
+    if (confirm("This session hasn't been billed yet. Create an invoice now?")) {
+      billSession(appointment);
+    }
+  }
+}
+
+// Extra warning before cancelling an appointment that an invoice already bills.
+function billedCancelWarning(appointment) {
+  return appointment && appointment.invoiceId
+    ? `\n\nThis appointment is billed on ${formatInvoiceNumber(appointment.invoiceId)}. The invoice keeps its amount; the patient will have one spare session once it is paid.`
+    : '';
+}
+
 // Handle status change based on action
 const handleStatusChange = (appointment, newStatus) => {
   const statusLabel = getAppointmentStatus(newStatus).label;
 
   // Special confirmation for cancelled status
   if (newStatus === 37) {
-    if (confirm(`Are you sure you want to mark this appointment as "Cancelled"? This will add back one session to the patient's available sessions.`)) {
+    if (confirm(`Are you sure you want to mark this appointment as "Cancelled"? This will add back one session to the patient's available sessions.${billedCancelWarning(appointment)}`)) {
       updateAppointmentStatus(appointment.id, newStatus);
     }
   } else if (newStatus === 41) {
@@ -1240,7 +1321,7 @@ const saveEditedAppointment = async () => {
         return;
       }
 
-      if (!confirm('Are you sure you want to cancel this appointment? One session will be added back to the patient\'s available sessions.')) {
+      if (!confirm(`Are you sure you want to cancel this appointment? One session will be added back to the patient's available sessions.${billedCancelWarning(selectedAppointment.value)}`)) {
         return;
       }
 
@@ -1293,7 +1374,7 @@ const saveEditedAppointment = async () => {
 
     // Only block when re-activating a cancelled appointment without sessions.
     if (editBlocksDueToSessions.value) {
-      errorMessage.value = `Cannot re-activate appointment. Patient ${patientSessionInfo.value.patient_name} has no available sessions (${patientSessionInfo.value.available_sessions}). Please purchase more sessions first.`;
+      errorMessage.value = `Cannot re-activate appointment. ${patientSessionInfo.value.patient_name}: ${sessionCapText(patientSessionInfo.value)}`;
       return;
     }
 
@@ -1345,6 +1426,7 @@ const saveEditedAppointment = async () => {
        showEditModal.value = false;
        isEditing.value = false;
        await refreshAppointments(); // Now refreshes both list and calendar
+       if (newStatus === 41) promptToBill(appointmentData.appointment_id);
     } else {
       errorMessage.value = data.value?.message || "Failed to update appointment";
     }
@@ -1585,7 +1667,7 @@ const deleteAppointment = async () => {
 const cancelAppointment = async () => {
   if (!selectedAppointment.value) return;
 
-  if (!confirm('Are you sure you want to cancel this appointment? One session will be added back to the patient\'s available sessions.')) {
+  if (!confirm(`Are you sure you want to cancel this appointment? One session will be added back to the patient's available sessions.${billedCancelWarning(selectedAppointment.value)}`)) {
     return;
   }
   
@@ -2037,6 +2119,14 @@ const validatePatientData = (patient) => {
                 >
                   {{ statusMapping[row.value.status]?.label || 'Unknown' }}
                 </span>
+                <!-- Billing state: administrators only (the API omits it for doctors) -->
+                <span
+                  v-if="canSeeBilling && getBillingStateMeta(getOriginalData(row.value.id)?.billingState)"
+                  class="ml-1 px-2 py-1 text-xs font-semibold rounded-full"
+                  :class="getBillingStateMeta(getOriginalData(row.value.id).billingState).badgeClass"
+                >
+                  {{ getBillingStateMeta(getOriginalData(row.value.id).billingState).label }}
+                </span>
               </template>
               
               <!-- Actions column -->
@@ -2233,22 +2323,24 @@ const validatePatientData = (patient) => {
               </div>
               
               <!-- Patient Session Information -->
-              <div v-if="patientSessionInfo" class="p-3 rounded-lg border" :class="patientSessionInfo.can_book_appointment ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'">
-                <div class="flex items-center">
-                  <Icon 
-                    :name="patientSessionInfo.can_book_appointment ? 'material-symbols:check-circle' : 'material-symbols:error'" 
-                    :class="patientSessionInfo.can_book_appointment ? 'text-green-600' : 'text-red-600'"
+              <div v-if="patientSessionInfo" class="p-3 rounded-lg border" :class="sessionBanner.box">
+                <div class="flex items-start">
+                  <Icon
+                    :name="sessionBannerIcon"
+                    :class="sessionBanner.icon"
                     size="20"
-                    class="mr-2"
+                    class="mr-2 mt-0.5"
                   />
                   <div>
-                    <p class="text-sm font-medium" :class="patientSessionInfo.can_book_appointment ? 'text-green-800' : 'text-red-800'">
+                    <p class="text-sm font-medium" :class="sessionBanner.title">
                       {{ patientSessionInfo.patient_name }}
                     </p>
-                    <p class="text-xs" :class="patientSessionInfo.can_book_appointment ? 'text-green-600' : 'text-red-600'">
+                    <p class="text-xs" :class="sessionBanner.text">
                       Available Sessions: {{ patientSessionInfo.available_sessions }}
-                      <span v-if="!patientSessionInfo.can_book_appointment" class="font-medium"> - Cannot book appointment</span>
-                      <span v-else class="text-gray-500"> (1 session will be deducted when booking)</span>
+                      <span v-if="patientSessionInfo.owed_sessions > 0">(already owes {{ patientSessionInfo.owed_sessions }})</span>
+                      <span v-if="!patientSessionInfo.can_book_appointment" class="font-medium"> - {{ sessionCapText(patientSessionInfo) }}</span>
+                      <span v-else-if="patientSessionInfo.will_be_unbilled" class="font-medium"> - No sessions left. This booking will be marked <strong>unbilled</strong>; create an invoice afterwards to collect payment.</span>
+                      <span v-else class="text-gray-500"> ({{ patientSessionInfo.sessions_after_booking }} left after this booking)</span>
                     </p>
                   </div>
                 </div>
@@ -2394,6 +2486,29 @@ const validatePatientData = (patient) => {
               </div>
             </div>
 
+            <!-- Billing (administrators only) -->
+            <div v-if="canSeeBilling && getBillingStateMeta(selectedAppointment.billingState)">
+              <p class="text-sm text-gray-500">Billing</p>
+              <p class="font-medium">
+                <span
+                  class="px-2 py-1 text-xs font-semibold rounded-full"
+                  :class="getBillingStateMeta(selectedAppointment.billingState).badgeClass"
+                >
+                  {{ getBillingStateMeta(selectedAppointment.billingState).label }}
+                </span>
+                <NuxtLink
+                  v-if="selectedAppointment.invoiceId"
+                  :to="`/payment/viewInvoice/${selectedAppointment.invoiceId}`"
+                  class="ml-2 text-sm text-primary underline"
+                >
+                  {{ formatInvoiceNumber(selectedAppointment.invoiceId) }}
+                </NuxtLink>
+              </p>
+              <p v-if="selectedAppointment.billingState === 'unbilled'" class="text-xs text-gray-500 mt-1">
+                Booked without a prepaid session. Bill it so the parent can pay.
+              </p>
+            </div>
+
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p class="text-sm text-gray-500">Date</p>
@@ -2483,6 +2598,14 @@ const validatePatientData = (patient) => {
               Edit
             </rs-button>
             <rs-button
+              v-if="canSeeBilling && selectedAppointment.billingState === 'unbilled' && selectedAppointment.status !== 37"
+              variant="success"
+              @click="billSession(selectedAppointment)"
+            >
+              <Icon name="material-symbols:receipt-long-outline" size="18" class="mr-1" />
+              Bill this session
+            </rs-button>
+            <rs-button
               v-if="selectedAppointment.status !== 37"
               variant="danger"
               @click="cancelAppointment"
@@ -2543,22 +2666,23 @@ const validatePatientData = (patient) => {
               </div>
               
               <!-- Patient Session Information (edit: session already held unless cancelled) -->
-              <div v-if="patientSessionInfo" class="p-3 rounded-lg border" :class="editSessionAlreadyReserved ? 'bg-blue-50 border-blue-200' : (patientSessionInfo.can_book_appointment ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200')">
-                <div class="flex items-center">
-                  <Icon 
-                    :name="editSessionAlreadyReserved ? 'material-symbols:info' : (patientSessionInfo.can_book_appointment ? 'material-symbols:check-circle' : 'material-symbols:error')" 
-                    :class="editSessionAlreadyReserved ? 'text-blue-600' : (patientSessionInfo.can_book_appointment ? 'text-green-600' : 'text-red-600')"
+              <div v-if="patientSessionInfo" class="p-3 rounded-lg border" :class="editSessionAlreadyReserved ? 'bg-blue-50 border-blue-200' : sessionBanner.box">
+                <div class="flex items-start">
+                  <Icon
+                    :name="editSessionAlreadyReserved ? 'material-symbols:info' : sessionBannerIcon"
+                    :class="editSessionAlreadyReserved ? 'text-blue-600' : sessionBanner.icon"
                     size="20"
-                    class="mr-2"
+                    class="mr-2 mt-0.5"
                   />
                   <div>
-                    <p class="text-sm font-medium" :class="editSessionAlreadyReserved ? 'text-blue-800' : (patientSessionInfo.can_book_appointment ? 'text-green-800' : 'text-red-800')">
+                    <p class="text-sm font-medium" :class="editSessionAlreadyReserved ? 'text-blue-800' : sessionBanner.title">
                       {{ patientSessionInfo.patient_name }}
                     </p>
-                    <p class="text-xs" :class="editSessionAlreadyReserved ? 'text-blue-600' : (patientSessionInfo.can_book_appointment ? 'text-green-600' : 'text-red-600')">
+                    <p class="text-xs" :class="editSessionAlreadyReserved ? 'text-blue-600' : sessionBanner.text">
                       Available Sessions: {{ patientSessionInfo.available_sessions }}
                       <span v-if="editSessionAlreadyReserved" class="font-medium"> — session already reserved for this appointment</span>
-                      <span v-else-if="!patientSessionInfo.can_book_appointment" class="font-medium"> — cannot re-activate without purchasing sessions</span>
+                      <span v-else-if="!patientSessionInfo.can_book_appointment" class="font-medium"> — {{ sessionCapText(patientSessionInfo) }}</span>
+                      <span v-else-if="patientSessionInfo.will_be_unbilled" class="font-medium"> — no sessions left: re-activating will mark it <strong>unbilled</strong></span>
                       <span v-else class="text-gray-500"> (1 session will be used if re-activating)</span>
                     </p>
                   </div>

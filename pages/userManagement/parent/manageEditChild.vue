@@ -19,11 +19,20 @@ const form = ref({
   dateOfBirth: '',
   autismDiagnose: '',
   diagnosedDate: '',
-  availableSession: 0, // Changed to integer with default value 0
   status: '',
   okuCard: null,
   treatmentType: '',
+  isZakat: false,
 });
+
+// Read-only: changed only by paid invoices or the logged "Adjust sessions" action.
+const availableSession = ref(0);
+const owedSession = ref(0);
+
+function onAdjusted(result) {
+  availableSession.value = result.availableSessions;
+  owedSession.value = result.owedSessions;
+}
 
 onMounted(async () => {
   isLoading.value = true;
@@ -43,11 +52,13 @@ onMounted(async () => {
           dateOfBirth: child.dob?.split('T')[0] ?? '',
           autismDiagnose: child.autism_diagnose || '',
           diagnosedDate: child.diagnosed_on?.split('T')[0] ?? '',
-          availableSession: parseInt(child.available_session) || 0, // Ensure it's an integer
           status: child.status,
           okuCard: child.OKUCard,
           treatmentType: child.treatment_type || '',
+          isZakat: !!child.is_zakat,
         };
+        availableSession.value = parseInt(child.available_session) || 0;
+        owedSession.value = parseInt(child.owed_session) || 0;
       } else {
         alert('Failed to load child details.');
       }
@@ -66,7 +77,6 @@ async function saveChild() {
     gender: 'Gender',
     icNumber: 'IC Number',
     dateOfBirth: 'Date of Birth',
-    availableSession: 'Available Sessions',
     status: 'Status',
     okuCard: 'OKU Card',
     treatmentType: 'Treatment Type',
@@ -91,7 +101,6 @@ async function saveChild() {
      headers: { 'Content-Type': 'application/json' },
      body: JSON.stringify({
         ...form.value,
-        availableSession: parseInt(form.value.availableSession) || 0, // Ensure it's sent as integer
         okuCard: form.value.okuCard === 'Yes' ? 1 : 0, // Convert Yes/No to 1/0
         childID: parseInt(childID.value),
      }),
@@ -139,14 +148,18 @@ async function saveChild() {
       <FormKit type="date" v-model="form.dateOfBirth" label="Date of Birth" />
       <FormKit type="text" v-model="form.autismDiagnose" label="Autism Diagnose" />
       <FormKit type="date" v-model="form.diagnosedDate" label="Diagnosed Date" />
-      <FormKit
-        type="number"
-        v-model="form.availableSession"
-        label="Available Sessions"
-        validation="required|number|min:0"
-        placeholder="0"
+      <SessionBalance
+        :patient-id="childID"
+        :available="availableSession"
+        :owed="owedSession"
+        @adjusted="onAdjusted"
       />
-      <p class="text-sm text-gray-600 mt-1">Available sessions count. Sessions can be added through package purchases.</p>
+      <FormKit
+        type="checkbox"
+        v-model="form.isZakat"
+        label="Zakat patient"
+        help="Label only. New invoices for this patient are marked Zakat by default."
+      />
       <FormKit
         type="select"
         v-model="form.status"

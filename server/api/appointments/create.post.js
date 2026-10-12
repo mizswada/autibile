@@ -11,6 +11,7 @@ import {
   toDateOnlyString,
 } from "~/server/utils/appointmentTime";
 import { normalizeAppointmentStatus } from "~/utils/appointmentStatus";
+import { takeSession } from "~/server/utils/sessionBalance";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -89,22 +90,14 @@ export default defineEventHandler(async (event) => {
         }
       }
 
-      const availableSessions = patient.available_session || 0;
-      if (availableSessions <= 0) {
-        throw new Error(
-          `Cannot create appointment. Patient ${patient.fullname} has no available sessions (${availableSessions}). Please purchase more sessions first.`,
-        );
+      // A session is held while the appointment is not cancelled. With no prepaid session
+      // left the booking still goes through (up to the admin-set cap of unbilled sessions)
+      // and is marked as needing billing.
+      const appointmentStatus = normalizeAppointmentStatus(parseInt(status, 10));
+      let needsBilling = false;
+      if (appointmentStatus !== 37) {
+        ({ needsBilling } = await takeSession(tx, patient.patient_id));
       }
-
-      await tx.user_patients.update({
-        where: {
-          patient_id: patient.patient_id,
-        },
-        data: {
-          available_session: availableSessions - 1,
-          update_at: new Date(),
-        },
-      });
 
       const created = await tx.appointments.create({
         data: {
@@ -112,7 +105,8 @@ export default defineEventHandler(async (event) => {
           book_by: book_by ? parseInt(book_by, 10) : null,
           service_id: parseInt(service_id, 10),
           date: parseAppointmentDate(date),
-          status: normalizeAppointmentStatus(parseInt(status, 10)),
+          status: appointmentStatus,
+          needs_billing: needsBilling,
           practitioner_id: is_admin_appointment
             ? null
             : parseInt(practitioner_id, 10),

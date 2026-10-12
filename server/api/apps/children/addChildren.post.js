@@ -55,7 +55,8 @@ export default defineEventHandler(async (event) => {
             autism_diagnose: autismDiagnose || null,
             diagnosed_on: diagnosedDate ? new Date(diagnosedDate) : null,
             status,
-            available_session: parseInt(availableSession) || 0,
+            // The app must not choose its own session balance: new children start at 0.
+            available_session: 0,
             OKUCard: convertOKUCard(okuCard),
             treatment_type: treatmentType,
             created_at: new Date(),

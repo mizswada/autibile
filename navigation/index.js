@@ -96,11 +96,16 @@ const adminNavigation = [
       {
         title: "Payment",
         icon: "ic:outline-payment",
-        badgeKey: "paymentPendingCount",
+        badgeKeys: ["paymentPendingCount", "toBillCount"],
         child: [
           {
             title: "Make Payment",
             path: "/payment",
+          },
+          {
+            title: "To Bill",
+            path: "/payment/toBill",
+            badgeKey: "toBillCount",
           },
           {
             title: "Pending Approvals",

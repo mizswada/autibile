@@ -1,5 +1,6 @@
 import prisma from "~/server/utils/prisma";
 import { normalizeAppointmentStatus } from "~/utils/appointmentStatus";
+import { releaseSession as giveSessionBack, takeSession } from "~/server/utils/sessionBalance";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -52,51 +53,38 @@ export default defineEventHandler(async (event) => {
     const acquireSession = !wasReserved && willBeReserved;
 
     const updatedAppointment = await prisma.$transaction(async (tx) => {
+      const billingData = {};
+
       if (acquireSession && patientId != null) {
         const patient = await tx.user_patients.findUnique({
           where: { patient_id: patientId },
-          select: {
-            patient_id: true,
-            fullname: true,
-            available_session: true,
-          },
+          select: { patient_id: true },
         });
 
         if (!patient) {
           throw new Error("Patient not found");
         }
 
-        const availableSessions = patient.available_session || 0;
-        if (availableSessions <= 0) {
-          throw new Error(
-            `Cannot update appointment. Patient ${patient.fullname} has no available sessions (${availableSessions}).`,
-          );
-        }
-
-        await tx.user_patients.update({
-          where: { patient_id: patientId },
-          data: {
-            available_session: availableSessions - 1,
-            update_at: new Date(),
-          },
-        });
+        // Re-activating without a prepaid session is allowed up to the cap of unbilled sessions.
+        const { needsBilling } = await takeSession(tx, patientId);
+        billingData.needs_billing = needsBilling;
+        billingData.billing_waived = false;
+        billingData.invoice_id = null;
       }
 
       if (releaseSession && patientId != null) {
         const patient = await tx.user_patients.findUnique({
           where: { patient_id: patientId },
-          select: { patient_id: true, available_session: true },
+          select: { patient_id: true },
         });
 
         if (patient) {
-          await tx.user_patients.update({
-            where: { patient_id: patientId },
-            data: {
-              available_session: (patient.available_session || 0) + 1,
-              update_at: new Date(),
-            },
-          });
+          await giveSessionBack(tx, patientId);
         }
+        // Cancelled: nothing left to bill.
+        billingData.needs_billing = false;
+        billingData.billing_waived = false;
+        billingData.invoice_id = null;
       }
 
       return tx.appointments.update({
@@ -106,6 +94,7 @@ export default defineEventHandler(async (event) => {
         data: {
           status: parsedStatus,
           updated_at: new Date(),
+          ...billingData,
         },
       });
     });
