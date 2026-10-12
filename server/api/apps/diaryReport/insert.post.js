@@ -1,7 +1,19 @@
+import { getAppAuth } from "~/server/utils/appsAuth";
 import { findActivePatient } from "~/server/utils/activeEntities";
 
 export default defineEventHandler(async (event) => {
   try {
+    const auth = await getAppAuth(event, { role: "Parents" });
+    if (!auth.ok) {
+      return { success: false, statusCode: auth.statusCode, message: auth.message };
+    }
+    if (auth.authenticated) {
+      const wanted = parseInt((await readBody(event))?.patientID, 10);
+      if (!auth.patientIds.includes(wanted)) {
+        return { success: false, statusCode: 403, message: 'Forbidden: this child is not on your account' };
+      }
+    }
+
     const body = await readBody(event);
     const {
       patientID,

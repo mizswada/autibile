@@ -1,3 +1,4 @@
+import { getAppAuth } from "~/server/utils/appsAuth";
 import {
   getMchatrEligibility,
   getQuestionnaireAccessInfo,
@@ -13,6 +14,15 @@ import {
 
 export default defineEventHandler(async (event) => {
   try {
+    const auth = await getAppAuth(event, { role: "Parents" });
+    if (!auth.ok) {
+      return { success: false, statusCode: auth.statusCode, message: auth.message };
+    }
+    const requestedChild = getQuery(event).patientID;
+    if (auth.authenticated && requestedChild && !auth.patientIds.includes(parseInt(requestedChild, 10))) {
+      return { success: false, statusCode: 403, message: "Forbidden: this child is not on your account" };
+    }
+
     const query = getQuery(event);
     const { questionnaireID, patientID } = query;
 

@@ -3,6 +3,9 @@ import prisma from "~/server/utils/prisma";
 
 export default defineEventHandler(async (event) => {
   try {
+    if (!event.context.user?.userID) {
+      return { statusCode: 401, success: false, message: "Unauthorized: please log in." };
+    }
     const roles = await prisma.role.findMany({
       where: {
         roleStatus: 'Active'

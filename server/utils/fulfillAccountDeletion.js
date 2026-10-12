@@ -1,3 +1,5 @@
+import { unassignUpcomingAppointments } from "~/server/utils/practitionerAppointments";
+
 /**
  * Soft-delete / deactivate a user account when an account deletion request is approved.
  */
@@ -117,6 +119,9 @@ export async function fulfillAccountDeletion({ userId, accountType }) {
   }
 
   await prisma.$transaction(async (tx) => {
+    // Their upcoming booked appointments wait for the admin to assign them again.
+    await unassignUpcomingAppointments(tx, [practitioner.practitioner_id]);
+
     await tx.user_practitioners.update({
       where: { practitioner_id: practitioner.practitioner_id },
       data: {

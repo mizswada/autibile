@@ -1,3 +1,4 @@
+import { getAppAuth } from "~/server/utils/appsAuth";
 import { findActivePatient } from "~/server/utils/activeEntities";
 import {
   assertCanSubmit,
@@ -14,6 +15,17 @@ import {
 
 export default defineEventHandler(async (event) => {
     try {
+    const auth = await getAppAuth(event, { role: "Parents" });
+    if (!auth.ok) {
+      return { success: false, statusCode: auth.statusCode, message: auth.message };
+    }
+    if (auth.authenticated) {
+      const requested = (await readBody(event))?.patientId;
+      if (requested && !auth.patientIds.includes(parseInt(requested, 10))) {
+        return { success: false, statusCode: 403, message: "Forbidden: this child is not on your account" };
+      }
+    }
+
       const body = await readBody(event);
       const { questionnaireId, answers, patientId } = body;
   

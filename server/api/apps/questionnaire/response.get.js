@@ -1,3 +1,4 @@
+import { getAppAuth } from "~/server/utils/appsAuth";
 import { mapSortedAnswers } from "~/server/utils/questionnaireOrder";
 import { buildCompositeBreakdown } from "~/server/utils/questionnaireCompositeScoring";
 import { mapQuestionnaireAnswer } from "~/server/utils/formatQuestionnaireAnswer";
@@ -39,6 +40,19 @@ export default defineEventHandler(async (event) => {
   
     try {
     
+    const auth = await getAppAuth(event, { role: "Parents" });
+    if (!auth.ok) {
+      return { success: false, statusCode: auth.statusCode, message: auth.message };
+    }
+    if (auth.authenticated) {
+      const q = getQuery(event);
+      const ownParent = q.parentId != null && parseInt(q.parentId, 10) === auth.parentId;
+      const ownChild = q.patientId != null && auth.patientIds.includes(parseInt(q.patientId, 10));
+      if (!ownParent && !ownChild) {
+        return { success: false, statusCode: 403, message: "Forbidden: these answers are not for your children" };
+      }
+    }
+
       const query = getQuery(event);
       console.log(query);
       const { questionnaireId, patientId, qrId, parentId } = query;

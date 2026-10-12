@@ -1,5 +1,12 @@
+import { getAppAuth } from "~/server/utils/appsAuth";
+
 export default defineEventHandler(async (event) => {
     try {
+      const auth = await getAppAuth(event, { role: "Parents" });
+      if (!auth.ok) {
+        return { statusCode: auth.statusCode, message: auth.message };
+      }
+
       const body = await readBody(event);
   
       const {
@@ -23,6 +30,11 @@ export default defineEventHandler(async (event) => {
           statusCode: 400,
           message: 'Missing patientID',
         };
+      }
+
+      // A signed-in parent can only change their own children.
+      if (auth.authenticated && !auth.patientIds.includes(parseInt(patientID, 10))) {
+        return { statusCode: 403, message: 'Forbidden: this child is not on your account' };
       }
   
       // Function to convert OKU card string to number

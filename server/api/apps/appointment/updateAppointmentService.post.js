@@ -1,4 +1,5 @@
 import prisma from "~/server/utils/prisma";
+import { getAppAuth, practitionerOwns } from "~/server/utils/appsAuth";
 import {
   attachAppointmentTimes,
   getAppointmentTimes,
@@ -16,6 +17,11 @@ function getAppointmentStartDate(appointment) {
 
 export default defineEventHandler(async (event) => {
   try {
+    const auth = await getAppAuth(event, { role: "Practitioners" });
+    if (!auth.ok) {
+      return { success: false, statusCode: auth.statusCode, message: auth.message };
+    }
+
     const body = await readBody(event);
     const { appointment_id, service_id, practitioner_id } = body;
 
@@ -66,6 +72,13 @@ export default defineEventHandler(async (event) => {
       practitioner_id &&
       existingAppointment.practitioner_id !== parseInt(practitioner_id, 10)
     ) {
+      return {
+        success: false,
+        message: "You are not assigned to this appointment",
+      };
+    }
+
+    if (!practitionerOwns(auth, existingAppointment.practitioner_id)) {
       return {
         success: false,
         message: "You are not assigned to this appointment",

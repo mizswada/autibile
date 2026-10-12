@@ -179,6 +179,15 @@ async function saveStatus(acknowledgeOutstanding = false) {
       },
     });
 
+    // A practitioner with upcoming booked appointments: they go back to the admin to reassign.
+    if (result.statusCode === 409 && result.code === "UPCOMING_APPOINTMENTS") {
+      isSaving.value = false;
+      if (confirm([result.message, "", "They stay booked but lose this practitioner and show on the calendar as unassigned, so you can assign them to someone else.", "", "Deactivate the account anyway?"].join("\n"))) {
+        await saveStatus(true);
+      }
+      return;
+    }
+
     // Open money or sessions on the account: ask before deactivating it.
     if (result.statusCode === 409 && result.code === "OUTSTANDING_BILLING") {
       const open = result.data || {};

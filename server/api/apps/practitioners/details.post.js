@@ -1,5 +1,14 @@
+import { getAppAuth, practitionerOwns } from "~/server/utils/appsAuth";
 export default defineEventHandler(async (event) => {
     try {  
+    const auth = await getAppAuth(event, { role: "Practitioners" });
+    if (!auth.ok) {
+      return { success: false, statusCode: auth.statusCode, message: auth.message };
+    }
+    if (!practitionerOwns(auth, parseInt((await readBody(event))?.practitionerID, 10))) {
+      return { success: false, statusCode: 403, message: 'Forbidden: this is not your account' };
+    }
+
       const body = await readBody(event);
 
       const { 

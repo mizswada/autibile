@@ -1,4 +1,11 @@
+import { getAppAuth } from "~/server/utils/appsAuth";
+
 export default defineEventHandler(async (event) => {
+  const auth = await getAppAuth(event, { role: "Parents" });
+  if (!auth.ok) {
+    return { statusCode: auth.statusCode, message: auth.message };
+  }
+
   const body = await readBody(event);
   
   const { childID, parentID } = body;
@@ -13,6 +20,11 @@ export default defineEventHandler(async (event) => {
   try {
     const childId = parseInt(childID);
     const parentId = parseInt(parentID);
+
+    // A signed-in parent can only remove a child from their own account.
+    if (auth.authenticated && parentId !== auth.parentId) {
+      return { statusCode: 403, message: 'Forbidden: this is not your account' };
+    }
 
     // Delete the relation between parent and child
     const result = await prisma.user_parent_patient.deleteMany({

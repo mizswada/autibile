@@ -1,7 +1,13 @@
+import { getAppAuth } from "~/server/utils/appsAuth";
 import prisma from "~/server/utils/prisma";
 
 export default defineEventHandler(async (event) => {
   try {
+    const auth = await getAppAuth(event, { role: "Parents" });
+    if (!auth.ok) {
+      return { success: false, statusCode: auth.statusCode, message: auth.message };
+    }
+
     const body = await readBody(event);
     
     // Extract only parent feedback data from request body
@@ -33,6 +39,14 @@ export default defineEventHandler(async (event) => {
       };
     }
     
+    // A signed-in parent can only rate their own child's appointments.
+    if (auth.authenticated && !auth.patientIds.includes(existingAppointment.patient_id)) {
+      return {
+        success: false,
+        message: 'This appointment is not for your child.'
+      };
+    }
+
     // Validate parent_rate if provided
     if (parent_rate !== undefined) {
       const rate = parseFloat(parent_rate);

@@ -8,10 +8,15 @@ import {
 import { linkCoveredAppointments } from "~/server/utils/coverage";
 import { refreshInvoiceSessionDates } from "~/server/utils/invoiceDescription";
 import { assertAppointmentUnchanged } from "~/server/utils/appointmentLock";
-import { isAdminRequest } from "~/server/utils/reports/guard";
+import { getAppAuth, practitionerOwns } from "~/server/utils/appsAuth";
 
 export default defineEventHandler(async (event) => {
   try {
+    const auth = await getAppAuth(event, { role: "Practitioners" });
+    if (!auth.ok) {
+      return { success: false, statusCode: auth.statusCode, message: auth.message };
+    }
+
     const body = await readBody(event);
     const { appointment_id, status } = body;
 
@@ -52,6 +57,13 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    if (!practitionerOwns(auth, existingAppointment.practitioner_id)) {
+      return {
+        success: false,
+        message: "This appointment is not assigned to you.",
+      };
+    }
+
     const existingStatus = existingAppointment.status;
     const patientId = existingAppointment.patient_id;
 
@@ -78,7 +90,7 @@ export default defineEventHandler(async (event) => {
         // Re-activating without a prepaid session is allowed up to the cap of unbilled sessions.
         // Only administrators may book on credit; therapists need a prepaid session.
         const { needsBilling } = await takeSession(tx, patientId, {
-          maxUnbilled: isAdminRequest(event) ? undefined : 0,
+          maxUnbilled: auth.isAdmin ? undefined : 0,
         });
         billingData.needs_billing = needsBilling;
         billingData.billing_waived = false;

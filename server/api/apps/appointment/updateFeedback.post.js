@@ -1,7 +1,13 @@
+import { getAppAuth, practitionerOwns } from "~/server/utils/appsAuth";
 import prisma from "~/server/utils/prisma";
 
 export default defineEventHandler(async (event) => {
   try {
+    const auth = await getAppAuth(event, { role: "Practitioners" });
+    if (!auth.ok) {
+      return { success: false, statusCode: auth.statusCode, message: auth.message };
+    }
+
     const body = await readBody(event);
     
     // Extract only practitioner feedback data from request body
@@ -32,6 +38,13 @@ export default defineEventHandler(async (event) => {
       };
     }
     
+    if (!practitionerOwns(auth, existingAppointment.practitioner_id)) {
+      return {
+        success: false,
+        message: 'This appointment is not assigned to you.'
+      };
+    }
+
     // Validate therapist_doctor_comment if provided
     if (therapist_doctor_comment !== undefined && therapist_doctor_comment.trim() === '') {
       return {

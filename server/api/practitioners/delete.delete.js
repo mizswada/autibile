@@ -1,6 +1,11 @@
 // Added by: Firzana Huda 24 June 2025
+import {
+  countUpcomingAppointments,
+  unassignUpcomingAppointments,
+} from "~/server/utils/practitionerAppointments";
+
 export default defineEventHandler(async (event) => {
-  const { practitionerID } = getQuery(event);
+  const { practitionerID, acknowledgeAppointments } = getQuery(event);
 
   if (!practitionerID) {
     return {
@@ -31,7 +36,22 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    // Removing hands their upcoming booked appointments back to the admin to reassign.
+    if (acknowledgeAppointments !== 'true') {
+      const upcoming = await countUpcomingAppointments(prisma, [id]);
+      if (upcoming > 0) {
+        return {
+          statusCode: 409,
+          code: 'UPCOMING_APPOINTMENTS',
+          message: `This practitioner has ${upcoming} upcoming booked appointment(s).`,
+          data: { upcoming },
+        };
+      }
+    }
+
     await prisma.$transaction(async (tx) => {
+      await unassignUpcomingAppointments(tx, [id]);
+
       // Soft delete by setting deleted_at
       await tx.user_practitioners.update({
         where: { practitioner_id: id },

@@ -1,3 +1,10 @@
+import {
+  LOGIN_BLOCKED_MESSAGE,
+  clearLoginFailures,
+  isLoginBlocked,
+  loginKeys,
+  recordLoginFailure,
+} from "~/server/utils/loginThrottle";
 import sha256 from "crypto-js/sha256.js";
 import jwt from "jsonwebtoken";
 import {
@@ -11,6 +18,10 @@ const ENV = useRuntimeConfig();
 export default defineEventHandler(async (event) => {
   try {
     const { username, password, rememberMe } = await readBody(event);
+    const throttle = loginKeys(event, username);
+    if (isLoginBlocked(throttle)) {
+      return { statusCode: 429, message: LOGIN_BLOCKED_MESSAGE };
+    }
 
     if (!username || !password) {
       return {
@@ -26,6 +37,7 @@ export default defineEventHandler(async (event) => {
    // console.log('user', user);
 
     if (!user) {
+      recordLoginFailure(throttle);
       return {
         statusCode: 404,
         message: "Doctor does not exist",
@@ -36,11 +48,13 @@ export default defineEventHandler(async (event) => {
     // Verify password
     const hashedPassword = sha256(password).toString();
     if (user.userPassword !== hashedPassword) {
+      recordLoginFailure(throttle);
       return {
         statusCode: 401,
         message: "Invalid password",
       };
     }
+    clearLoginFailures(throttle);
 
     // Password is correct: safe to disclose why the account cannot be used.
     const loginError = getPractitionerLoginError(user, "Doctor");

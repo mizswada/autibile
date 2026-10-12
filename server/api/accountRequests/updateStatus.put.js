@@ -10,6 +10,10 @@ import {
 import { TEMP_RESET_PASSWORD } from "~/server/utils/accountRequestHandlers";
 import { fulfillAccountDeletion } from "~/server/utils/fulfillAccountDeletion";
 import { getParentOutstanding } from "~/server/utils/outstandingBilling";
+import {
+  countUpcomingAppointments,
+  practitionerIdsOfUser,
+} from "~/server/utils/practitionerAppointments";
 
 const ALLOWED_STATUSES = ["Pending", "In Progress", "Completed", "Rejected"];
 
@@ -154,6 +158,21 @@ export default defineEventHandler(async (event) => {
               code: "OUTSTANDING_BILLING",
               message: "This account still has unpaid invoices, unbilled sessions or pending payments.",
               data: outstanding,
+            };
+          }
+        }
+        // A doctor / therapist leaving: their upcoming booked appointments go back to the admin.
+        if (existing.account_type !== "Parents" && body?.acknowledgeOutstanding !== true) {
+          const practitionerIds = await practitionerIdsOfUser(prisma, targetUserId, existing.account_type);
+          const upcoming = practitionerIds.length
+            ? await countUpcomingAppointments(prisma, practitionerIds)
+            : 0;
+          if (upcoming > 0) {
+            return {
+              statusCode: 409,
+              code: "UPCOMING_APPOINTMENTS",
+              message: `This practitioner has ${upcoming} upcoming booked appointment(s).`,
+              data: { upcoming },
             };
           }
         }

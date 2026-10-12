@@ -1,7 +1,13 @@
+import { getAppAuth } from "~/server/utils/appsAuth";
 import { DateTime } from "luxon";
 
 export default defineEventHandler(async (event) => {
   try {
+    const auth = await getAppAuth(event, { role: "Any" });
+    if (!auth.ok) {
+      return { success: false, statusCode: auth.statusCode, message: auth.message };
+    }
+
  
     const query = getQuery(event);
     const body = await readBody(event);

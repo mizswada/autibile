@@ -1,5 +1,8 @@
 export default defineEventHandler(async (event) => {
   try {
+    if (!event.context.user?.userID) {
+      return { statusCode: 401, success: false, message: "Unauthorized: please log in." };
+    }
     // Avoid comparing deleted_at to '0000-00-00' — MySQL strict mode throws 1525.
     // Do not SELECT deleted_at either, so zero-dates in that column don't break the query.
     const techSupport = await prisma.$queryRaw`

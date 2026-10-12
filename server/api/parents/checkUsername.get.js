@@ -1,4 +1,7 @@
 export default defineEventHandler(async (event) => {
+  if (!event.context.user?.userID) {
+    return { statusCode: 401, success: false, message: "Unauthorized: please log in." };
+  }
     const { username } = getQuery(event);
   
     if (!username) {

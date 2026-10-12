@@ -1,5 +1,14 @@
+import { getAppAuth } from "~/server/utils/appsAuth";
 export default defineEventHandler(async (event) => {
     try {
+    const auth = await getAppAuth(event, { role: "Parents" });
+    if (!auth.ok) {
+      return { success: false, statusCode: auth.statusCode, message: auth.message };
+    }
+    if (auth.authenticated && parseInt(getQuery(event).parentID, 10) !== auth.parentId) {
+      return { success: false, statusCode: 403, message: 'Forbidden: this is not your account' };
+    }
+
       const query = getQuery(event);
       const parentID = query.parentID;
   

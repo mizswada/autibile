@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import { isAppAccountActive } from "~/server/utils/appsAuth";
 
 const ENV = useRuntimeConfig();
 
@@ -26,6 +27,14 @@ export default defineEventHandler(async (event) => {
       return {
         statusCode: 401,
         message: "Unauthorized: Invalid or expired refresh token",
+      };
+    }
+
+    // A deactivated / removed account must not keep getting new access tokens.
+    if (!(await isAppAccountActive(payload))) {
+      return {
+        statusCode: 401,
+        message: "Unauthorized: this account is no longer active",
       };
     }
 

@@ -1,3 +1,10 @@
+import {
+  LOGIN_BLOCKED_MESSAGE,
+  clearLoginFailures,
+  isLoginBlocked,
+  loginKeys,
+  recordLoginFailure,
+} from "~/server/utils/loginThrottle";
 import sha256 from "crypto-js/sha256.js";
 import jwt from "jsonwebtoken";
 
@@ -6,6 +13,10 @@ const ENV = useRuntimeConfig();
 export default defineEventHandler(async (event) => {
   try {
     const { username, password, rememberMe } = await readBody(event);
+    const throttle = loginKeys(event, username);
+    if (isLoginBlocked(throttle)) {
+      return { statusCode: 429, message: LOGIN_BLOCKED_MESSAGE };
+    }
 
     if (!username || !password) {
       return {
@@ -51,11 +62,13 @@ export default defineEventHandler(async (event) => {
 
     const hashedPassword = sha256(password).toString();
     if (user.userPassword !== hashedPassword) {
+      recordLoginFailure(throttle);
       return {
         statusCode: 401,
         message: "Invalid password",
       };
     }
+    clearLoginFailures(throttle);
 
     // Get user roles
     const roles = await prisma.userrole.findMany({

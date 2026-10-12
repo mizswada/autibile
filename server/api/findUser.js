@@ -1,4 +1,7 @@
 export default defineEventHandler(async (event) => {
+    if (!event.context.user?.userID) {
+        return { statusCode: 401, message: "Unauthorized: please log in." };
+    }
     const { id } = getQuery(event);    
     try { 
         const user = await prisma.user.findFirst({

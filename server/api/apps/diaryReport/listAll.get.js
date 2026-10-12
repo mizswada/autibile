@@ -1,5 +1,11 @@
+import { getAppAuth } from "~/server/utils/appsAuth";
 export default defineEventHandler(async (event) => {
   try {
+    const auth = await getAppAuth(event, { role: "Practitioners" });
+    if (!auth.ok) {
+      return { success: false, statusCode: auth.statusCode, message: auth.message };
+    }
+
     const query = getQuery(event);
     const { patientId, parentId, startDate, endDate, limit = 50, offset = 0 } = query;
 

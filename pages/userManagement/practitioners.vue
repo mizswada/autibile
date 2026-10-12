@@ -90,7 +90,7 @@ function cancelToggleStatus() {
   showConfirmToggleModal.value = false;
 }
 
-async function performToggleStatus() {
+async function performToggleStatus(acknowledgeAppointments = false) {
   const rowData = pendingToggleData.value;
   const newStatus = rowData.status === 'Active' ? 'Inactive' : 'Active';
   isToggling.value = true;
@@ -101,8 +101,17 @@ async function performToggleStatus() {
       body: {
         practitionerID: rowData.practitionerID,
         status: newStatus,
+        acknowledgeAppointments: acknowledgeAppointments === true,
       },
     });
+
+    if (response.statusCode === 409 && response.code === 'UPCOMING_APPOINTMENTS') {
+      isToggling.value = false;
+      if (confirm([response.message, '', 'They stay booked but lose this practitioner and show on the calendar as unassigned, so you can assign them to someone else.', '', 'Deactivate anyway?'].join('\n'))) {
+        await performToggleStatus(true);
+      }
+      return;
+    }
 
     if (response.statusCode === 200) {
       const target = rawData.value.find(p => p.practitionerID === rowData.practitionerID);
@@ -136,14 +145,23 @@ function cancelDelete() {
   showDeleteModal.value = false;
 }
 
-async function performDelete() {
+async function performDelete(acknowledgeAppointments = false) {
   const rowData = pendingDeleteData.value;
   isDeleting.value = true;
 
   try {
-    const response = await $fetch(`/api/practitioners/delete?practitionerID=${rowData.practitionerID}`, {
+    const ack = acknowledgeAppointments === true ? '&acknowledgeAppointments=true' : '';
+    const response = await $fetch(`/api/practitioners/delete?practitionerID=${rowData.practitionerID}${ack}`, {
       method: 'DELETE'
     });
+
+    if (response.statusCode === 409 && response.code === 'UPCOMING_APPOINTMENTS') {
+      isDeleting.value = false;
+      if (confirm([response.message, '', 'They stay booked but lose this practitioner and show on the calendar as unassigned, so you can assign them to someone else.', '', 'Delete anyway?'].join('\n'))) {
+        await performDelete(true);
+      }
+      return;
+    }
 
     if (response.statusCode === 200) {
       // Remove the deleted practitioner from the list

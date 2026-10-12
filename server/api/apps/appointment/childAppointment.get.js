@@ -1,4 +1,5 @@
 import prisma from "~/server/utils/prisma";
+import { getAppAuth, practitionerOwns } from "~/server/utils/appsAuth";
 import {
   formatAppointmentCalendarEvent,
   buildSessionNumberMap,
@@ -6,8 +7,25 @@ import {
 
 export default defineEventHandler(async (event) => {
   try {
+    const auth = await getAppAuth(event, { role: "Any" });
+    if (!auth.ok) {
+      return { success: false, statusCode: auth.statusCode, message: auth.message };
+    }
+
     const query = getQuery(event);
     const { date, patient_id, practitioner_id, status } = query;
+
+    // A signed-in parent sees only their children's appointments, a practitioner only their own.
+    if (auth.authenticated) {
+      if (auth.patientIds) {
+        const wanted = parseInt(patient_id, 10);
+        if (!auth.patientIds.includes(wanted)) {
+          return { success: false, statusCode: 403, message: "Forbidden: this child is not on your account" };
+        }
+      } else if (!practitionerOwns(auth, parseInt(practitioner_id, 10))) {
+        return { success: false, statusCode: 403, message: "Forbidden: these are not your appointments" };
+      }
+    }
 
     const filter = {};
     if (date) filter.date = new Date(date);
