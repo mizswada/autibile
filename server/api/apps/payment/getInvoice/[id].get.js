@@ -30,6 +30,7 @@ export default defineEventHandler(async (event) => {
           orderBy: { created_at: "desc" },
           take: 1,
         },
+        invoice_item: { orderBy: { item_id: "asc" } },
       },
     });
 
@@ -55,6 +56,8 @@ export default defineEventHandler(async (event) => {
         amount: invoice.amount,
         date: invoice.date,
         status: invoice.status,
+        pay_later: invoice.pay_later,
+        items: invoice.invoice_item,
         latest_payment: latestPayment,
       },
     };

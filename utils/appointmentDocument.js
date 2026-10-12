@@ -1,4 +1,9 @@
 import { COMPANY_INFO, DOCUMENT_THEME } from './paymentDocuments';
+import {
+  APPOINTMENT_STATUS_MAP,
+  getAppointmentStatus,
+  normalizeAppointmentStatus,
+} from './appointmentStatus';
 
 const hexToRgb = (hex) => {
   const clean = String(hex).replace('#', '');
@@ -66,25 +71,15 @@ export function normalizeAppointmentForPdf(appt) {
 }
 
 function getStatusLabel(status, statusMapping) {
-  return statusMapping[Number(status)]?.label || 'Unknown';
+  return (statusMapping || APPOINTMENT_STATUS_MAP)[Number(status)]?.label || 'Unknown';
 }
 
-// Matches scheduled appointment list badge colors.
-const APPOINTMENT_STATUS_COLORS = {
-  36: '#CA8A04', // Booked
-  37: '#DC2626', // Cancelled
-  38: '#2563EB', // Start
-  39: '#16A34A', // Confirm Start
-  40: '#9333EA', // Finish
-  41: '#4338CA', // Completed
-};
-
 function getStatusBadgeColor(status) {
-  return APPOINTMENT_STATUS_COLORS[Number(status)] || DOCUMENT_THEME.muted;
+  return getAppointmentStatus(status).pdfColor || DOCUMENT_THEME.muted;
 }
 
 function getSessionStatusText(status) {
-  const code = Number(status);
+  const code = normalizeAppointmentStatus(status);
   if (code === 37) return 'Session returned to patient';
   if (code === 41) return 'Session consumed';
   return 'Session reserved';

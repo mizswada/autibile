@@ -549,6 +549,9 @@ const pageNumbers = computed(() => {
                   <rs-badge :variant="invoice.status === 'Paid' ? 'success' : 'warning'">
                     {{ invoice.status }}
                   </rs-badge>
+                  <rs-badge v-if="invoice.pay_later && invoice.status !== 'Paid'" variant="secondary" class="ml-1">
+                    Zakat
+                  </rs-badge>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="table-action-group">
@@ -764,6 +767,15 @@ const pageNumbers = computed(() => {
             <p class="text-sm text-gray-500">Description</p>
             <p class="font-medium">{{ selectedInvoice.description }}</p>
           </div>
+          <div v-if="selectedInvoice.items && selectedInvoice.items.length" class="md:col-span-2">
+            <p class="text-sm text-gray-500">Items</p>
+            <ul class="text-sm space-y-1 mt-1">
+              <li v-for="item in selectedInvoice.items" :key="item.item_id" class="flex justify-between">
+                <span>{{ item.name }}<span v-if="item.qty > 1"> x{{ item.qty }}</span></span>
+                <span>RM {{ formatPrice(item.subtotal) }}</span>
+              </li>
+            </ul>
+          </div>
           <div>
             <p class="text-sm text-gray-500">Amount</p>
             <p class="font-medium">RM {{ formatPrice(selectedInvoice.amount) }}</p>
@@ -806,6 +818,15 @@ const pageNumbers = computed(() => {
           <div>
             <p class="text-sm text-gray-500">Invoice Description</p>
             <p class="font-medium">{{ selectedPayment.invoice_description }}</p>
+          </div>
+          <div v-if="selectedPayment.invoice_items && selectedPayment.invoice_items.length" class="md:col-span-2">
+            <p class="text-sm text-gray-500">Items</p>
+            <ul class="text-sm space-y-1 mt-1">
+              <li v-for="item in selectedPayment.invoice_items" :key="item.item_id" class="flex justify-between">
+                <span>{{ item.name }}<span v-if="item.qty > 1"> x{{ item.qty }}</span></span>
+                <span>RM {{ formatPrice(item.subtotal) }}</span>
+              </li>
+            </ul>
           </div>
           <div>
             <p class="text-sm text-gray-500">Payment Date</p>

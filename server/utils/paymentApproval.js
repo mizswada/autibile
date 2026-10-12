@@ -1,48 +1,4 @@
-export async function creditPackageSessions(invoice, patientId) {
-  if (!invoice?.invoice_type || invoice.invoice_type === "Other") {
-    return;
-  }
-
-  const matchingPackage = await prisma.renamedpackage.findFirst({
-    where: {
-      package_name: invoice.invoice_type,
-      status: "Active",
-      deleted_at: null,
-    },
-  });
-
-  if (!matchingPackage) {
-    return;
-  }
-
-  const patient = await prisma.user_patients.findFirst({
-    where: {
-      patient_id: patientId,
-      deleted_at: null,
-      status: "Active",
-    },
-    select: {
-      available_session: true,
-    },
-  });
-
-  if (!patient) {
-    return;
-  }
-
-  const currentSessions = patient.available_session || 0;
-  const newSessions = currentSessions + (matchingPackage.avail_session || 0);
-
-  await prisma.user_patients.update({
-    where: {
-      patient_id: patientId,
-    },
-    data: {
-      available_session: newSessions,
-      update_at: new Date(),
-    },
-  });
-}
+import { creditInvoiceSessions } from "~/server/utils/invoiceSessions";
 
 export async function approvePaymentAndInvoice(paymentId, approvedByUserId) {
   const payment = await prisma.payment.findFirst({
@@ -67,33 +23,34 @@ export async function approvePaymentAndInvoice(paymentId, approvedByUserId) {
     return { ok: true, statusCode: 200, message: "Payment already approved", payment };
   }
 
-  // If the invoice was already marked Paid (e.g. via a manual status toggle),
-  // its package sessions were already credited. Guard against double-crediting.
-  const invoiceAlreadyPaid = payment.invoice.status === "Paid";
-
+  // Sessions are credited at most once per invoice (sessions_credited flag), so a
+  // manual Paid toggle or a Zakat "pay later" invoice (credited at creation) is
+  // never credited a second time here.
   const approvedAt = new Date();
-  const updatedPayment = await prisma.payment.update({
-    where: { payment_id: paymentId },
-    data: {
-      status: "Approved",
-      approved_by: approvedByUserId,
-      approved_at: approvedAt,
-      rejection_reason: null,
-      updated_at: approvedAt,
-    },
-  });
+  const updatedPayment = await prisma.$transaction(async (tx) => {
+    const approved = await tx.payment.update({
+      where: { payment_id: paymentId },
+      data: {
+        status: "Approved",
+        approved_by: approvedByUserId,
+        approved_at: approvedAt,
+        rejection_reason: null,
+        updated_at: approvedAt,
+      },
+    });
 
-  await prisma.invoice.update({
-    where: { invoice_id: payment.invoice_id },
-    data: {
-      status: "Paid",
-      update_at: approvedAt,
-    },
-  });
+    await tx.invoice.update({
+      where: { invoice_id: payment.invoice_id },
+      data: {
+        status: "Paid",
+        update_at: approvedAt,
+      },
+    });
 
-  if (!invoiceAlreadyPaid) {
-    await creditPackageSessions(payment.invoice, payment.patient_id);
-  }
+    await creditInvoiceSessions(payment.invoice_id, tx);
+
+    return approved;
+  });
 
   return { ok: true, statusCode: 200, message: "Payment approved successfully", payment: updatedPayment };
 }

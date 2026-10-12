@@ -53,6 +53,7 @@ const columns = [
   { name: 'fullname', label: 'Full Name' },
   { name: 'childIC', label: 'Child IC' },
   { name: 'availableSession', label: 'Available Sessions' },
+  { name: 'payment', label: 'Payment' },
   { name: 'registeredAt', label: 'Registered', sortable: true },
   { name: 'status', label: 'Status' },
   { name: 'mchatrStatus', label: 'MCHAT-R Status' },
@@ -294,7 +295,7 @@ async function performRemoveChild() {
 onMounted(async () => {
   isLoading.value = true;
   try {
-    const childRes = await fetch('/api/parents/manageChild/listChild');
+    const childRes = await fetch('/api/parents/manageChild/listChild?includeBilling=1');
     const result = await childRes.json();
 
     if (result.statusCode === 200) {
@@ -314,6 +315,10 @@ onMounted(async () => {
           ? new Date(p.diagnosedDate).toISOString().split('T')[0]
           : '',
         availableSession: p.availableSession || 0, // Use actual session count directly
+        unpaidAmount: p.unpaidAmount || 0,
+        unpaidCount: p.unpaidCount || 0,
+        payLaterAmount: p.payLaterAmount || 0,
+        payLaterCount: p.payLaterCount || 0,
         status: p.status,
         mchatrStatus: p.mchatr_status || 'Enable', // Default to Enable if not set
         mchatrAgeInRange: p.mchatrAgeInRange,
@@ -340,12 +345,17 @@ const tableData = computed(() =>
     fullname: p.fullname,
     childIC: p.childIC,
     availableSession: p.availableSession,
+    payment: p.unpaidAmount, // sortable value; the badge is rendered in the slot
     status: p.status,
     mchatrStatus: p.mchatrStatus,
     okuCard: p.okuCard,
     // IDs kept after display columns so row.value.childID/parentID still work in slots
     parentID: p.parentID,
     childID: p.childID,
+    unpaidAmount: p.unpaidAmount,
+    unpaidCount: p.unpaidCount,
+    payLaterAmount: p.payLaterAmount,
+    payLaterCount: p.payLaterCount,
   }))
 );
 
@@ -375,7 +385,7 @@ function getOriginalData(childID, parentID) {
       <rs-table
         v-else
         :data="tableData"
-        :field="['registeredAt', 'parentFullName', 'fullname', 'childIC', 'availableSession', 'status', 'mchatrStatus', 'okuCard', 'action']"
+        :field="['registeredAt', 'parentFullName', 'fullname', 'childIC', 'availableSession', 'payment', 'status', 'mchatrStatus', 'okuCard', 'action']"
         :options="{ variant: 'default', striped: true, borderless: true }"
         :options-advanced="{ sortable: true, responsive: true, filterable: false }"
         advanced
@@ -383,6 +393,19 @@ function getOriginalData(childID, parentID) {
         <!-- SLOT for registeredAt column -->
         <template v-slot:registeredAt="row">
           {{ row.value.registeredAt ? new Date(row.value.registeredAt).toLocaleString('en-GB') : '—' }}
+        </template>
+
+        <!-- SLOT for payment column: unpaid invoices, Zakat (pay later) shown separately -->
+        <template v-slot:payment="row">
+          <div v-if="row.value.unpaidCount > 0" class="flex flex-col gap-1">
+            <rs-badge v-if="row.value.payLaterCount > 0" variant="secondary" class="w-fit">
+              Zakat: RM {{ row.value.payLaterAmount.toFixed(2) }} due
+            </rs-badge>
+            <rs-badge v-if="row.value.unpaidCount > row.value.payLaterCount" variant="danger" class="w-fit">
+              Unpaid: RM {{ (row.value.unpaidAmount - row.value.payLaterAmount).toFixed(2) }}
+            </rs-badge>
+          </div>
+          <span v-else class="text-gray-400">—</span>
         </template>
 
         <!-- SLOT for status column -->

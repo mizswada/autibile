@@ -287,6 +287,7 @@ export async function executeHardDelete(db, { userID, admin, ip }) {
         await tx.diary_report.deleteMany({ where: { patient_id: { in: deleteIds } } });
         await tx.referrals.deleteMany({ where: { patient_id: { in: deleteIds } } });
         await tx.payment.deleteMany({ where: { patient_id: { in: deleteIds } } });
+        await tx.invoice_item.deleteMany({ where: { invoice: { patient_id: { in: deleteIds } } } });
         await tx.invoice.deleteMany({ where: { patient_id: { in: deleteIds } } });
       }
 

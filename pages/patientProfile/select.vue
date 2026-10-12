@@ -39,7 +39,7 @@ onMounted(async () => {
 async function fetchPatients() {
   isLoading.value = true;
   try {
-    const response = await fetch('/api/parents/manageChild/listChild?activeOnly=true');
+    const response = await fetch('/api/parents/manageChild/listChild?activeOnly=true&includeBilling=1');
     const result = await response.json();
     
     if (result.statusCode === 200 && result.data) {
@@ -235,6 +235,17 @@ function getStatusColor(status) {
             <div class="flex justify-between">
               <span class="text-gray-500">Available Sessions:</span>
               <span class="font-medium text-primary">{{ patient.availableSession || 0 }}</span>
+            </div>
+            <div v-if="patient.unpaidCount > 0" class="flex justify-between items-center">
+              <span class="text-gray-500">Payment:</span>
+              <span class="flex flex-wrap gap-1 justify-end">
+                <rs-badge v-if="patient.payLaterCount > 0" variant="secondary">
+                  Zakat: RM {{ Number(patient.payLaterAmount).toFixed(2) }} due
+                </rs-badge>
+                <rs-badge v-if="patient.unpaidCount > patient.payLaterCount" variant="danger">
+                  Unpaid: RM {{ (Number(patient.unpaidAmount) - Number(patient.payLaterAmount)).toFixed(2) }}
+                </rs-badge>
+              </span>
             </div>
             <div class="flex justify-between">
               <span class="text-gray-500">OKU Card:</span>

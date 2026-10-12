@@ -244,6 +244,18 @@ onMounted(() => {
               <span class="text-sm text-gray-500">Date:</span>
               <div class="font-medium">{{ formatDate(invoiceData.date) }}</div>
             </div>
+            <div v-if="invoiceData.items && invoiceData.items.length" class="md:col-span-2">
+              <span class="text-sm text-gray-500">Items:</span>
+              <ul class="mt-1 text-sm space-y-1">
+                <li v-for="item in invoiceData.items" :key="item.item_id" class="flex justify-between">
+                  <span>{{ item.name }}<span v-if="item.qty > 1"> x{{ item.qty }}</span></span>
+                  <span>RM {{ formatPrice(item.subtotal) }}</span>
+                </li>
+              </ul>
+            </div>
+            <div v-if="invoiceData.pay_later" class="md:col-span-2 text-sm text-purple-700">
+              Zakat (pay later) invoice: the sessions were already credited, so this payment will not add them again.
+            </div>
             <div class="md:col-span-2">
               <span class="text-sm text-gray-500">Amount:</span>
               <div class="text-2xl font-bold text-green-600">RM {{ formatPrice(invoiceData.amount) }}</div>

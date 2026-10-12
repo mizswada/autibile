@@ -34,6 +34,23 @@ export default defineEventHandler(async (event) => {
             available_session: true,
           },
         },
+        invoice_item: {
+          orderBy: {
+            item_id: 'asc',
+          },
+        },
+        payment: {
+          where: { deleted_at: null },
+          select: {
+            payment_id: true,
+            status: true,
+            created_at: true,
+          },
+          orderBy: {
+            created_at: 'desc',
+          },
+          take: 1,
+        },
       },
     });
 
@@ -56,6 +73,10 @@ export default defineEventHandler(async (event) => {
       amount: invoiceData.amount,
       date: invoiceData.date,
       status: invoiceData.status,
+      pay_later: invoiceData.pay_later,
+      sessions_credited: invoiceData.sessions_credited,
+      items: invoiceData.invoice_item,
+      latest_payment: invoiceData.payment[0] || null,
       created_at: invoiceData.created_at,
       update_at: invoiceData.update_at,
     };

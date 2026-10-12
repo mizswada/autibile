@@ -12,6 +12,7 @@ import {
   persistAppointmentTimes,
   toDateOnlyString,
 } from "~/server/utils/appointmentTime";
+import { normalizeAppointmentStatus } from "~/utils/appointmentStatus";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -65,7 +66,8 @@ export default defineEventHandler(async (event) => {
     if (patient_id) updateData.patient_id = parseInt(patient_id);
     if (service_id) updateData.service_id = parseInt(service_id);
     if (date) updateData.date = parseAppointmentDate(date);
-    if (status !== undefined) updateData.status = parseInt(status);
+    // Retired statuses (38 / 39 / 40) are saved as Booked / Booked / Completed.
+    if (status !== undefined) updateData.status = normalizeAppointmentStatus(parseInt(status));
     if (parent_rate) updateData.parent_rate = parseFloat(parent_rate);
     if (parent_comment !== undefined) updateData.parent_comment = parent_comment;
     if (therapist_doctor_comment !== undefined) {

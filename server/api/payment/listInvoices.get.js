@@ -18,13 +18,27 @@ export default defineEventHandler(async (event) => {
       offset = 0,
       startDate,
       endDate,
-      invoiceType
+      invoiceType,
+      patient_id,
+      payLater
     } = query;
 
     // Build where clause
     const whereClause = {
       deleted_at: null, // Only show non-deleted invoices
     };
+
+    // Restrict to one patient (used by the patient profile)
+    const patientIdValue = parseInt(patient_id);
+    if (!isNaN(patientIdValue) && patientIdValue > 0) {
+      whereClause.patient_id = patientIdValue;
+    }
+
+    // Zakat "pay later" invoices that are still waiting for payment
+    if (payLater === '1' || payLater === 'true') {
+      whereClause.pay_later = true;
+      whereClause.status = 'Unpaid';
+    }
 
     // Add status filter if provided
     if (status && ['Paid', 'Unpaid'].includes(status)) {
@@ -49,18 +63,17 @@ export default defineEventHandler(async (event) => {
 
     // Add search filter if provided
     if (search) {
+      // MySQL collations are case-insensitive; Prisma's `mode` is not supported on MySQL.
       whereClause.OR = [
         {
           description: {
-            contains: search,
-            mode: 'insensitive'
+            contains: search
           }
         },
         {
           user_patients: {
             fullname: {
-              contains: search,
-              mode: 'insensitive'
+              contains: search
             }
           }
         }
@@ -98,6 +111,11 @@ export default defineEventHandler(async (event) => {
           },
           take: 1, // Get the most recent payment
         },
+        invoice_item: {
+          orderBy: {
+            item_id: 'asc',
+          },
+        },
       },
     });
 
@@ -114,6 +132,10 @@ export default defineEventHandler(async (event) => {
         amount: invoice.amount,
         date: invoice.date,
         status: invoice.status,
+        pay_later: invoice.pay_later,
+        sessions_credited: invoice.sessions_credited,
+        items: invoice.invoice_item,
+        payment_id: latestPayment?.payment_id || null,
         payment_date: latestPayment?.created_at || null,
         payment_method: latestPayment?.method || null,
         payment_reference: latestPayment?.reference_code || null,

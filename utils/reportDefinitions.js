@@ -10,18 +10,16 @@
  * time | datetime.
  */
 
-export const APPOINTMENT_STATUS = [
-  { value: 36, label: "Booked" },
-  { value: 37, label: "Cancelled" },
-  { value: 38, label: "Start" },
-  { value: 39, label: "Confirm Start" },
-  { value: 40, label: "Finish" },
-  { value: 41, label: "Completed" },
-];
+import { APPOINTMENT_STATUS_LIST, getAppointmentStatus } from "./appointmentStatus";
+
+export const APPOINTMENT_STATUS = APPOINTMENT_STATUS_LIST.map((s) => ({
+  value: s.value,
+  label: s.label,
+}));
 
 export function getAppointmentStatusLabel(id) {
-  const found = APPOINTMENT_STATUS.find((s) => Number(s.value) === Number(id));
-  return found ? found.label : id != null ? String(id) : "";
+  const status = getAppointmentStatus(id);
+  return status.value != null ? status.label : id != null ? String(id) : "";
 }
 
 export const APPOINTMENT_SCOPE = [

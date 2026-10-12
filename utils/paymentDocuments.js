@@ -70,6 +70,30 @@ export const openPrintWindow = (html) => {
   setTimeout(triggerPrint, 800);
 };
 
+// Maps invoice items to document rows. Invoices created before items existed
+// have none, so they keep the single summary row.
+export const toLineItems = (items) =>
+  (items || []).map((item) => ({
+    description: item.description ? `${item.name} - ${item.description}` : item.name,
+    price: item.unit_price,
+    qty: item.qty,
+    amount: item.subtotal,
+  }));
+
+const normalizeLineItems = (opts) => {
+  if (Array.isArray(opts.lineItems) && opts.lineItems.length) {
+    return opts.lineItems;
+  }
+  return [
+    {
+      description: opts.lineItem?.description,
+      price: opts.lineItem?.amount,
+      qty: 1,
+      amount: opts.lineItem?.amount,
+    },
+  ];
+};
+
 // Builds a styled, invoice/receipt-like HTML document shared by print handlers
 export const buildDocumentHtml = (opts) => {
   const {
@@ -399,13 +423,18 @@ export const buildDocumentHtml = (opts) => {
             </tr>
           </thead>
           <tbody>
+            ${normalizeLineItems(opts)
+              .map(
+                (row) => `
             <tr>
-              <td>${lineItem.description || 'N/A'}</td>
-              <td class="num">RM ${formatPrice(lineItem.amount)}</td>
+              <td>${row.description || 'N/A'}</td>
+              <td class="num">RM ${formatPrice(row.price)}</td>
               <td class="num">RM 0.00</td>
-              <td class="num">1</td>
-              <td class="num">RM ${formatPrice(lineItem.amount)}</td>
-            </tr>
+              <td class="num">${row.qty}</td>
+              <td class="num">RM ${formatPrice(row.amount)}</td>
+            </tr>`,
+              )
+              .join('')}
           </tbody>
         </table>
 
@@ -464,6 +493,7 @@ export const buildInvoiceDocOptions = (invoice) => ({
     invoice.invoice_type ? `Invoice Type: ${invoice.invoice_type}` : '',
   ],
   lineItem: { description: invoice.description, amount: invoice.amount },
+  lineItems: toLineItems(invoice.items),
   summaryRows: [
     { label: 'Sub Total', value: `RM ${formatPrice(invoice.amount)}` },
     { label: 'Tax (0%)', value: 'RM 0.00' },
@@ -504,6 +534,7 @@ export const buildReceiptDocOptions = (payment) => {
       payment.invoice_type ? `Invoice Type: ${payment.invoice_type}` : '',
     ],
     lineItem: { description: payment.invoice_description, amount: payment.amount },
+    lineItems: toLineItems(payment.invoice_items),
     summaryRows: [
       { label: 'Sub Total', value: `RM ${formatPrice(payment.amount)}` },
       { label: 'Tax (0%)', value: 'RM 0.00' },
@@ -691,21 +722,24 @@ export const renderDocumentPdf = async (jsPDF, opts) => {
   y += headH;
 
   const rowH = 8;
-  setText(ink);
-  pdf.setFont(undefined, 'normal');
-  pdf.setFontSize(9);
-  const rawDesc = String(opts.lineItem?.description || 'N/A');
-  const descLine = pdf.splitTextToSize(rawDesc, priceR - descX - 4)[0] || rawDesc;
-  pdf.text(descLine, descX, y + 5.3);
-  const amountStr = `RM ${formatPrice(opts.lineItem?.amount)}`;
-  pdf.text(amountStr, priceR, y + 5.3, { align: 'right' });
-  pdf.text('RM 0.00', discR, y + 5.3, { align: 'right' });
-  pdf.text('1', qtyR, y + 5.3, { align: 'right' });
-  pdf.text(amountStr, amountR, y + 5.3, { align: 'right' });
-  setDraw(border);
-  pdf.setLineWidth(0.3);
-  pdf.line(marginX, y + rowH, rightX, y + rowH);
-  y += rowH + 8;
+  normalizeLineItems(opts).forEach((row) => {
+    y = ensureSpace(y, rowH + 2);
+    setText(ink);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(9);
+    const rawDesc = String(row.description || 'N/A');
+    const descLine = pdf.splitTextToSize(rawDesc, priceR - descX - 4)[0] || rawDesc;
+    pdf.text(descLine, descX, y + 5.3);
+    pdf.text(`RM ${formatPrice(row.price)}`, priceR, y + 5.3, { align: 'right' });
+    pdf.text('RM 0.00', discR, y + 5.3, { align: 'right' });
+    pdf.text(String(row.qty), qtyR, y + 5.3, { align: 'right' });
+    pdf.text(`RM ${formatPrice(row.amount)}`, amountR, y + 5.3, { align: 'right' });
+    setDraw(border);
+    pdf.setLineWidth(0.3);
+    pdf.line(marginX, y + rowH, rightX, y + rowH);
+    y += rowH;
+  });
+  y += 8;
 
   // ---- Totals ----
   const boxW = 90;

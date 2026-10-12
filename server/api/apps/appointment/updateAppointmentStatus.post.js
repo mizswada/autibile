@@ -1,4 +1,5 @@
 import prisma from "~/server/utils/prisma";
+import { normalizeAppointmentStatus } from "~/utils/appointmentStatus";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -19,7 +20,9 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    const parsedStatus = parseInt(status, 10);
+    // Started / Confirmed Start / Finished were retired. Older app builds may still
+    // send them, so they are saved as Booked / Booked / Completed.
+    const parsedStatus = normalizeAppointmentStatus(parseInt(status, 10));
     if (Number.isNaN(parsedStatus)) {
       return {
         success: false,

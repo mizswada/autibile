@@ -3,6 +3,8 @@ import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { jsPDF } from 'jspdf';
+import { useUserStore } from '~/stores/user';
+import { APPOINTMENT_STATUS_MAP, getAppointmentStatus } from '~/utils/appointmentStatus';
 import { getDiaryEntryLines } from '~/utils/diaryReport';
 import { COMPANY_INFO } from '~/utils/paymentDocuments';
 import {
@@ -58,14 +60,7 @@ const itemsPerPage = ref(10);
 const appointmentsLoading = ref(false);
 const printingAppointmentId = ref(null);
 
-const appointmentStatusMapping = {
-  36: { label: 'Booked', class: 'bg-yellow-100 text-yellow-800' },
-  37: { label: 'Cancelled', class: 'bg-red-100 text-red-800' },
-  38: { label: 'Start', class: 'bg-blue-100 text-blue-800' },
-  39: { label: 'Confirm Start', class: 'bg-green-100 text-green-800' },
-  40: { label: 'Finish', class: 'bg-purple-100 text-purple-800' },
-  41: { label: 'Completed', class: 'bg-indigo-100 text-indigo-800' },
-};
+const appointmentStatusMapping = APPOINTMENT_STATUS_MAP;
 
 // Computed properties for pagination
 const totalPages = computed(() => Math.ceil((appointments.value?.length || 0) / itemsPerPage.value));
@@ -79,14 +74,19 @@ const paginatedAppointments = computed(() => {
 });
 
 // Tabs
-const tabs = [
+const userStore = useUserStore();
+const isAdmin = computed(() => (userStore.roles || []).some((role) => String(role).includes('Admin')));
+
+// Payments (sales) are visible to administrators only.
+const tabs = computed(() => [
   'Patient Details',
   'Parent Details',
   'Appointments',
   'Screenings',
   'Doctor Referrals',
+  ...(isAdmin.value ? ['Payments'] : []),
   'Diary Report'
-];
+]);
 
 const router = useRouter();
 const toast = useToast();
@@ -97,13 +97,14 @@ const tabMap = {
   'Appointments': 'appointments',
   'Screenings': 'questionnaires',
   'Doctor Referrals': 'doctor-referrals',
+  'Payments': 'payments',
   'Diary Report': 'diary-report'
 };
 const reverseTabMap = Object.fromEntries(Object.entries(tabMap).map(([k, v]) => [v, k]));
 
 // Set activeTab from query param on mount
 onMounted(async () => {
-  if (route.query.tab && reverseTabMap[route.query.tab]) {
+  if (route.query.tab && reverseTabMap[route.query.tab] && tabs.value.includes(reverseTabMap[route.query.tab])) {
     activeTab.value = reverseTabMap[route.query.tab];
   }
   if (!patientId.value) {
@@ -378,16 +379,7 @@ function getTimeSlot(appt) {
 }
 
 function getStatus(appt) {
-  const status = (appt.extendedProps && appt.extendedProps.status) || appt.status;
-  switch (status) {
-    case 36: return 'Booked';
-    case 37: return 'Cancelled';
-    case 38: return 'Started';
-    case 39: return 'Confirmed Start';
-    case 40: return 'Finished';
-    case 41: return 'Completed';
-    default: return 'Unknown';
-  }
+  return getAppointmentStatus((appt.extendedProps && appt.extendedProps.status) || appt.status).label;
 }
 
 function getSessionNumber(appt) {
@@ -992,15 +984,7 @@ async function printReferralLetter(referral) {
                         <td class="px-6 py-4 text-sm text-gray-900">
                           <span 
                             class="px-2 py-1 text-xs font-semibold rounded-full"
-                            :class="{
-                              'bg-yellow-100 text-yellow-800': (appt.extendedProps && appt.extendedProps.status) === 36 || appt.status === 36,
-                              'bg-red-100 text-red-800': (appt.extendedProps && appt.extendedProps.status) === 37 || appt.status === 37,
-                              'bg-blue-100 text-blue-800': (appt.extendedProps && appt.extendedProps.status) === 38 || appt.status === 38,
-                              'bg-green-100 text-green-800': (appt.extendedProps && appt.extendedProps.status) === 39 || appt.status === 39,
-                              'bg-purple-100 text-purple-800': (appt.extendedProps && appt.extendedProps.status) === 40 || appt.status === 40,
-                              'bg-indigo-100 text-indigo-800': (appt.extendedProps && appt.extendedProps.status) === 41 || appt.status === 41,
-                              'bg-gray-100 text-gray-800': true
-                            }"
+                            :class="getAppointmentStatus((appt.extendedProps && appt.extendedProps.status) || appt.status).badgeClass"
                           >
                             {{ getStatus(appt) }}
                           </span>
@@ -1350,6 +1334,10 @@ async function printReferralLetter(referral) {
         </div>
 
         <!-- Diary Report -->
+        <div v-else-if="activeTab === 'Payments' && isAdmin">
+          <PatientPaymentsTab :patient-id="patientId" :patient-name="patientDetails?.fullname || ''" />
+        </div>
+
         <div v-else-if="activeTab === 'Diary Report'">
           <div class="bg-white rounded-xl shadow p-6">
             <!-- Diary Entries Section -->

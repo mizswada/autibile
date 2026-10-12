@@ -16,6 +16,7 @@ const invoiceId = route.params.id;
 const invoiceData = ref(null);
 
 const hasPendingPayment = computed(() => invoiceData.value?.latest_payment?.status === "Pending");
+const isZakatAwaiting = computed(() => !!invoiceData.value?.pay_later && invoiceData.value?.status === "Unpaid");
 
 function showMessage(msg, type = 'success') {
   message.value = msg;
@@ -154,6 +155,9 @@ onMounted(() => {
               >
                 {{ invoiceData.status }}
               </rs-badge>
+              <rs-badge v-if="isZakatAwaiting" variant="warning" class="text-sm mb-2 block">
+                Zakat: awaiting payment
+              </rs-badge>
               <rs-badge v-if="hasPendingPayment" variant="info" class="text-sm mb-2 block">
                 Pending Parent Payment
               </rs-badge>
@@ -205,6 +209,42 @@ onMounted(() => {
           </div>
         </div>
 
+        <!-- Items -->
+        <div v-if="invoiceData.items && invoiceData.items.length" class="bg-white border border-gray-200 p-6 rounded-lg">
+          <h6 class="font-semibold text-lg mb-4 text-gray-800">Items</h6>
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 text-sm">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-3 py-2 text-left font-medium text-gray-500">Item</th>
+                  <th class="px-3 py-2 text-left font-medium text-gray-500">Type</th>
+                  <th class="px-3 py-2 text-right font-medium text-gray-500">Qty</th>
+                  <th class="px-3 py-2 text-right font-medium text-gray-500">Unit price</th>
+                  <th class="px-3 py-2 text-right font-medium text-gray-500">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200">
+                <tr v-for="item in invoiceData.items" :key="item.item_id">
+                  <td class="px-3 py-2">
+                    {{ item.name }}
+                    <div v-if="item.sessions" class="text-xs text-blue-700">{{ item.sessions }} session(s)</div>
+                  </td>
+                  <td class="px-3 py-2">{{ item.item_type }}</td>
+                  <td class="px-3 py-2 text-right">{{ item.qty }}</td>
+                  <td class="px-3 py-2 text-right">RM {{ formatPrice(item.unit_price) }}</td>
+                  <td class="px-3 py-2 text-right font-medium">RM {{ formatPrice(item.subtotal) }}</td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr class="font-semibold">
+                  <td colspan="4" class="px-3 py-2 text-right">Total</td>
+                  <td class="px-3 py-2 text-right">RM {{ formatPrice(invoiceData.amount) }}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
         <!-- Status Management -->
         <div class="bg-white border border-gray-200 p-6 rounded-lg">
           <h6 class="font-semibold text-lg mb-4 text-gray-800">Status Management</h6>
@@ -232,6 +272,9 @@ onMounted(() => {
           </div>
           <p class="text-sm text-gray-600 mt-2">
             <strong>Note:</strong> When marking a package invoice as "Paid", the available sessions will be automatically added to the patient's account.
+          </p>
+          <p v-if="invoiceData.pay_later" class="text-sm text-purple-700 mt-2">
+            This is a Zakat (pay later) invoice. The sessions were already credited when the invoice was created, so paying it will not add them again.
           </p>
           <p v-if="hasPendingPayment" class="text-sm text-blue-600 mt-2">
             Parent payment submission is pending approval. Approve/reject it from Pending Approvals before changing invoice status manually.

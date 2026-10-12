@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { ref, onMounted, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -16,63 +16,74 @@ const patients = ref([]);
 const packages = ref([]);
 const products = ref([]);
 const isLoading = ref(true);
-const isMounted = ref(false);
 
 const form = ref({
   patientID: '',
   patientName: '',
-  invoiceType: '',
-  customInvoiceType: '',
-  description: '',
-  amount: '',
-  quantity: 1, // Add quantity field for products only
   invoiceDate: '',
+  notes: '',
+  payLater: false,
 });
 
-// Computed properties
-const invoiceTypeOptions = computed(() => {
-  const options = [{ label: '-- Please select --', value: '' }];
-  
-  // Add package names
-  packages.value.forEach(pkg => {
-    if (pkg.status === 'Active') {
-      options.push({ label: `${pkg.package_name} (Package)`, value: pkg.package_name });
-    }
-  });
-  
-  // Add product names
-  products.value.forEach(product => {
-    if (product.status === 'Active') {
-      options.push({ label: `${product.product_name} (Product)`, value: product.product_name });
-    }
-  });
-  
-  // Add "Other" option
-  options.push({ label: 'Other', value: 'Other' });
-  
-  return options;
+// One invoice can hold several rows: therapy packages, products and other charges.
+let rowKey = 0;
+const newRow = (type = 'Package') => ({
+  key: ++rowKey,
+  type,
+  refId: '', // package_id / product_id (as string) for Package / Product rows
+  name: '', // free text for "Other" rows
+  qty: 1,
+  unitPrice: '',
+  description: '',
 });
+const items = ref([newRow()]);
 
-const selectedPackage = computed(() => {
-  if (form.value.invoiceType && form.value.invoiceType !== 'Other' && form.value.invoiceType !== '') {
-    return packages.value.find(pkg => pkg.package_name === form.value.invoiceType);
-  }
-  return null;
-});
+const rowTypeOptions = [
+  { label: 'Therapy Package', value: 'Package' },
+  { label: 'Product', value: 'Product' },
+  { label: 'Other', value: 'Other' },
+];
 
-const selectedProduct = computed(() => {
-  if (form.value.invoiceType && form.value.invoiceType !== 'Other' && form.value.invoiceType !== '') {
-    return products.value.find(product => product.product_name === form.value.invoiceType);
-  }
-  return null;
-});
+const packageOptions = computed(() => [
+  { label: '-- Select a therapy package --', value: '' },
+  ...packages.value
+    .filter((pkg) => pkg.status === 'Active')
+    .map((pkg) => ({ label: pkg.package_name, value: String(pkg.package_id) })),
+]);
 
-// Computed property for total amount with quantity (products only)
-const totalAmount = computed(() => {
-  if (selectedProduct.value) {
-    return (selectedProduct.value.amount * form.value.quantity).toFixed(2);
-  }
-  return form.value.amount;
+const productOptions = computed(() => [
+  { label: '-- Select a product --', value: '' },
+  ...products.value
+    .filter((product) => product.status === 'Active')
+    .map((product) => ({ label: product.product_name, value: String(product.product_id) })),
+]);
+
+const findPackage = (row) => packages.value.find((pkg) => String(pkg.package_id) === String(row.refId));
+const findProduct = (row) => products.value.find((product) => String(product.product_id) === String(row.refId));
+
+const rowSubtotal = (row) => {
+  const qty = parseInt(row.qty, 10);
+  const price = parseFloat(row.unitPrice);
+  if (isNaN(qty) || isNaN(price) || qty < 1 || price <= 0) return 0;
+  return Math.round(qty * price * 100) / 100;
+};
+
+const totalAmount = computed(() => items.value.reduce((sum, row) => sum + rowSubtotal(row), 0));
+
+const totalSessions = computed(() =>
+  items.value.reduce((sum, row) => {
+    if (row.type !== 'Package') return sum;
+    const pkg = findPackage(row);
+    return sum + (pkg ? (pkg.avail_session || 0) * (parseInt(row.qty, 10) || 0) : 0);
+  }, 0),
+);
+
+// Pay later (Zakat) only makes sense when the invoice credits therapy sessions.
+const hasPackageRow = computed(() =>
+  items.value.some((row) => row.type === 'Package' && findPackage(row)),
+);
+watch(hasPackageRow, (value) => {
+  if (!value) form.value.payLater = false;
 });
 
 function showMessage(msg, type = 'success') {
@@ -89,7 +100,6 @@ onMounted(async () => {
     fetchProducts()
   ]);
   isLoading.value = false;
-  isMounted.value = true; // Set mounted to true after data fetching
 });
 
 async function fetchPatients() {
@@ -133,129 +143,119 @@ async function fetchProducts() {
 
 // Handle patient selection
 const handlePatientChange = (patientID) => {
-  console.log('Patient changed to:', patientID);
-  console.log('Available patients:', patients.value);
-  
   if (patientID) {
     const selectedPatient = patients.value.find(p => p.childID === parseInt(patientID));
-    console.log('Selected patient:', selectedPatient);
     if (selectedPatient) {
       form.value.patientName = selectedPatient.fullname;
-      console.log('Set patient name to:', selectedPatient.fullname);
     }
   } else {
     form.value.patientName = '';
   }
 };
 
-// Handle invoice type change
-const handleInvoiceTypeChange = (invoiceType) => {
-  console.log('Invoice type changed to:', invoiceType);
-  if (invoiceType === 'Other') {
-    form.value.customInvoiceType = '';
-    form.value.amount = '';
-    form.value.quantity = 1; // Reset quantity for "Other"
-  } else if (invoiceType && invoiceType !== '') {
-    // Check if it's a package
-    const packageData = selectedPackage.value;
-    if (packageData) {
-      form.value.amount = packageData.amount.toString();
-      form.value.description = packageData.description || '';
-      form.value.quantity = 1; // Reset quantity for packages
-      return;
-    }
-    
-    // Check if it's a product
-    const productData = selectedProduct.value;
-    if (productData) {
-      form.value.amount = productData.amount.toString();
-      form.value.description = productData.description || '';
-      form.value.quantity = productData.quantity || 1; // Set quantity for products
-    }
-  } else {
-    // Reset form when no invoice type is selected
-    form.value.amount = '';
-    form.value.description = '';
-    form.value.quantity = 1;
-  }
-};
+function addItem() {
+  items.value.push(newRow('Product'));
+}
 
-// Watch quantity changes for products only
-watch(() => form.value.quantity, (newQuantity) => {
-  // Only run if we have a selected product and the component is fully initialized
-  if (selectedProduct.value && selectedProduct.value.amount && newQuantity > 0 && isMounted.value) {
-    const newAmount = selectedProduct.value.amount * newQuantity;
-    form.value.amount = newAmount.toString();
-    console.log(`Product quantity changed to ${newQuantity}, new amount: ${newAmount}`);
+function removeItem(index) {
+  if (items.value.length > 1) {
+    items.value.splice(index, 1);
   }
-});
+}
+
+// Changing the row type starts the row over.
+function handleTypeChange(row) {
+  row.refId = '';
+  row.name = '';
+  row.qty = 1;
+  row.unitPrice = '';
+  row.description = '';
+}
+
+// Picking a package / product fills in the catalog price. The picked id comes from the
+// event payload, so this does not depend on when v-model updates the row.
+function handleItemChange(row, pickedId) {
+  if (row.type === 'Package') {
+    const pkg = packages.value.find((item) => String(item.package_id) === String(pickedId));
+    row.unitPrice = pkg ? String(pkg.amount ?? '') : '';
+    row.qty = 1;
+  } else if (row.type === 'Product') {
+    const product = products.value.find((item) => String(item.product_id) === String(pickedId));
+    row.unitPrice = product ? String(product.amount ?? '') : '';
+  }
+}
 
 const saveInvoice = async () => {
-  // Debug: Log form data
-  console.log('Form data before submission:', form.value);
-
   // Fallback: Set patient name if missing but patientID is selected
   if (form.value.patientID && !form.value.patientName) {
     const selectedPatient = patients.value.find(p => p.childID === parseInt(form.value.patientID));
     if (selectedPatient) {
       form.value.patientName = selectedPatient.fullname;
-      console.log('Fallback: Set patient name to:', selectedPatient.fullname);
     }
   }
-  
-  // Validate form data
-  if (!form.value.patientID || !form.value.invoiceType || !form.value.description || 
-      !form.value.amount || !form.value.invoiceDate || 
-      form.value.invoiceType === '') {
-    console.log('Validation failed. Missing fields:', {
-      patientID: !!form.value.patientID,
-      patientName: !!form.value.patientName,
-      invoiceType: !!form.value.invoiceType,
-      description: !!form.value.description,
-      amount: !!form.value.amount,
-      invoiceDate: !!form.value.invoiceDate,
-      invoiceTypeValue: form.value.invoiceType
+
+  if (!form.value.patientID || !form.value.invoiceDate) {
+    showMessage('Please select a patient and a date.', 'error');
+    return;
+  }
+
+  const payloadItems = [];
+  for (let i = 0; i < items.value.length; i++) {
+    const row = items.value[i];
+    const label = `Item ${i + 1}`;
+
+    if (row.type === 'Package' && !findPackage(row)) {
+      showMessage(`${label}: please select a therapy package.`, 'error');
+      return;
+    }
+    if (row.type === 'Product' && !findProduct(row)) {
+      showMessage(`${label}: please select a product.`, 'error');
+      return;
+    }
+    if (row.type === 'Other' && !row.name.trim()) {
+      showMessage(`${label}: please enter a name.`, 'error');
+      return;
+    }
+    const qty = parseInt(row.qty, 10);
+    if (isNaN(qty) || qty < 1) {
+      showMessage(`${label}: quantity must be at least 1.`, 'error');
+      return;
+    }
+    const price = parseFloat(row.unitPrice);
+    if (isNaN(price) || price <= 0) {
+      showMessage(`${label}: price must be greater than 0.`, 'error');
+      return;
+    }
+
+    payloadItems.push({
+      type: row.type,
+      packageId: row.type === 'Package' ? parseInt(row.refId, 10) : undefined,
+      productId: row.type === 'Product' ? parseInt(row.refId, 10) : undefined,
+      name: row.type === 'Other' ? row.name.trim() : undefined,
+      qty,
+      unitPrice: price,
+      description: row.description?.trim() || undefined,
     });
-    showMessage('Please fill in all required fields.', 'error');
-    return;
-  }
-
-  // Validate custom invoice type if "Other" is selected
-  if (form.value.invoiceType === 'Other' && !form.value.customInvoiceType) {
-    showMessage('Please enter a custom invoice type.', 'error');
-    return;
-  }
-
-  // Validate amount is a positive number
-  const amountValue = parseFloat(form.value.amount);
-  if (isNaN(amountValue) || amountValue <= 0) {
-    showMessage('Amount must be a positive number.', 'error');
-    return;
   }
 
   isSubmitting.value = true;
 
   try {
-    const requestBody = {
-      patientID: parseInt(form.value.patientID),
-      patientName: form.value.patientName,
-      invoiceType: form.value.invoiceType === 'Other' ? form.value.customInvoiceType : form.value.invoiceType,
-      description: form.value.description + (selectedProduct.value && form.value.quantity > 1 ? ` (Qty: ${form.value.quantity})` : ''),
-      amount: amountValue,
-      quantity: form.value.quantity, // Include quantity for all invoice types
-      date: form.value.invoiceDate,
-    };
-    
-    console.log('Request body:', requestBody);
-    
     const response = await $fetch('/api/payment/createInvoice', {
       method: 'POST',
-      body: requestBody,
+      body: {
+        patientID: parseInt(form.value.patientID),
+        patientName: form.value.patientName,
+        date: form.value.invoiceDate,
+        notes: form.value.notes,
+        payLater: form.value.payLater,
+        items: payloadItems,
+      },
     });
 
     if (response.statusCode === 201) {
-      showMessage('Invoice created successfully', 'success');
-      
+      showMessage(response.message || 'Invoice created successfully', 'success');
+
       // Redirect immediately without resetting form
       setTimeout(() => {
         router.push('/payment');
@@ -286,104 +286,147 @@ const saveInvoice = async () => {
     <div v-else class="card p-4 border border-gray-200">
       <FormKit type="form" :actions="false">
         <!-- Patient Selection -->
-        <FormKit 
-          type="select" 
-          v-model="form.patientID" 
-          label="Patient" 
+        <FormKit
+          type="select"
+          v-model="form.patientID"
+          label="Patient"
           placeholder="Select a patient"
           :options="[
             { label: '-- Please select --', value: '' },
-            ...patients.map(p => ({ 
-              label: p.parentFullName ? `${p.fullname} (${p.parentFullName})` : p.fullname, 
-              value: p.childID.toString() 
+            ...patients.map(p => ({
+              label: p.parentFullName ? `${p.fullname} (${p.parentFullName})` : p.fullname,
+              value: p.childID.toString()
             }))
           ]"
           validation="required"
           @change="handlePatientChange"
         />
 
-        <!-- Invoice Type Selection -->
-        <FormKit 
-          type="select" 
-          v-model="form.invoiceType" 
-          label="Invoice Type" 
-          placeholder="Select invoice type"
-          :options="invoiceTypeOptions"
-          validation="required|not:-- Please select --"
-          @change="handleInvoiceTypeChange"
-        />
-
-        <!-- Custom Invoice Type (shown when "Other" is selected) -->
-        <FormKit 
-          v-if="form.invoiceType === 'Other'"
-          type="text" 
-          v-model="form.customInvoiceType" 
-          label="Custom Invoice Type" 
-          placeholder="e.g. Consultation Fee, Equipment Rental"
-          validation="required"
-        />
-
-        <!-- Package Info (shown when a package is selected) -->
-        <div v-if="selectedPackage" class="p-3 bg-blue-50 border border-blue-200 rounded-md mb-4">
-          <h6 class="font-medium text-blue-800 mb-2">Package Information</h6>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-            <div><span class="font-medium">Package:</span> {{ selectedPackage.package_name }}</div>
-            <div><span class="font-medium">Sessions:</span> {{ selectedPackage.avail_session }}</div>
-            <div><span class="font-medium">Amount:</span> RM {{ selectedPackage.amount }}</div>
-            <div><span class="font-medium">Status:</span> {{ selectedPackage.status }}</div>
-          </div>
-          <p class="text-xs text-blue-700 mt-2">
-            The sessions and amount come from the package.
-            <NuxtLink :to="`/payment/editPackage/${selectedPackage.package_id}`" class="underline font-medium">Edit this package</NuxtLink>
-          </p>
-        </div>
-
-        <!-- Product Info (shown when a product is selected) -->
-        <div v-if="selectedProduct" class="p-3 bg-green-50 border border-green-200 rounded-md mb-4">
-          <h6 class="font-medium text-green-800 mb-2">Product Information</h6>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-            <div><span class="font-medium">Product:</span> {{ selectedProduct.product_name }}</div>
-            <div><span class="font-medium">Unit Price:</span> RM {{ selectedProduct.amount }}</div>
-            <div><span class="font-medium">Status:</span> {{ selectedProduct.status }}</div>
-          </div>
-          
-          <!-- Quantity field for products -->
-          <div class="mt-3 pt-3 border-t border-green-200">
-            <FormKit
-              type="number"
-              v-model="form.quantity"
-              label="Quantity"
-              placeholder="Enter quantity"
-              validation="required|number|min:1"
-              min="1"
-              class="max-w-xs"
-            />
-            <div class="mt-2 text-sm text-green-700">
-              <span class="font-medium">Total Amount:</span> RM {{ totalAmount }}
-            </div>
-          </div>
-        </div>
-
-        <FormKit type="text" v-model="form.description" label="Description" placeholder="e.g. Therapy Session" validation="required" />
-        <FormKit 
-          type="number" 
-          v-model="form.amount" 
-          label="Amount (RM)" 
-          placeholder="e.g. 250.00" 
-          validation="required|number|min:0.01"
-          :disabled="selectedProduct"
-          :help="selectedProduct ? 'Amount is calculated automatically based on quantity' : ''"
-        />
         <FormKit type="date" v-model="form.invoiceDate" label="Date" validation="required" />
 
+        <!-- Invoice items: therapy packages, products and other charges on one invoice -->
+        <div class="mb-4">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="font-semibold text-lg">Invoice Items</h2>
+            <rs-button variant="primary-outline" size="sm" @click="addItem">
+              <Icon name="material-symbols:add" class="mr-1" /> Add item
+            </rs-button>
+          </div>
+
+          <div
+            v-for="(row, index) in items"
+            :key="row.key"
+            class="p-3 mb-3 border rounded-md"
+            :class="row.type === 'Package' ? 'bg-blue-50 border-blue-200' : row.type === 'Product' ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'"
+          >
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-medium text-sm">Item {{ index + 1 }}</span>
+              <button
+                v-if="items.length > 1"
+                type="button"
+                class="text-red-600 hover:text-red-800 text-sm flex items-center"
+                @click="removeItem(index)"
+              >
+                <Icon name="material-symbols:delete-outline" class="mr-1" /> Remove
+              </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-x-4">
+              <div class="md:col-span-3">
+                <FormKit
+                  type="select"
+                  v-model="row.type"
+                  label="Type"
+                  :options="rowTypeOptions"
+                  @input="handleTypeChange(row)"
+                />
+              </div>
+
+              <div class="md:col-span-5">
+                <FormKit
+                  v-if="row.type === 'Package'"
+                  type="select"
+                  v-model="row.refId"
+                  label="Therapy package"
+                  :options="packageOptions"
+                  @input="(value) => handleItemChange(row, value)"
+                />
+                <FormKit
+                  v-else-if="row.type === 'Product'"
+                  type="select"
+                  v-model="row.refId"
+                  label="Product"
+                  :options="productOptions"
+                  @input="(value) => handleItemChange(row, value)"
+                />
+                <FormKit
+                  v-else
+                  type="text"
+                  v-model="row.name"
+                  label="Name"
+                  placeholder="e.g. Consultation Fee, Equipment Rental"
+                />
+              </div>
+
+              <div class="md:col-span-1">
+                <FormKit
+                  type="number"
+                  v-model="row.qty"
+                  label="Qty"
+                  min="1"
+                  :disabled="row.type === 'Package'"
+                />
+              </div>
+
+              <div class="md:col-span-3">
+                <FormKit
+                  type="number"
+                  v-model="row.unitPrice"
+                  label="Unit price (RM)"
+                  placeholder="e.g. 250.00"
+                  step="0.01"
+                  :disabled="row.type === 'Product'"
+                />
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <span v-if="row.type === 'Package' && findPackage(row)" class="text-blue-800">
+                Credits {{ (findPackage(row).avail_session || 0) * (parseInt(row.qty, 10) || 0) }} session(s) to the patient
+                <NuxtLink :to="`/payment/editPackage/${findPackage(row).package_id}`" class="underline font-medium ml-1">Edit package</NuxtLink>
+              </span>
+              <span v-else-if="row.type === 'Product'" class="text-green-800">Price comes from the product.</span>
+              <span v-else />
+              <span class="font-medium">Subtotal: RM {{ rowSubtotal(row).toFixed(2) }}</span>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between p-3 bg-gray-100 rounded-md font-semibold">
+            <span>Total</span>
+            <span>RM {{ totalAmount.toFixed(2) }}</span>
+          </div>
+        </div>
+
+        <FormKit type="text" v-model="form.notes" label="Notes (optional)" placeholder="Anything to add to the invoice description" />
+
+        <!-- Zakat: sessions are given now, the invoice stays Unpaid until the money arrives -->
+        <div v-if="hasPackageRow" class="p-3 bg-purple-50 border border-purple-200 rounded-md mb-4">
+          <FormKit
+            type="checkbox"
+            v-model="form.payLater"
+            label="Pay later (Zakat)"
+            :help="`The patient gets ${totalSessions} session(s) now. The invoice stays Unpaid until the payment is recorded.`"
+          />
+        </div>
+
         <!-- Invoices are always created as Unpaid. Admin must record payment via
-             the "Make a Payment" flow so a receipt is generated and sessions counted. -->
+             the "Make a Payment" flow so a receipt is generated. -->
         <div class="p-3 bg-amber-50 border border-amber-200 rounded-md mb-2">
           <p class="text-sm text-amber-800">
             <span class="font-medium">Note:</span> This invoice will be created as
             <span class="font-semibold">Unpaid</span>. To mark it as paid, use
-            <span class="font-medium">Make a Payment</span> so a receipt is issued and
-            the patient's sessions are counted.
+            <span class="font-medium">Make a Payment</span> so a receipt is issued<template v-if="!form.payLater"> and
+            the patient's sessions are counted</template>.
           </p>
         </div>
 
@@ -408,4 +451,3 @@ const saveInvoice = async () => {
     </div>
   </div>
 </template>
-

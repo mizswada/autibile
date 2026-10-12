@@ -7,6 +7,13 @@ import {
   buildAppointmentPdfFilename,
   renderAppointmentPdf,
 } from '@/utils/appointmentDocument';
+import {
+  APPOINTMENT_STATUS_CANCELLED,
+  APPOINTMENT_STATUS_FORM_OPTIONS,
+  APPOINTMENT_STATUS_LIST,
+  APPOINTMENT_STATUS_MAP,
+  getAppointmentStatus,
+} from '@/utils/appointmentStatus';
 
 // FullCalendar is browser-only. Use the client plugin (same as pages/ui/component/calendar.vue)
 // instead of importing it here — top-level imports break SSR on hard reload.
@@ -26,84 +33,113 @@ const calendarOptions = ref({
     left: "prev,next title",
     right: "dayGridMonth,timeGridWeek,listWeek",
   },
+  // A busy day shows at most 3 compact events in the month grid; the rest open in a "+N more" popover.
+  views: {
+    dayGridMonth: {
+      dayMaxEvents: 3,
+      moreLinkClick: 'popover',
+      moreLinkContent: (args) => `+${args.num} more`,
+    },
+  },
   events: [],
   eventClick: handleEventClick,
+  eventClassNames: (arg) =>
+    Number(arg.event.extendedProps.status) === APPOINTMENT_STATUS_CANCELLED ? ['fc-event-cancelled'] : [],
   eventContent: function(arg) {
-    // Create a custom event display with session count, service, and time slot
-    const eventEl = document.createElement('div');
-    eventEl.classList.add('fc-event-custom-content');
+    const props = arg.event.extendedProps;
+    const status = getAppointmentStatus(props.status);
+    const isAdmin = !props.practitioner_id || props.practitioner_id === 'admin';
+    const timeText = extractTimeOnly(props.time_slot) || 'Unknown Time';
+    const patientName = props.patient_name || 'Unknown Patient';
+    const serviceName = props.service_name || 'Unknown Service';
+    const practitionerName = isAdmin ? 'Admin' : (props.practitioner_name || 'Unknown Practitioner');
+
+    const make = (tag, classes = [], text = '') => {
+      const el = document.createElement(tag);
+      if (classes.length) el.classList.add(...classes);
+      if (text) el.textContent = text; // textContent: names come from user input
+      return el;
+    };
+
+    const eventEl = make('div', ['fc-event-custom-content']);
+    eventEl.title = [
+      `${patientName} - ${status.label}`,
+      timeText,
+      serviceName,
+      practitionerName,
+      `Session ${props.session_number ?? '-'}`,
+    ].join('\n');
+
+    // Month grid (and its "+N more" popover): one compact line with the status symbol.
+    if (arg.view.type === 'dayGridMonth') {
+      eventEl.classList.add('fc-event-compact');
+      const symbol = make('span', ['fc-event-status-symbol'], status.symbol);
+      eventEl.appendChild(symbol);
+      eventEl.appendChild(make('span', ['fc-event-compact__time'], timeText));
+      eventEl.appendChild(make('span', ['fc-event-compact__name'], patientName));
+      if (isAdmin) {
+        const adminEl = make('span', ['fc-event-status-chip'], 'Admin');
+        adminEl.style.marginLeft = 'auto';
+        eventEl.appendChild(adminEl);
+      }
+      return { domNodes: [eventEl] };
+    }
+
+    // Week / list: full details, with a visible status chip.
     eventEl.style.padding = '2px';
     eventEl.style.overflow = 'hidden';
-    
-    // Time slot
-    const timeSlotEl = document.createElement('div');
-    timeSlotEl.classList.add('text-xs', 'opacity-90', 'mt-1');
-    timeSlotEl.innerHTML = `${extractTimeOnly(arg.event.extendedProps.time_slot) || 'Unknown Time'}`;
-    eventEl.appendChild(timeSlotEl);
-    
-    // Patient name
-    const titleEl = document.createElement('div');
-    titleEl.classList.add('font-medium');
-    titleEl.innerHTML = arg.event.extendedProps.patient_name || 'Unknown Patient';
-    eventEl.appendChild(titleEl);
-    
-    // Service name
-    const serviceEl = document.createElement('div');
-    serviceEl.classList.add('text-xs', 'opacity-80');
-    serviceEl.innerHTML = arg.event.extendedProps.service_name || 'Unknown Service';
-    eventEl.appendChild(serviceEl);
-    
-    // Practitioner name with Admin indicator
-    const practitionerEl = document.createElement('div');
-    practitionerEl.classList.add('text-xs', 'font-semibold');
-    const practitionerName = arg.event.extendedProps.practitioner_name || 'Unknown Practitioner';
-    const isAdmin = !arg.event.extendedProps.practitioner_id || arg.event.extendedProps.practitioner_id === 'admin';
-    
+
+    const headerEl = make('div', ['flex', 'items-center', 'gap-2', 'mt-1']);
+    headerEl.appendChild(make('span', ['fc-event-status-chip'], status.label));
+    headerEl.appendChild(make('span', ['text-xs', 'opacity-90'], timeText));
+    eventEl.appendChild(headerEl);
+
+    eventEl.appendChild(make('div', ['font-medium'], patientName));
+    eventEl.appendChild(make('div', ['text-xs', 'opacity-80'], serviceName));
+
+    const practitionerEl = make('div', ['text-xs', 'font-semibold'], practitionerName);
     if (isAdmin) {
-      practitionerEl.innerHTML = `<span style="color: #ea580c;">Admin</span>`;
+      practitionerEl.style.display = 'inline-block';
       practitionerEl.style.border = '1px solid #ea580c';
       practitionerEl.style.borderRadius = '4px';
       practitionerEl.style.padding = '1px 4px';
       practitionerEl.style.backgroundColor = '#fed7aa';
-    } else {
-      practitionerEl.innerHTML = practitionerName;
+      practitionerEl.style.color = '#ea580c';
     }
     eventEl.appendChild(practitionerEl);
-    
-    // Session number
-    const sessionEl = document.createElement('div');
-    sessionEl.classList.add('text-xs', 'font-semibold');
-    sessionEl.innerHTML = `Session ${arg.event.extendedProps.session_number ?? '-'}`;
-    eventEl.appendChild(sessionEl);
-    
+
+    eventEl.appendChild(make('div', ['text-xs', 'font-semibold'], `Session ${props.session_number ?? '-'}`));
+
     return { domNodes: [eventEl] };
   }
 });
 
-const syncCalendarEventsFromRawData = () => {
-  const activeAppointments = rawData.value.filter(
-    (appt) => Number(appt.status) !== 37,
-  );
+// Cancelled appointments are hidden unless the "Show cancelled" toggle is on.
+const showCancelled = ref(false);
 
-  calendarOptions.value.events = activeAppointments.map((appt) => ({
+// One place builds calendar events, so every filter shows the same status colour and details.
+const buildCalendarEvent = (appt) => {
+  const color = getStatusColor(appt.status);
+  const isAdmin = isAdminAppointment(appt);
+  return {
     id: appt.id,
     title: appt.patientName,
     start: appt.originalDate || appt.date,
     end: appt.originalDate || appt.date,
     allDay: false,
-    backgroundColor: getStatusColor(appt.status),
-    borderColor: getStatusColor(appt.status),
+    backgroundColor: color,
+    borderColor: color,
     textColor: '#fff',
     extendedProps: {
       patient_name: appt.patientName,
-      practitioner_name: appt.practitionerName,
+      practitioner_name: isAdmin ? 'Admin' : appt.practitionerName,
       service_name: appt.serviceName,
       time_slot: appt.timeSlot,
       start_time: appt.startTime,
       end_time: appt.endTime,
       status: appt.status,
       patient_id: appt.patientId,
-      practitioner_id: appt.practitionerId,
+      practitioner_id: isAdmin ? null : appt.practitionerId,
       service_id: appt.serviceId,
       slot_ID: appt.slotId,
       parent_comment: appt.parentComment,
@@ -112,7 +148,18 @@ const syncCalendarEventsFromRawData = () => {
       session_number: appt.sessionNumber,
       is_admin_appointment: appt.isAdminAppointment,
     },
-  }));
+  };
+};
+
+const syncCalendarEventsFromRawData = () => {
+  const visibleAppointments = rawData.value.filter((appt) => {
+    if (!showCancelled.value && Number(appt.status) === APPOINTMENT_STATUS_CANCELLED) return false;
+    if (calendarFilter.value === 'admin') return isAdminAppointment(appt);
+    if (calendarFilter.value === 'assigned') return !isAdminAppointment(appt);
+    return true;
+  });
+
+  calendarOptions.value.events = visibleAppointments.map(buildCalendarEvent);
 
   isPageLoading.value = false;
 };
@@ -167,16 +214,9 @@ function handleEventClick(info) {
   }
 }
 
-// Function to get color based on status
+// Calendar colour for a status (shared status table)
 function getStatusColor(status) {
-  const statusColors = {
-    36: '#14452F', // Booked - Green
-    38: '#1976D2', // Started - Blue
-    39: '#388E3C', // Confirmed Start - Green
-    40: '#7B1FA2', // Finished - Purple
-    41: '#303F9F', // Completed - Indigo
-  };
-  return statusColors[status] || '#14452F';
+  return getAppointmentStatus(status).color;
 }
 
 onMounted(() => {
@@ -340,15 +380,10 @@ const columns = [
   { name: 'action', label: 'Actions' }
 ];
 
-// Status mapping
-const statusMapping = {
-  36: { label: 'Booked', class: 'bg-yellow-100 text-yellow-800' },
-  37: { label: 'Cancelled', class: 'bg-red-100 text-red-800' },
-  38: { label: 'Start', class: 'bg-blue-100 text-blue-800' },
-  39: { label: 'Confirm Start', class: 'bg-green-100 text-green-800' },
-  40: { label: 'Finish', class: 'bg-purple-100 text-purple-800' },
-  41: { label: 'Completed', class: 'bg-indigo-100 text-indigo-800' },
-};
+// Status mapping (Booked / Cancelled / Completed; shared with the rest of the app)
+const statusMapping = Object.fromEntries(
+  Object.entries(APPOINTMENT_STATUS_MAP).map(([code, status]) => [code, { label: status.label, class: status.badgeClass }]),
+);
 
 // Selected appointment for viewing/editing
 const selectedAppointment = ref(null);
@@ -386,14 +421,7 @@ const commentForm = ref({
 });
 
 // Status options for dropdown
-const statusOptions = ref([
-  { label: "Booked", value: "36" },
-  { label: "Cancelled", value: "37" },
-  { label: "Started", value: "38" },
-  { label: "Confirmed Start", value: "39" },
-  { label: "Finished", value: "40" },
-  { label: "Completed", value: "41" }
-]);
+const statusOptions = ref(APPOINTMENT_STATUS_FORM_OPTIONS);
 
 const listFilter = ref('all');
 
@@ -1041,15 +1069,8 @@ const updateAppointmentStatus = async (appointmentId, newStatus) => {
 
 // Handle status change based on action
 const handleStatusChange = (appointment, newStatus) => {
-  const statusLabels = {
-    36: 'Booked',
-    37: 'Cancelled',
-    38: 'Started',
-    39: 'Confirmed Start',
-    40: 'Finished',
-    41: 'Completed'
-  };
-  
+  const statusLabel = getAppointmentStatus(newStatus).label;
+
   // Special confirmation for cancelled status
   if (newStatus === 37) {
     if (confirm(`Are you sure you want to mark this appointment as "Cancelled"? This will add back one session to the patient's available sessions.`)) {
@@ -1061,7 +1082,7 @@ const handleStatusChange = (appointment, newStatus) => {
     }
   } else {
     // Confirm before updating for other statuses
-    if (confirm(`Are you sure you want to mark this appointment as "${statusLabels[newStatus]}"?`)) {
+    if (confirm(`Are you sure you want to mark this appointment as "${statusLabel}"?`)) {
       updateAppointmentStatus(appointment.id, newStatus);
     }
   }
@@ -1147,7 +1168,7 @@ const editAppointment = (id) => {
       start_time: startTime,
       duration_type: durationType,
       custom_end_time: durationType === "custom" ? endTime : "",
-      status: appointment.status?.toString() || "36"
+      status: String(getAppointmentStatus(appointment.status).value ?? 36)
     };
     
     // Set patient search text for display
@@ -1656,65 +1677,8 @@ const formatAppointmentDate = (dateString) => {
 
 // Function to apply calendar filter
 const applyCalendarFilter = () => {
-  if (calendarFilter.value === 'all') {
-    syncCalendarEventsFromRawData();
-  } else if (calendarFilter.value === 'admin') {
-    // Show only admin appointments
-    const adminAppointments = rawData.value.filter(appt => isAdminAppointment(appt));
-    calendarOptions.value.events = adminAppointments.map(appt => ({
-      id: appt.id,
-      title: appt.patientName,
-      start: appt.originalDate || appt.date,
-      end: appt.originalDate || appt.date,
-      allDay: false,
-      backgroundColor: '#ea580c', // Orange color for admin appointments
-      borderColor: '#ea580c',
-      textColor: '#fff',
-      extendedProps: {
-        patient_name: appt.patientName,
-        practitioner_name: 'Admin',
-        service_name: appt.serviceName,
-        time_slot: appt.timeSlot,
-        status: appt.status,
-        patient_id: appt.patientId,
-        practitioner_id: null,
-        service_id: appt.serviceId,
-        slot_ID: appt.slotId,
-        parent_comment: appt.parentComment,
-        therapist_doctor_comment: appt.therapistDoctorComment,
-        parent_rate: appt.parentRate,
-        session_number: appt.sessionNumber
-      },
-    }));
-  } else if (calendarFilter.value === 'assigned') {
-    // Show only assigned appointments
-    const assignedAppointments = rawData.value.filter(appt => !isAdminAppointment(appt));
-    calendarOptions.value.events = assignedAppointments.map(appt => ({
-      id: appt.id,
-      title: appt.patientName,
-      start: appt.originalDate || appt.date,
-      end: appt.originalDate || appt.date,
-      allDay: false,
-      backgroundColor: getStatusColor(appt.status),
-      borderColor: getStatusColor(appt.status),
-      textColor: '#fff',
-      extendedProps: {
-        patient_name: appt.patientName,
-        practitioner_name: appt.practitionerName,
-        service_name: appt.serviceName,
-        time_slot: appt.timeSlot,
-        status: appt.status,
-        patient_id: appt.patientId,
-        practitioner_id: appt.practitionerId,
-        service_id: appt.serviceId,
-        slot_ID: appt.slotId,
-        parent_comment: appt.parentComment,
-        therapist_doctor_comment: appt.therapistDoctorComment,
-        parent_rate: appt.parentRate,
-        session_number: appt.sessionNumber
-      },
-    }));
-  }
+  // 'all' | 'admin' | 'assigned' and the "Show cancelled" toggle are handled in one place.
+  syncCalendarEventsFromRawData();
 };
 
 // Function to filter patients based on search text
@@ -2151,6 +2115,16 @@ const validatePatientData = (patient) => {
                 </select>
               </div>
               
+              <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  v-model="showCancelled"
+                  type="checkbox"
+                  class="rounded border-gray-300"
+                  @change="applyCalendarFilter"
+                />
+                Show cancelled
+              </label>
+
               <div v-if="calendarFilter === 'admin'" class="text-sm text-orange-600 bg-orange-50 px-3 py-1 rounded-full border border-orange-200">
                 <Icon name="material-symbols:admin-panel-settings" class="mr-1" size="16" />
                 Showing Admin Appointments Only
@@ -2171,29 +2145,16 @@ const validatePatientData = (patient) => {
             <div class="mt-4 p-3 bg-gray-50 rounded-lg border">
               <h4 class="text-sm font-medium text-gray-700 mb-2">Calendar Legend</h4>
               <div class="flex flex-wrap gap-4 text-xs">
-                <div class="flex items-center">
-                  <div class="w-3 h-3 rounded mr-2" style="background-color: #14452F;"></div>
-                  <span>Booked</span>
+                <div v-for="status in APPOINTMENT_STATUS_LIST" :key="status.value" class="flex items-center">
+                  <div
+                    class="w-4 h-4 rounded mr-2 flex items-center justify-center text-white text-[10px] font-bold"
+                    :style="{ backgroundColor: status.color }"
+                  >{{ status.symbol }}</div>
+                  <span>{{ status.label }}</span>
                 </div>
                 <div class="flex items-center">
-                  <div class="w-3 h-3 rounded mr-2" style="background-color: #1976D2;"></div>
-                  <span>Started</span>
-                </div>
-                <div class="flex items-center">
-                  <div class="w-3 h-3 rounded mr-2" style="background-color: #388E3C;"></div>
-                  <span>Confirmed Start</span>
-                </div>
-                <div class="flex items-center">
-                  <div class="w-3 h-3 rounded mr-2" style="background-color: #7B1FA2;"></div>
-                  <span>Finished</span>
-                </div>
-                <div class="flex items-center">
-                  <div class="w-3 h-3 rounded mr-2" style="background-color: #303F9F;"></div>
-                  <span>Completed</span>
-                </div>
-                <div class="flex items-center">
-                  <div class="w-3 h-3 rounded mr-2" style="background-color: #ea580c;"></div>
-                  <span class="font-medium">Admin Appointment</span>
+                  <span class="px-1 mr-2 rounded border text-[10px] font-semibold" style="color: #ea580c; border-color: #ea580c; background-color: #fed7aa;">Admin</span>
+                  <span class="font-medium">Admin Appointment (no practitioner yet)</span>
                 </div>
               </div>
               <div class="mt-2 text-xs text-gray-600">

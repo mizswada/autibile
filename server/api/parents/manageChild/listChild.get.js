@@ -97,6 +97,46 @@ export default defineEventHandler(async (event) => {
       mchatrConfig?.max_age_months,
     );
 
+    // Optional billing summary (unpaid invoices per child) for list screens that show a payment badge.
+    const includeBilling =
+      query.includeBilling === "true" ||
+      query.includeBilling === "1" ||
+      query.includeBilling === true;
+    const billingByPatient = new Map();
+    if (includeBilling && relations.length) {
+      const patientIds = [...new Set(relations.map((r) => r.user_patients.patient_id))];
+      const unpaidWhere = { deleted_at: null, status: "Unpaid", patient_id: { in: patientIds } };
+      const [unpaidRows, payLaterRows] = await Promise.all([
+        prisma.invoice.groupBy({
+          by: ["patient_id"],
+          where: unpaidWhere,
+          _sum: { amount: true },
+          _count: { _all: true },
+        }),
+        prisma.invoice.groupBy({
+          by: ["patient_id"],
+          where: { ...unpaidWhere, pay_later: true },
+          _sum: { amount: true },
+          _count: { _all: true },
+        }),
+      ]);
+      for (const row of unpaidRows) {
+        billingByPatient.set(row.patient_id, {
+          unpaidAmount: Number(row._sum.amount || 0),
+          unpaidCount: row._count._all,
+          payLaterAmount: 0,
+          payLaterCount: 0,
+        });
+      }
+      for (const row of payLaterRows) {
+        const entry = billingByPatient.get(row.patient_id);
+        if (entry) {
+          entry.payLaterAmount = Number(row._sum.amount || 0);
+          entry.payLaterCount = row._count._all;
+        }
+      }
+    }
+
     const transformed = relations.map(r => {
       const c = r.user_patients;
       const p = r.user_parents;
@@ -126,6 +166,15 @@ export default defineEventHandler(async (event) => {
         okuCard: c.OKUCard,
         treatmentType: mapTreatmentType(c.treatment_type),
         registeredAt: c.created_at || c.update_at || null,
+        ...(includeBilling
+          ? {
+              unpaidAmount: 0,
+              unpaidCount: 0,
+              payLaterAmount: 0,
+              payLaterCount: 0,
+              ...(billingByPatient.get(c.patient_id) || {}),
+            }
+          : {}),
       };
     });
 

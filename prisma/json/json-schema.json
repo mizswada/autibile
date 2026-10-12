@@ -1913,6 +1913,14 @@
             "null"
           ]
         },
+        "pay_later": {
+          "type": "boolean",
+          "default": false
+        },
+        "sessions_credited": {
+          "type": "boolean",
+          "default": false
+        },
         "created_at": {
           "type": "string",
           "format": "date-time"
@@ -1943,6 +1951,67 @@
           "items": {
             "$ref": "#/definitions/payment"
           }
+        },
+        "invoice_item": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/invoice_item"
+          }
+        }
+      }
+    },
+    "invoice_item": {
+      "type": "object",
+      "properties": {
+        "item_id": {
+          "type": "integer"
+        },
+        "item_type": {
+          "type": "string"
+        },
+        "package_id": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "product_id": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "qty": {
+          "type": "integer",
+          "default": 1
+        },
+        "unit_price": {
+          "type": "number",
+          "default": 0
+        },
+        "subtotal": {
+          "type": "number",
+          "default": 0
+        },
+        "sessions": {
+          "type": "integer",
+          "default": 0
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "invoice": {
+          "$ref": "#/definitions/invoice"
         }
       }
     },
@@ -2497,6 +2566,9 @@
     },
     "invoice": {
       "$ref": "#/definitions/invoice"
+    },
+    "invoice_item": {
+      "$ref": "#/definitions/invoice_item"
     },
     "payment": {
       "$ref": "#/definitions/payment"

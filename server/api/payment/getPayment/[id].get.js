@@ -34,6 +34,12 @@ export default defineEventHandler(async (event) => {
             date: true,
             status: true,
             invoice_type: true,
+            pay_later: true,
+            invoice_item: {
+              orderBy: {
+                item_id: 'asc',
+              },
+            },
           },
         },
         user_patients: {
@@ -63,6 +69,7 @@ export default defineEventHandler(async (event) => {
       invoice_date: paymentData.invoice?.date,
       invoice_status: paymentData.invoice?.status || 'N/A',
       invoice_type: paymentData.invoice?.invoice_type || 'N/A',
+      invoice_items: paymentData.invoice?.invoice_item || [],
       patient_id: paymentData.patient_id,
       patient_name: paymentData.user_patients?.fullname || 'Unknown Patient',
       patient_nickname: paymentData.user_patients?.nickname,

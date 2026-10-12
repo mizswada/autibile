@@ -1,4 +1,4 @@
-import { findActivePatient } from "~/server/utils/activeEntities";
+import { creditInvoiceSessions } from "~/server/utils/invoiceSessions";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -63,69 +63,43 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    // If status is being changed to 'Paid' and it was previously 'Unpaid'
-    if (status === 'Paid' && currentInvoice.status === 'Unpaid') {
-      // Check if this is a package invoice by looking for matching package
-      const matchingPackage = await prisma.renamedpackage.findFirst({
+    // Status change and session credit happen together. creditInvoiceSessions
+    // credits at most once per invoice, so a Zakat "pay later" invoice that was
+    // already credited at creation is not credited again.
+    const updatedInvoice = await prisma.$transaction(async (tx) => {
+      if (status === 'Paid' && currentInvoice.status === 'Unpaid') {
+        const result = await creditInvoiceSessions(invoiceIdValue, tx);
+        if (result.reason === 'patient_inactive') {
+          return null;
+        }
+      }
+
+      return tx.invoice.update({
         where: {
-          package_name: currentInvoice.invoice_type,
-          status: 'Active',
-          deleted_at: null,
+          invoice_id: invoiceIdValue,
+        },
+        data: {
+          status: status,
+          update_at: new Date(),
+        },
+        include: {
+          user_patients: {
+            select: {
+              patient_id: true,
+              fullname: true,
+              available_session: true,
+            },
+          },
         },
       });
-
-      if (matchingPackage && currentInvoice.patient_id) {
-        const activePatient = await findActivePatient(
-          prisma,
-          currentInvoice.patient_id,
-          { patient_id: true, available_session: true },
-        );
-
-        if (!activePatient) {
-          return {
-            statusCode: 400,
-            message: "Cannot mark invoice as Paid: patient is inactive or deleted",
-          };
-        }
-
-        // Add available sessions to the patient
-        const currentSessions = activePatient.available_session || 0;
-        const newSessions = currentSessions + (matchingPackage.avail_session || 0);
-
-        // Update patient's available sessions
-        await prisma.user_patients.update({
-          where: {
-            patient_id: currentInvoice.patient_id,
-          },
-          data: {
-            available_session: newSessions,
-            update_at: new Date(),
-          },
-        });
-
-        console.log(`Added ${matchingPackage.avail_session} sessions to patient ${currentInvoice.patient_id}. New total: ${newSessions}`);
-      }
-    }
-
-    // Update the invoice status
-    const updatedInvoice = await prisma.invoice.update({
-      where: {
-        invoice_id: invoiceIdValue,
-      },
-      data: {
-        status: status,
-        update_at: new Date(),
-      },
-      include: {
-        user_patients: {
-          select: {
-            patient_id: true,
-            fullname: true,
-            available_session: true,
-          },
-        },
-      },
     });
+
+    if (!updatedInvoice) {
+      return {
+        statusCode: 400,
+        message: "Cannot mark invoice as Paid: patient is inactive or deleted",
+      };
+    }
 
     return {
       statusCode: 200,

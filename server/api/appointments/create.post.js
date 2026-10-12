@@ -10,6 +10,7 @@ import {
   persistAppointmentTimes,
   toDateOnlyString,
 } from "~/server/utils/appointmentTime";
+import { normalizeAppointmentStatus } from "~/utils/appointmentStatus";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -111,7 +112,7 @@ export default defineEventHandler(async (event) => {
           book_by: book_by ? parseInt(book_by, 10) : null,
           service_id: parseInt(service_id, 10),
           date: parseAppointmentDate(date),
-          status: parseInt(status, 10),
+          status: normalizeAppointmentStatus(parseInt(status, 10)),
           practitioner_id: is_admin_appointment
             ? null
             : parseInt(practitioner_id, 10),

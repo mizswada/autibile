@@ -32,9 +32,11 @@ const fetchInvoices = async (status = '') => {
   }
 };
 
+const ZAKAT_STATUS = "Zakat: awaiting payment";
+
 const filterByStatus = (status) => {
   selectedStatus.value = status;
-  if (status === "Pending Approval") {
+  if (status === "Pending Approval" || status === ZAKAT_STATUS) {
     fetchInvoices("Unpaid");
     return;
   }
@@ -63,12 +65,14 @@ const formatInvoiceId = (id) => {
 const getInvoiceDisplayStatus = (invoice) => {
   if (invoice.status === "Paid") return "Paid";
   if (invoice.payment_status === "Pending") return "Pending Approval";
+  if (invoice.pay_later) return ZAKAT_STATUS;
   return "Unpaid";
 };
 
 const getStatusBadgeVariant = (status) => {
   if (status === "Paid") return "success";
   if (status === "Pending Approval") return "info";
+  if (status === ZAKAT_STATUS) return "secondary";
   return "warning";
 };
 
@@ -134,6 +138,14 @@ onMounted(() => {
           @click="filterByStatus('Pending Approval')"
         >
           Pending Approval
+        </rs-button>
+        <rs-button
+          variant="ghost"
+          size="sm"
+          :class="selectedStatus === ZAKAT_STATUS ? 'bg-primary text-white' : ''"
+          @click="filterByStatus(ZAKAT_STATUS)"
+        >
+          Zakat awaiting payment
         </rs-button>
       </div>
 

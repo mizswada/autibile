@@ -18,13 +18,20 @@ export default defineEventHandler(async (event) => {
       limit = 50, 
       offset = 0,
       startDate,
-      endDate
+      endDate,
+      patient_id
     } = query;
 
     // Build where clause
     const whereClause = {
       deleted_at: null, // Only show non-deleted payments
     };
+
+    // Restrict to one patient (used by the patient profile)
+    const patientIdValue = parseInt(patient_id);
+    if (!isNaN(patientIdValue) && patientIdValue > 0) {
+      whereClause.patient_id = patientIdValue;
+    }
 
     if (status && ['Pending', 'Approved', 'Rejected'].includes(status)) {
       whereClause.status = status;
@@ -50,18 +57,17 @@ export default defineEventHandler(async (event) => {
 
     // Add search filter if provided
     if (search) {
+      // MySQL collations are case-insensitive; Prisma's `mode` is not supported on MySQL.
       whereClause.OR = [
         {
           reference_code: {
-            contains: search,
-            mode: 'insensitive'
+            contains: search
           }
         },
         {
           invoice: {
             description: {
-              contains: search,
-              mode: 'insensitive'
+              contains: search
             }
           }
         }
@@ -84,6 +90,12 @@ export default defineEventHandler(async (event) => {
             amount: true,
             date: true,
             status: true,
+            invoice_type: true,
+            invoice_item: {
+              orderBy: {
+                item_id: 'asc',
+              },
+            },
           },
         },
         user_patients: {
@@ -104,6 +116,8 @@ export default defineEventHandler(async (event) => {
       invoice_amount: payment.invoice?.amount || 0,
       invoice_date: payment.invoice?.date,
       invoice_status: payment.invoice?.status || 'N/A',
+      invoice_type: payment.invoice?.invoice_type || 'N/A',
+      invoice_items: payment.invoice?.invoice_item || [],
       patient_id: payment.patient_id,
       patient_name: payment.user_patients?.fullname || 'Unknown Patient',
       patient_nickname: payment.user_patients?.nickname,

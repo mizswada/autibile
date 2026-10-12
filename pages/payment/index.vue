@@ -203,6 +203,9 @@ onMounted(() => {
                   </div>
                   <div class="text-sm text-gray-500 mt-1">
                     <span>Type: {{ invoice.invoice_type }}</span>
+                    <rs-badge v-if="invoice.pay_later" variant="secondary" class="ml-2 text-xs">
+                      Zakat: awaiting payment
+                    </rs-badge>
                   </div>
                 </div>
                 <div class="text-right">
