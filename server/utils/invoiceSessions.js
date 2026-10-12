@@ -1,5 +1,5 @@
 import { findActivePatient } from "~/server/utils/activeEntities";
-import { creditSessions } from "~/server/utils/sessionBalance";
+import { creditSessions, reconcileUnbilled } from "~/server/utils/sessionBalance";
 
 /**
  * Credit the package sessions of an invoice to its patient - exactly once.
@@ -74,6 +74,9 @@ export async function creditInvoiceSessions(invoiceId, db = null) {
   }
 
   await creditSessions(db, patient.patient_id, sessions);
+
+  // The new sessions may already cover appointments booked while this invoice was unpaid.
+  await reconcileUnbilled(db, patient.patient_id);
 
   return { credited: sessions };
 }

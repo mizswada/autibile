@@ -1,6 +1,10 @@
 import prisma from "~/server/utils/prisma";
 import { normalizeAppointmentStatus } from "~/utils/appointmentStatus";
-import { releaseSession as giveSessionBack, takeSession } from "~/server/utils/sessionBalance";
+import {
+  reconcileUnbilled,
+  releaseSession as giveSessionBack,
+  takeSession,
+} from "~/server/utils/sessionBalance";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -87,7 +91,7 @@ export default defineEventHandler(async (event) => {
         billingData.invoice_id = null;
       }
 
-      return tx.appointments.update({
+      const updated = await tx.appointments.update({
         where: {
           appointment_id: parseInt(appointment_id, 10),
         },
@@ -97,6 +101,13 @@ export default defineEventHandler(async (event) => {
           ...billingData,
         },
       });
+
+      // The freed session may cover an older unbilled appointment of that patient.
+      if (releaseSession && patientId != null) {
+        await reconcileUnbilled(tx, patientId);
+      }
+
+      return updated;
     });
 
     return {

@@ -8,7 +8,12 @@ definePageMeta({
 
 const router = useRouter();
 const route = useRoute();
+const { $swal } = useNuxtApp();
 const isSubmitting = ref(false);
+
+// Patient / item names come from the database or the user, so escape them before putting them in HTML.
+const escapeHtml = (value) =>
+  String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const message = ref('');
 const messageType = ref('success');
 
@@ -321,6 +326,42 @@ const saveInvoice = async (goToPayment = false) => {
     );
     return;
   }
+
+  // Ask before creating anything (both buttons).
+  const itemLines = payloadItems
+    .map((item, index) => {
+      const row = items.value[index];
+      const name = row.type === 'Package' ? findPackage(row)?.package_name
+        : row.type === 'Product' ? findProduct(row)?.product_name
+        : row.name.trim();
+      return `<li>${escapeHtml(name)}${item.qty > 1 ? ` × ${item.qty}` : ''} — RM ${(item.qty * item.unitPrice).toFixed(2)}</li>`;
+    })
+    .join('');
+
+  const confirmation = await $swal.fire({
+    title: goToPayment === true ? 'Create invoice and record payment?' : 'Create invoice?',
+    html: `
+      <div style="text-align:left; font-size:14px; line-height:1.7;">
+        <p><strong>Patient:</strong> ${escapeHtml(form.value.patientName)}</p>
+        <p><strong>Date:</strong> ${escapeHtml(form.value.invoiceDate)}</p>
+        <ul style="margin:6px 0 6px 18px; list-style:disc;">${itemLines}</ul>
+        <p><strong>Total:</strong> RM ${totalAmount.value.toFixed(2)}${form.value.payLater ? ' &nbsp;<em>(Zakat)</em>' : ''}</p>
+        ${selectedCount.value ? `<p><strong>Bills:</strong> ${selectedCount.value} appointment(s) booked without a prepaid session</p>` : ''}
+        <hr style="margin:8px 0;" />
+        <p style="color:#b45309;">${goToPayment === true
+          ? 'The invoice is created as <strong>Unpaid</strong>, then you go to the payment form to record the payment. It is only Paid after you confirm there.'
+          : 'The invoice is created as <strong>Unpaid</strong>. Sessions are added only when the payment is recorded.'}</p>
+      </div>
+    `,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonColor: '#2E7D32',
+    cancelButtonColor: '#d33',
+    confirmButtonText: goToPayment === true ? 'Yes, create and record payment' : 'Yes, create invoice',
+    cancelButtonText: 'Cancel',
+  });
+
+  if (!confirmation.isConfirmed) return;
 
   isSubmitting.value = true;
 

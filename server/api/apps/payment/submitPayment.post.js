@@ -50,6 +50,11 @@ export default defineEventHandler(async (event) => {
       return { statusCode: 400, message: "This invoice is no longer valid" };
     }
 
+    // The payment must be for the full invoice amount.
+    if (Math.abs(Number(invoice.amount || 0) - amount) > 0.005) {
+      return { statusCode: 400, message: "The payment amount must match the invoice amount" };
+    }
+
     const existingPending = await prisma.payment.findFirst({
       where: {
         invoice_id: invoiceID,

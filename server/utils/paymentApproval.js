@@ -27,33 +27,59 @@ export async function approvePaymentAndInvoice(paymentId, approvedByUserId) {
     return { ok: true, statusCode: 200, message: "Payment already approved", payment };
   }
 
+  // The invoice is already settled (for example marked Paid by hand): approving another
+  // payment would record the money twice. Reject it instead.
+  if (payment.invoice.status === "Paid") {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: "This invoice is already paid, so this payment cannot be approved. Reject it instead.",
+    };
+  }
+
   // Sessions are credited at most once per invoice (sessions_credited flag), so a
   // manual Paid toggle followed by an approval is never credited a second time here.
   const approvedAt = new Date();
-  const updatedPayment = await prisma.$transaction(async (tx) => {
-    const approved = await tx.payment.update({
-      where: { payment_id: paymentId },
-      data: {
-        status: "Approved",
-        approved_by: approvedByUserId,
-        approved_at: approvedAt,
-        rejection_reason: null,
-        updated_at: approvedAt,
-      },
+  let updatedPayment;
+  try {
+    updatedPayment = await prisma.$transaction(async (tx) => {
+      const approved = await tx.payment.update({
+        where: { payment_id: paymentId },
+        data: {
+          status: "Approved",
+          approved_by: approvedByUserId,
+          approved_at: approvedAt,
+          rejection_reason: null,
+          updated_at: approvedAt,
+        },
+      });
+
+      await tx.invoice.update({
+        where: { invoice_id: payment.invoice_id },
+        data: {
+          status: "Paid",
+          update_at: approvedAt,
+        },
+      });
+
+      const credit = await creditInvoiceSessions(payment.invoice_id, tx);
+      if (credit.reason === "patient_inactive") {
+        // The sessions cannot be added, so nothing is approved (rolls everything back).
+        throw new Error("PATIENT_INACTIVE");
+      }
+
+      return approved;
     });
-
-    await tx.invoice.update({
-      where: { invoice_id: payment.invoice_id },
-      data: {
-        status: "Paid",
-        update_at: approvedAt,
-      },
-    });
-
-    await creditInvoiceSessions(payment.invoice_id, tx);
-
-    return approved;
-  });
+  } catch (error) {
+    if (error?.message === "PATIENT_INACTIVE") {
+      return {
+        ok: false,
+        statusCode: 400,
+        message: "The patient is inactive or deleted, so the sessions cannot be added. Reactivate the patient first.",
+      };
+    }
+    throw error;
+  }
 
   return { ok: true, statusCode: 200, message: "Payment approved successfully", payment: updatedPayment };
 }
@@ -71,6 +97,16 @@ export async function rejectPayment(paymentId, approvedByUserId, reason = null) 
 
   if (!payment) {
     return { ok: false, statusCode: 404, message: "Payment not found" };
+  }
+
+  // Only a payment that is still waiting can be rejected. Rejecting an approved one would
+  // leave a Paid invoice (with its sessions) and no approved payment behind.
+  if (payment.status !== "Pending") {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: `This payment is already ${String(payment.status || "").toLowerCase()} and cannot be rejected.`,
+    };
   }
 
   const rejectedAt = new Date();

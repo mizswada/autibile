@@ -7,6 +7,8 @@
  * - All helpers take a Prisma client (usually the `tx` of a $transaction).
  */
 
+import { unbilledAppointmentsWhere } from "~/server/utils/adminNotifications";
+
 export const MAX_UNBILLED_SETTING_KEY = "MAX_UNBILLED_SESSIONS";
 export const DEFAULT_MAX_UNBILLED = 5;
 export const MAX_UNBILLED_LIMIT = 50;
@@ -84,6 +86,64 @@ export async function creditSessions(db, patientId, count) {
 }
 
 /**
+ * Keep the "unbilled" markers honest after the balance GOES UP (a package was paid, a
+ * booking was cancelled, sessions were given).
+ *
+ * A negative balance means "sessions used without being paid for". Those sessions are the
+ * unbilled appointments plus the ones already billed on a still-unpaid invoice. When the
+ * balance rises, the oldest unbilled appointments are covered by it, so they must stop
+ * asking to be billed (otherwise the clinic could invoice them a second time).
+ *
+ * Call it AFTER the cancelled / deleted appointment's own billing fields were cleared.
+ * Returns how many appointments were marked as covered.
+ */
+export async function reconcileUnbilled(db, patientId) {
+  const balance = await readBalance(db, patientId);
+  const owed = Math.max(0, -balance);
+
+  const unbilled = await db.appointments.findMany({
+    where: unbilledAppointmentsWhere({ patient_id: patientId }),
+    select: { appointment_id: true },
+    orderBy: [{ date: "asc" }, { appointment_id: "asc" }],
+  });
+  if (!unbilled.length) return 0;
+
+  // Appointments billed on an unpaid invoice still count as owed until that invoice is paid.
+  const billed = await db.appointments.findMany({
+    where: {
+      patient_id: patientId,
+      deleted_at: null,
+      status: { not: 37 },
+      billing_waived: false,
+      invoice_id: { not: null },
+    },
+    select: { invoice_id: true },
+  });
+  let billedUnpaid = 0;
+  if (billed.length) {
+    const invoiceIds = [...new Set(billed.map((a) => a.invoice_id))];
+    const unpaid = await db.invoice.findMany({
+      where: { invoice_id: { in: invoiceIds }, status: "Unpaid" },
+      select: { invoice_id: true },
+    });
+    const unpaidIds = new Set(unpaid.map((invoice) => invoice.invoice_id));
+    billedUnpaid = billed.filter((a) => unpaidIds.has(a.invoice_id)).length;
+  }
+
+  const stillUnbilled = Math.max(0, owed - billedUnpaid);
+  const excess = unbilled.length - stillUnbilled;
+  if (excess <= 0) return 0;
+
+  // Sessions are used in order, so the oldest unbilled appointments are the covered ones.
+  const coveredIds = unbilled.slice(0, excess).map((a) => a.appointment_id);
+  await db.appointments.updateMany({
+    where: { appointment_id: { in: coveredIds }, invoice_id: null },
+    data: { needs_billing: false, updated_at: new Date() },
+  });
+  return excess;
+}
+
+/**
  * Manual admin correction. Always written together with a session_adjustment log row.
  * `admin` is { userID, email }.
  */
@@ -109,6 +169,11 @@ export async function adjustBalance(db, patientId, delta, { reason, admin, ip })
       ip: ip || null,
     },
   });
+
+  // Giving sessions can cover appointments that were waiting to be billed.
+  if (delta > 0) {
+    await reconcileUnbilled(db, patientId);
+  }
 
   return { balanceBefore, balanceAfter };
 }

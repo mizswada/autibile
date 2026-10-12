@@ -1,4 +1,5 @@
 import { requireAdmin } from "~/server/utils/reports/guard";
+import { reconcileUnbilled } from "~/server/utils/sessionBalance";
 
 /**
  * Void an Unpaid invoice (admin only).
@@ -31,7 +32,7 @@ export default defineEventHandler(async (event) => {
 
     const invoice = await prisma.invoice.findFirst({
       where: { invoice_id: invoiceId, deleted_at: null },
-      select: { invoice_id: true, status: true, sessions_credited: true },
+      select: { invoice_id: true, patient_id: true, status: true, sessions_credited: true },
     });
 
     if (!invoice) {
@@ -72,11 +73,17 @@ export default defineEventHandler(async (event) => {
         },
       });
 
-      // Appointments stay marked needs_billing, so they are unbilled again.
+      // Appointments stay marked needs_billing, so they are unbilled again...
       const unlinked = await tx.appointments.updateMany({
         where: { invoice_id: invoiceId },
         data: { invoice_id: null, updated_at: now },
       });
+
+      // ...unless the patient's sessions already cover them (for example another package was
+      // paid in the meantime). Those must not be billed a second time.
+      if (invoice.patient_id != null) {
+        await reconcileUnbilled(tx, invoice.patient_id);
+      }
 
       return { rejectedPayments: rejected.count, unlinkedAppointments: unlinked.count };
     });

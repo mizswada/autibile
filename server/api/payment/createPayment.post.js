@@ -1,5 +1,6 @@
 import { findLinkedActivePatient } from "~/server/utils/activeEntities";
 import { approvePaymentAndInvoice } from "~/server/utils/paymentApproval";
+import { requireAdmin } from "~/server/utils/reports/guard";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -10,6 +11,12 @@ export default defineEventHandler(async (event) => {
         statusCode: 401,
         message: "Unauthorized: Missing user session",
       };
+    }
+
+    // Money actions are for administrators only (not for doctors / therapists).
+    const guard = requireAdmin(event);
+    if (!guard.ok) {
+      return { statusCode: guard.statusCode, message: guard.message };
     }
 
     const body = await readBody(event);
@@ -104,6 +111,15 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    // A payment must be for the full invoice amount (partial payments are not supported;
+    // approving one would still mark the invoice Paid and add the sessions).
+    if (Math.abs(Number(invoice.amount || 0) - amountValue) > 0.005) {
+      return {
+        statusCode: 400,
+        message: `The payment (RM ${amountValue.toFixed(2)}) must match the invoice amount (RM ${Number(invoice.amount || 0).toFixed(2)})`,
+      };
+    }
+
     // Verify patient exists, is active, and linked to an active parent
     const patient = await findLinkedActivePatient(prisma, patientIdValue);
 
@@ -156,6 +172,15 @@ export default defineEventHandler(async (event) => {
 
     const approvalResult = await approvePaymentAndInvoice(paymentData.payment_id, userID);
     if (!approvalResult.ok) {
+      // Do not leave a stray "Approved" payment behind when the approval was refused.
+      await prisma.payment.update({
+        where: { payment_id: paymentData.payment_id },
+        data: {
+          status: "Rejected",
+          rejection_reason: approvalResult.message,
+          updated_at: new Date(),
+        },
+      });
       return {
         statusCode: approvalResult.statusCode,
         message: approvalResult.message,

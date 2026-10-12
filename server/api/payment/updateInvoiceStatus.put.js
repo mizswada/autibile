@@ -1,4 +1,5 @@
 import { creditInvoiceSessions } from "~/server/utils/invoiceSessions";
+import { requireAdmin } from "~/server/utils/reports/guard";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -9,6 +10,12 @@ export default defineEventHandler(async (event) => {
         statusCode: 401,
         message: "Unauthorized: Missing user session",
       };
+    }
+
+    // Money actions are for administrators only (not for doctors / therapists).
+    const guard = requireAdmin(event);
+    if (!guard.ok) {
+      return { statusCode: guard.statusCode, message: guard.message };
     }
 
     const body = await readBody(event);
@@ -70,41 +77,71 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    // A paid invoice with a recorded payment or credited sessions cannot be turned back into
+    // Unpaid: the label would change but the money and the sessions would not, and it could be
+    // paid a second time. Use "Adjust sessions" to correct sessions instead.
+    if (status === 'Unpaid' && currentInvoice.status === 'Paid') {
+      const approvedPayment = await prisma.payment.findFirst({
+        where: { invoice_id: invoiceIdValue, status: 'Approved', deleted_at: null },
+        select: { payment_id: true },
+      });
+      if (currentInvoice.sessions_credited || approvedPayment) {
+        return {
+          statusCode: 400,
+          message: "This invoice has a recorded payment or credited sessions, so it cannot be marked Unpaid. Use Adjust sessions to correct the sessions.",
+        };
+      }
+    }
+
     // Status change and session credit happen together. creditInvoiceSessions
     // credits at most once per invoice, so toggling Paid again never adds sessions twice.
-    const updatedInvoice = await prisma.$transaction(async (tx) => {
-      if (status === 'Paid' && currentInvoice.status === 'Unpaid') {
-        const result = await creditInvoiceSessions(invoiceIdValue, tx);
-        if (result.reason === 'patient_inactive') {
-          return null;
-        }
-      }
+    // The status is changed FIRST, so the session credit (and the matching of unbilled
+    // appointments that follows it) already sees this invoice as Paid.
+    const patientSelect = {
+      user_patients: {
+        select: {
+          patient_id: true,
+          fullname: true,
+          available_session: true,
+        },
+      },
+    };
 
-      return tx.invoice.update({
-        where: {
-          invoice_id: invoiceIdValue,
-        },
-        data: {
-          status: status,
-          update_at: new Date(),
-        },
-        include: {
-          user_patients: {
-            select: {
-              patient_id: true,
-              fullname: true,
-              available_session: true,
-            },
+    let updatedInvoice;
+    try {
+      updatedInvoice = await prisma.$transaction(async (tx) => {
+        await tx.invoice.update({
+          where: {
+            invoice_id: invoiceIdValue,
           },
-        },
-      });
-    });
+          data: {
+            status: status,
+            update_at: new Date(),
+          },
+        });
 
-    if (!updatedInvoice) {
-      return {
-        statusCode: 400,
-        message: "Cannot mark invoice as Paid: patient is inactive or deleted",
-      };
+        if (status === 'Paid' && currentInvoice.status === 'Unpaid') {
+          const result = await creditInvoiceSessions(invoiceIdValue, tx);
+          if (result.reason === 'patient_inactive') {
+            // Rolls the status change back as well.
+            throw new Error('PATIENT_INACTIVE');
+          }
+        }
+
+        // Read again so the returned balance includes the sessions just added.
+        return tx.invoice.findUnique({
+          where: { invoice_id: invoiceIdValue },
+          include: patientSelect,
+        });
+      });
+    } catch (txError) {
+      if (txError?.message === 'PATIENT_INACTIVE') {
+        return {
+          statusCode: 400,
+          message: "Cannot mark invoice as Paid: patient is inactive or deleted",
+        };
+      }
+      throw txError;
     }
 
     return {

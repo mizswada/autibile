@@ -80,7 +80,10 @@ const fetchInvoice = async () => {
 };
 
 const updateStatus = async (newStatus) => {
-  if (!confirm(`Are you sure you want to mark this invoice as ${newStatus}?`)) {
+  const warning = newStatus === 'Paid'
+    ? '\n\nThis adds any therapy package sessions to the patient and cannot be undone here. To record a real payment with a receipt, use Make Payment instead.'
+    : '';
+  if (!confirm(`Are you sure you want to mark this invoice as ${newStatus}?${warning}`)) {
     return;
   }
 
@@ -317,9 +320,9 @@ onMounted(() => {
               <Icon v-if="isUpdating" name="line-md:loading-twotone-loop" class="mr-2" />
               <span>{{ isUpdating ? 'Updating...' : 'Mark as Paid' }}</span>
             </rs-button>
-            <rs-button 
-              v-if="invoiceData.status === 'Paid'"
-              variant="warning" 
+            <rs-button
+              v-if="invoiceData.status === 'Paid' && !invoiceData.sessions_credited && invoiceData.latest_payment?.status !== 'Approved'"
+              variant="warning"
               size="sm"
               :disabled="isUpdating || hasPendingPayment"
               @click="updateStatus('Unpaid')"

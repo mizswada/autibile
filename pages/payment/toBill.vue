@@ -82,6 +82,9 @@ async function saveCap() {
 }
 
 async function waive(appointmentIds) {
+  if (!confirm(`Waive billing for ${appointmentIds.length} appointment(s)? The patient will not be charged, and the session is given back so it no longer counts as owed.`)) {
+    return;
+  }
   const reason = prompt('Why is this not being charged? (required)');
   if (reason === null) return;
   if (reason.trim().length < 3) {

@@ -1,5 +1,6 @@
 import { findLinkedActivePatient } from "~/server/utils/activeEntities";
 import { unbilledAppointmentsWhere } from "~/server/utils/adminNotifications";
+import { requireAdmin } from "~/server/utils/reports/guard";
 
 const ITEM_TYPES = ["Package", "Product", "Other"];
 
@@ -112,6 +113,12 @@ export default defineEventHandler(async (event) => {
         statusCode: 401,
         message: "Unauthorized: Missing user session",
       };
+    }
+
+    // Money actions are for administrators only (not for doctors / therapists).
+    const guard = requireAdmin(event);
+    if (!guard.ok) {
+      return { statusCode: guard.statusCode, message: guard.message };
     }
 
     const body = await readBody(event);

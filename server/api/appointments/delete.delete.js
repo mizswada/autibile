@@ -1,5 +1,5 @@
 import prisma from "~/server/utils/prisma";
-import { releaseSession } from "~/server/utils/sessionBalance";
+import { reconcileUnbilled, releaseSession } from "~/server/utils/sessionBalance";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -53,7 +53,7 @@ export default defineEventHandler(async (event) => {
       }
 
       // A deleted appointment can no longer be billed (billing fields are cleared).
-      return tx.appointments.update({
+      const deleted = await tx.appointments.update({
         where: { appointment_id: parseInt(id) },
         data: {
           deleted_at: new Date(),
@@ -62,6 +62,13 @@ export default defineEventHandler(async (event) => {
           invoice_id: null,
         },
       });
+
+      // The freed session may cover an older unbilled appointment of that patient.
+      if (shouldRefund) {
+        await reconcileUnbilled(tx, existingAppointment.patient_id);
+      }
+
+      return deleted;
     });
 
     return {

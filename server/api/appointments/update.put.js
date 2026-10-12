@@ -13,7 +13,7 @@ import {
   toDateOnlyString,
 } from "~/server/utils/appointmentTime";
 import { normalizeAppointmentStatus } from "~/utils/appointmentStatus";
-import { releaseSession, takeSession } from "~/server/utils/sessionBalance";
+import { reconcileUnbilled, releaseSession, takeSession } from "~/server/utils/sessionBalance";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -236,6 +236,12 @@ export default defineEventHandler(async (event) => {
         where: { appointment_id: parseInt(appointment_id) },
         data: updateData,
       });
+
+      // The freed session may cover an older unbilled appointment of that patient.
+      // (Runs after this appointment's own billing fields were cleared above.)
+      if (releaseOld && existingPatientId != null) {
+        await reconcileUnbilled(tx, existingPatientId);
+      }
 
       if (pendingStartTime && pendingEndTime) {
         await persistAppointmentTimes(
