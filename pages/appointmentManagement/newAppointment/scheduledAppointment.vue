@@ -15,6 +15,7 @@ import {
   getAppointmentStatus,
 } from '@/utils/appointmentStatus';
 import { formatInvoiceNumber, getBillingStateMeta } from '@/utils/billingState';
+import { buildAppointmentEventContent } from '@/utils/calendarEvent';
 
 // FullCalendar is browser-only. Use the client plugin (same as pages/ui/component/calendar.vue)
 // instead of importing it here — top-level imports break SSR on hard reload.
@@ -34,7 +35,10 @@ const calendarOptions = ref({
     left: "prev,next title",
     right: "dayGridMonth,timeGridWeek,listWeek",
   },
-  // A busy day shows at most 3 compact events in the month grid; the rest open in a "+N more" popover.
+  // Timed events are drawn as plain text with a dot by default, which loses the status
+  // colour. Draw them as coloured blocks instead.
+  eventDisplay: 'block',
+  // A busy day shows at most 3 events in the month grid; the rest open in a "+N more" popover.
   views: {
     dayGridMonth: {
       dayMaxEvents: 3,
@@ -46,84 +50,12 @@ const calendarOptions = ref({
   eventClick: handleEventClick,
   eventClassNames: (arg) =>
     Number(arg.event.extendedProps.status) === APPOINTMENT_STATUS_CANCELLED ? ['fc-event-cancelled'] : [],
-  eventContent: function(arg) {
-    const props = arg.event.extendedProps;
-    const status = getAppointmentStatus(props.status);
-    const isAdmin = !props.practitioner_id || props.practitioner_id === 'admin';
-    const timeText = extractTimeOnly(props.time_slot) || 'Unknown Time';
-    const patientName = props.patient_name || 'Unknown Patient';
-    const serviceName = props.service_name || 'Unknown Service';
-    const practitionerName = isAdmin ? 'Admin' : (props.practitioner_name || 'Unknown Practitioner');
-
-    // Billing state is only present (and only shown) for administrators.
-    const billing = userStore.isAdmin ? getBillingStateMeta(props.billing_state) : null;
-
-    const make = (tag, classes = [], text = '') => {
-      const el = document.createElement(tag);
-      if (classes.length) el.classList.add(...classes);
-      if (text) el.textContent = text; // textContent: names come from user input
-      return el;
-    };
-
-    const eventEl = make('div', ['fc-event-custom-content']);
-    eventEl.title = [
-      `${patientName} - ${status.label}`,
-      timeText,
-      serviceName,
-      practitionerName,
-      `Session ${props.session_number ?? '-'}`,
-      billing ? `Billing: ${billing.label}` : '',
-    ].filter(Boolean).join('\n');
-
-    // Month grid (and its "+N more" popover): one compact line with the status symbol.
-    if (arg.view.type === 'dayGridMonth') {
-      eventEl.classList.add('fc-event-compact');
-      const symbol = make('span', ['fc-event-status-symbol'], status.symbol);
-      eventEl.appendChild(symbol);
-      eventEl.appendChild(make('span', ['fc-event-compact__time'], timeText));
-      eventEl.appendChild(make('span', ['fc-event-compact__name'], patientName));
-      // A "$" marks appointments that still need billing or wait for payment.
-      if (billing && (props.billing_state === 'unbilled' || props.billing_state === 'billed_unpaid')) {
-        eventEl.appendChild(make('span', ['fc-event-status-chip'], billing.symbol));
-      }
-      if (isAdmin) {
-        const adminEl = make('span', ['fc-event-status-chip'], 'Admin');
-        adminEl.style.marginLeft = 'auto';
-        eventEl.appendChild(adminEl);
-      }
-      return { domNodes: [eventEl] };
-    }
-
-    // Week / list: full details, with a visible status chip.
-    eventEl.style.padding = '2px';
-    eventEl.style.overflow = 'hidden';
-
-    const headerEl = make('div', ['flex', 'items-center', 'gap-2', 'mt-1']);
-    headerEl.appendChild(make('span', ['fc-event-status-chip'], status.label));
-    if (billing) {
-      headerEl.appendChild(make('span', ['fc-event-status-chip'], `$ ${billing.label}`));
-    }
-    headerEl.appendChild(make('span', ['text-xs', 'opacity-90'], timeText));
-    eventEl.appendChild(headerEl);
-
-    eventEl.appendChild(make('div', ['font-medium'], patientName));
-    eventEl.appendChild(make('div', ['text-xs', 'opacity-80'], serviceName));
-
-    const practitionerEl = make('div', ['text-xs', 'font-semibold'], practitionerName);
-    if (isAdmin) {
-      practitionerEl.style.display = 'inline-block';
-      practitionerEl.style.border = '1px solid #ea580c';
-      practitionerEl.style.borderRadius = '4px';
-      practitionerEl.style.padding = '1px 4px';
-      practitionerEl.style.backgroundColor = '#fed7aa';
-      practitionerEl.style.color = '#ea580c';
-    }
-    eventEl.appendChild(practitionerEl);
-
-    eventEl.appendChild(make('div', ['text-xs', 'font-semibold'], `Session ${props.session_number ?? '-'}`));
-
-    return { domNodes: [eventEl] };
-  }
+  // Billing labels are only shown to administrators.
+  eventContent: (arg) =>
+    buildAppointmentEventContent(arg, {
+      showBilling: userStore.isAdmin,
+      timeRangeText: extractTimeOnly,
+    }),
 });
 
 // Cancelled appointments are hidden unless the "Show cancelled" toggle is on.
@@ -2236,17 +2168,22 @@ const validatePatientData = (patient) => {
               <h4 class="text-sm font-medium text-gray-700 mb-2">Calendar Legend</h4>
               <div class="flex flex-wrap gap-4 text-xs">
                 <div v-for="status in APPOINTMENT_STATUS_LIST" :key="status.value" class="flex items-center">
-                  <div
-                    class="w-4 h-4 rounded mr-2 flex items-center justify-center text-white text-[10px] font-bold"
-                    :style="{ backgroundColor: status.color }"
-                  >{{ status.symbol }}</div>
+                  <div class="w-4 h-4 rounded mr-2" :style="{ backgroundColor: status.color }"></div>
                   <span>{{ status.label }}</span>
+                  <span v-if="status.symbol === '✓' || status.symbol === '✕'" class="ml-1 text-gray-500">({{ status.symbol }})</span>
                 </div>
                 <div class="flex items-center">
-                  <span class="px-1 mr-2 rounded border text-[10px] font-semibold" style="color: #ea580c; border-color: #ea580c; background-color: #fed7aa;">Admin</span>
-                  <span class="font-medium">Admin Appointment (no practitioner yet)</span>
+                  <span class="mr-2 inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-extrabold text-white" style="background-color: #ea580c;">A</span>
+                  <span>Admin appointment (no practitioner yet)</span>
+                </div>
+                <div v-if="canSeeBilling" class="flex items-center">
+                  <span class="mr-2 inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-extrabold" style="background-color: #fbbf24; color: #78350f;">$</span>
+                  <span>Still to bill / waiting for payment</span>
                 </div>
               </div>
+              <p class="mt-2 text-xs text-gray-500">
+                A day shows its first 3 appointments. Click "+N more" to see all of them with the full time, service and practitioner.
+              </p>
               <div class="mt-2 text-xs text-gray-600">
                 <p><strong>Admin Appointments:</strong> Created without a specific practitioner. Can be assigned to available doctors/therapists on the appointment date.</p>
               </div>
