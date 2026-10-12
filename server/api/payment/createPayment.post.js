@@ -111,6 +111,13 @@ export default defineEventHandler(async (event) => {
       };
     }
 
+    if (invoice.patient_id !== patientIdValue) {
+      return {
+        statusCode: 400,
+        message: "This invoice belongs to a different patient",
+      };
+    }
+
     // A payment must be for the full invoice amount (partial payments are not supported;
     // approving one would still mark the invoice Paid and add the sessions).
     if (Math.abs(Number(invoice.amount || 0) - amountValue) > 0.005) {

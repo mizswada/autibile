@@ -15,6 +15,9 @@ import {
 import { normalizeAppointmentStatus } from "~/utils/appointmentStatus";
 import { reconcileUnbilled, releaseSession, takeSession } from "~/server/utils/sessionBalance";
 import { linkCoveredAppointments } from "~/server/utils/coverage";
+import { refreshInvoiceSessionDates } from "~/server/utils/invoiceDescription";
+import { isAdminRequest } from "~/server/utils/reports/guard";
+import { withoutBillingFields } from "~/server/utils/billingFields";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -215,14 +218,20 @@ export default defineEventHandler(async (event) => {
 
         // Booking / re-activating without a prepaid session is allowed up to the cap
         // of unbilled sessions; the appointment then needs billing.
-        const { needsBilling } = await takeSession(tx, newPatientId);
+        // Only administrators may book on credit; everyone else needs a prepaid session.
+        const { needsBilling } = await takeSession(tx, newPatientId, {
+          maxUnbilled: isAdminRequest(event) ? undefined : 0,
+        });
         updateData.needs_billing = needsBilling;
         updateData.billing_waived = false;
         updateData.invoice_id = null;
       }
 
       if (releaseOld && existingPatientId != null) {
-        await releaseSession(tx, existingPatientId);
+        // A waived appointment already got its session back when billing was waived.
+        if (!existingAppointment.billing_waived) {
+          await releaseSession(tx, existingPatientId);
+        }
 
         if (!acquireNew) {
           // Cancelled: no session is held any more, so there is nothing left to bill
@@ -242,6 +251,11 @@ export default defineEventHandler(async (event) => {
       // (Runs after this appointment's own billing fields were cleared above.)
       if (releaseOld && existingPatientId != null) {
         await reconcileUnbilled(tx, existingPatientId);
+      }
+
+      // It no longer belongs to the invoice that billed it: keep that invoice's session dates right.
+      if (releaseOld && existingAppointment.invoice_id && existingAppointment.needs_billing) {
+        await refreshInvoiceSessionDates(tx, existingAppointment.invoice_id);
       }
 
       // Prepaid booking: remember which paid invoice the session came from.
@@ -268,7 +282,7 @@ export default defineEventHandler(async (event) => {
     return {
       success: true,
       message: "Appointment updated successfully",
-      data: appointmentResult,
+      data: isAdminRequest(event) ? appointmentResult : withoutBillingFields(appointmentResult),
     };
   } catch (error) {
     console.error("Error updating appointment:", error);

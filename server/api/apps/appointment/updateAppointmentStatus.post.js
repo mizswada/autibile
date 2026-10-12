@@ -6,6 +6,8 @@ import {
   takeSession,
 } from "~/server/utils/sessionBalance";
 import { linkCoveredAppointments } from "~/server/utils/coverage";
+import { refreshInvoiceSessionDates } from "~/server/utils/invoiceDescription";
+import { isAdminRequest } from "~/server/utils/reports/guard";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -71,7 +73,10 @@ export default defineEventHandler(async (event) => {
         }
 
         // Re-activating without a prepaid session is allowed up to the cap of unbilled sessions.
-        const { needsBilling } = await takeSession(tx, patientId);
+        // Only administrators may book on credit; therapists need a prepaid session.
+        const { needsBilling } = await takeSession(tx, patientId, {
+          maxUnbilled: isAdminRequest(event) ? undefined : 0,
+        });
         billingData.needs_billing = needsBilling;
         billingData.billing_waived = false;
         billingData.invoice_id = null;
@@ -83,7 +88,8 @@ export default defineEventHandler(async (event) => {
           select: { patient_id: true },
         });
 
-        if (patient) {
+        // A waived appointment already got its session back when billing was waived.
+        if (patient && !existingAppointment.billing_waived) {
           await giveSessionBack(tx, patientId);
         }
         // Cancelled: nothing left to bill.
@@ -106,6 +112,11 @@ export default defineEventHandler(async (event) => {
       // The freed session may cover an older unbilled appointment of that patient.
       if (releaseSession && patientId != null) {
         await reconcileUnbilled(tx, patientId);
+      }
+
+      // It no longer belongs to the invoice that billed it: keep that invoice's session dates right.
+      if (releaseSession && existingAppointment.invoice_id && existingAppointment.needs_billing) {
+        await refreshInvoiceSessionDates(tx, existingAppointment.invoice_id);
       }
 
       // Prepaid booking: remember which paid invoice the session came from.

@@ -54,13 +54,18 @@ export async function approvePaymentAndInvoice(paymentId, approvedByUserId) {
         },
       });
 
-      await tx.invoice.update({
-        where: { invoice_id: payment.invoice_id },
+      // Atomic claim: only an Unpaid invoice can become Paid, so two payments approved at
+      // the same time (double click, two admins) can never both settle the same invoice.
+      const claim = await tx.invoice.updateMany({
+        where: { invoice_id: payment.invoice_id, status: "Unpaid", deleted_at: null },
         data: {
           status: "Paid",
           update_at: approvedAt,
         },
       });
+      if (claim.count === 0) {
+        throw new Error("INVOICE_NOT_UNPAID");
+      }
 
       const credit = await creditInvoiceSessions(payment.invoice_id, tx);
       if (credit.reason === "patient_inactive") {
@@ -71,6 +76,13 @@ export async function approvePaymentAndInvoice(paymentId, approvedByUserId) {
       return approved;
     });
   } catch (error) {
+    if (error?.message === "INVOICE_NOT_UNPAID") {
+      return {
+        ok: false,
+        statusCode: 400,
+        message: "This invoice is no longer unpaid (already paid or void), so this payment cannot be approved.",
+      };
+    }
     if (error?.message === "PATIENT_INACTIVE") {
       return {
         ok: false,

@@ -4,6 +4,7 @@ import {
   isActiveStatus,
 } from "~/server/utils/activeEntities";
 import { getMaxUnbilled } from "~/server/utils/sessionBalance";
+import { isAdminRequest } from "~/server/utils/reports/guard";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -36,7 +37,9 @@ export default defineEventHandler(async (event) => {
 
     // The balance can go below zero (owed / unbilled sessions) up to the admin-set cap.
     const balance = patient.available_session || 0;
-    const maxUnbilled = await getMaxUnbilled(prisma);
+    // Only administrators may book on credit; everyone else needs a prepaid session.
+    const isAdmin = isAdminRequest(event);
+    const maxUnbilled = isAdmin ? await getMaxUnbilled(prisma) : 0;
     const balanceAfter = balance - 1;
     const withinCap = balanceAfter >= 0 - maxUnbilled;
     const canBookAppointment = withinCap && isActiveStatus(patient.status);
@@ -49,7 +52,7 @@ export default defineEventHandler(async (event) => {
           ? `Patient has no available sessions (${Math.max(0, balance)}). Cannot book appointment.`
           : `Patient has reached the limit of ${maxUnbilled} unbilled session(s). Cannot book appointment.`;
     } else if (willBeUnbilled) {
-      message = 'Patient has no sessions left. This booking will be marked unbilled.';
+      message = 'Patient has no sessions left. This booking will be marked unbilled and the clinic admin will bill it.';
     } else {
       message = `Patient has ${balance} available session(s)`;
     }

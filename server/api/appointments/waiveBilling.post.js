@@ -1,6 +1,6 @@
 import prisma from "~/server/utils/prisma";
 import { getVerifiedAdmin } from "~/server/utils/adminSession";
-import { adjustBalance } from "~/server/utils/sessionBalance";
+import { adjustBalance, reconcileUnbilled } from "~/server/utils/sessionBalance";
 
 function clientIp(event) {
   const forwarded = event.node.req.headers["x-forwarded-for"];
@@ -56,6 +56,19 @@ export default defineEventHandler(async (event) => {
       : { appointment_id: { in: ids }, deleted_at: null, billing_waived: true };
 
     const count = await prisma.$transaction(async (tx) => {
+      // Waiving gives a session back, so first drop any stale "unbilled" marker the balance
+      // already covers; otherwise the patient would get a free session on top.
+      if (waived) {
+        const candidates = await tx.appointments.findMany({
+          where: { appointment_id: { in: ids }, deleted_at: null },
+          select: { patient_id: true },
+        });
+        const patientIds = [...new Set(candidates.map((row) => row.patient_id).filter((id) => id != null))];
+        for (const patientId of patientIds) {
+          await reconcileUnbilled(tx, patientId);
+        }
+      }
+
       const rows = await tx.appointments.findMany({
         where: eligibleWhere,
         select: { appointment_id: true, patient_id: true },

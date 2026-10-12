@@ -101,6 +101,8 @@ export default defineEventHandler(async (event) => {
             patient_id: true,
             fullname: true,
             nickname: true,
+            status: true,
+            deleted_at: true,
           },
         },
         payment: {
@@ -134,6 +136,8 @@ export default defineEventHandler(async (event) => {
         patient_id: invoice.patient_id,
         patient_name: invoice.user_patients?.fullname || 'Unknown Patient',
         patient_nickname: invoice.user_patients?.nickname,
+        // A deleted / inactive patient cannot receive a payment: void the invoice or reactivate them.
+        patient_inactive: !!invoice.user_patients && (!!invoice.user_patients.deleted_at || String(invoice.user_patients.status || '').toLowerCase() !== 'active'),
         invoice_type: invoice.invoice_type,
         description: invoice.description,
         amount: invoice.amount,

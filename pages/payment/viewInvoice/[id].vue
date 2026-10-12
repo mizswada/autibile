@@ -332,6 +332,10 @@ onMounted(() => {
           </ul>
         </div>
 
+        <div v-if="invoiceData.patient_inactive && invoiceData.status === 'Unpaid'" class="bg-amber-50 border border-amber-300 p-4 rounded-lg text-sm text-amber-900">
+          This patient is inactive or deleted, so a payment cannot be recorded. Reactivate the patient to take payment, or void this invoice.
+        </div>
+
         <!-- Prepaid sessions taken from this invoice -->
         <div v-if="invoiceData.covered_appointments && invoiceData.covered_appointments.length" class="bg-white border border-gray-200 p-6 rounded-lg">
           <h6 class="font-semibold text-lg mb-2 text-gray-800">Sessions used</h6>

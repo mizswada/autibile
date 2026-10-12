@@ -179,14 +179,17 @@ onMounted(() => {
           <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 bg-amber-50 border-b border-amber-200">
             <div>
               <span class="font-semibold">{{ group.patient_name }}</span>
+              <rs-badge v-if="group.patient_inactive" variant="secondary" class="ml-2" title="Inactive patient: reactivate to create an invoice, or waive.">Inactive</rs-badge>
               <span class="ml-2 text-sm text-amber-800">{{ group.count }} session{{ group.count > 1 ? 's' : '' }} to bill</span>
             </div>
             <div class="flex gap-2">
               <NuxtLink
+                v-if="!group.patient_inactive"
                 :to="{ path: '/payment/create', query: { patientId: String(group.patient_id), appointmentIds: group.appointments.map((a) => a.appointment_id).join(',') } }"
               >
                 <rs-button size="sm">Create invoice</rs-button>
               </NuxtLink>
+              <span v-else class="text-xs text-amber-800 self-center">Reactivate the patient to invoice, or waive.</span>
               <rs-button
                 size="sm"
                 variant="ghost"

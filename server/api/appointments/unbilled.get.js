@@ -45,6 +45,7 @@ export default defineEventHandler(async (event) => {
         time_slot: event.extendedProps.time_slot,
         service_name: event.extendedProps.service_name || "Unknown Service",
         status: appointment.status,
+        patient_inactive: String(appointment.user_patients?.status || '').toLowerCase() !== 'active',
       };
     });
 
@@ -59,6 +60,7 @@ export default defineEventHandler(async (event) => {
           patient_id: row.patient_id,
           patient_name: row.patient_name,
           count: 0,
+          patient_inactive: row.patient_inactive,
           appointments: [],
         });
       }

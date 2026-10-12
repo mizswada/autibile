@@ -1,12 +1,10 @@
 import { findLinkedActivePatient } from "~/server/utils/activeEntities";
 import { unbilledAppointmentsWhere } from "~/server/utils/billingWhere";
 import { requireAdmin } from "~/server/utils/reports/guard";
+import { formatShortDate } from "~/server/utils/invoiceDescription";
 
 const ITEM_TYPES = ["Package", "Product", "Other"];
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-// DB dates are stored at UTC midnight, so read them in UTC.
-const formatShortDate = (date) => `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]}`;
 
 const round2 = (value) => Math.round(value * 100) / 100;
 const truncate = (text, max) => (text.length > max ? `${text.slice(0, max - 3)}...` : text);

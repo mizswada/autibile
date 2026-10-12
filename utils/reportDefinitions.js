@@ -285,6 +285,7 @@ export const PAYMENT_STATUS = [
   { value: "Pending", label: "Pending" },
   { value: "Approved", label: "Approved" },
   { value: "Rejected", label: "Rejected" },
+  { value: "Refunded", label: "Refunded" },
 ];
 
 export const PAYMENT_METHOD = [

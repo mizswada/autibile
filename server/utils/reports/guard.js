@@ -2,6 +2,12 @@
  * Admin-only guard for report endpoints. Returns { ok } or an error descriptor.
  * event.context.user is populated by server/middleware/auth.js.
  */
+/** True when the logged-in web user is an administrator (no error descriptor). */
+export function isAdminRequest(event) {
+  const roles = event.context.user?.roles || [];
+  return roles.some((r) => String(r).includes("Admin"));
+}
+
 export function requireAdmin(event) {
   const user = event.context.user || {};
   if (!user.userID) {

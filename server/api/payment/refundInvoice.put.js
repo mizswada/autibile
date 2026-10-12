@@ -77,6 +77,17 @@ export default defineEventHandler(async (event) => {
         data: { status: "Refunded", updated_at: now },
       });
 
+      // A parent payment still waiting on this invoice can no longer be approved.
+      await tx.payment.updateMany({
+        where: { invoice_id: invoiceId, status: "Pending", deleted_at: null },
+        data: {
+          status: "Rejected",
+          rejection_reason: "Invoice refunded",
+          approved_at: now,
+          updated_at: now,
+        },
+      });
+
       // Take back exactly what this invoice credited (nothing when it never credited).
       let sessionsTakenBack = 0;
       if (invoice.sessions_credited && invoice.patient_id != null) {

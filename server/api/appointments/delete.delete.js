@@ -1,5 +1,6 @@
 import prisma from "~/server/utils/prisma";
 import { reconcileUnbilled, releaseSession } from "~/server/utils/sessionBalance";
+import { refreshInvoiceSessionDates } from "~/server/utils/invoiceDescription";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -47,7 +48,8 @@ export default defineEventHandler(async (event) => {
           select: { patient_id: true },
         });
 
-        if (patient) {
+        // A waived appointment already got its session back when billing was waived.
+        if (patient && !existingAppointment.billing_waived) {
           await releaseSession(tx, existingAppointment.patient_id);
         }
       }
@@ -62,6 +64,11 @@ export default defineEventHandler(async (event) => {
           invoice_id: null,
         },
       });
+
+      // It no longer belongs to the invoice that billed it: keep that invoice's session dates right.
+      if (existingAppointment.invoice_id && existingAppointment.needs_billing) {
+        await refreshInvoiceSessionDates(tx, existingAppointment.invoice_id);
+      }
 
       // The freed session may cover an older unbilled appointment of that patient.
       if (shouldRefund) {

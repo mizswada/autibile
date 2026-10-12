@@ -219,7 +219,10 @@ onMounted(() => {
                 </td>
                 <td class="py-3 px-4">
                   <div>
-                    <div class="font-medium">{{ invoice.patient_name || 'N/A' }}</div>
+                    <div class="font-medium">
+                      {{ invoice.patient_name || 'N/A' }}
+                      <rs-badge v-if="invoice.patient_inactive" variant="secondary" class="ml-1" title="Inactive or deleted patient: cannot be paid. Void the invoice or reactivate the patient.">Inactive</rs-badge>
+                    </div>
                     <div class="text-sm text-gray-500">ID: {{ invoice.patient_id || 'N/A' }}</div>
                   </div>
                 </td>

@@ -12,6 +12,8 @@ import {
 } from "~/server/utils/appointmentTime";
 import { normalizeAppointmentStatus } from "~/utils/appointmentStatus";
 import { takeSession } from "~/server/utils/sessionBalance";
+import { isAdminRequest } from "~/server/utils/reports/guard";
+import { withoutBillingFields } from "~/server/utils/billingFields";
 import { linkCoveredAppointments } from "~/server/utils/coverage";
 
 export default defineEventHandler(async (event) => {
@@ -97,7 +99,11 @@ export default defineEventHandler(async (event) => {
       const appointmentStatus = normalizeAppointmentStatus(parseInt(status, 10));
       let needsBilling = false;
       if (appointmentStatus !== 37) {
-        ({ needsBilling } = await takeSession(tx, patient.patient_id));
+        // Only administrators may book on credit (up to the unbilled cap); everyone else
+        // keeps the strict rule: a prepaid session is required.
+        ({ needsBilling } = await takeSession(tx, patient.patient_id, {
+          maxUnbilled: isAdminRequest(event) ? undefined : 0,
+        }));
       }
 
       const created = await tx.appointments.create({
@@ -139,7 +145,7 @@ export default defineEventHandler(async (event) => {
       message: is_admin_appointment
         ? "Admin appointment created successfully! You can assign this to a doctor/therapist on the appointment date."
         : "Appointment created successfully",
-      data: appointment,
+      data: isAdminRequest(event) ? appointment : withoutBillingFields(appointment),
     };
   } catch (error) {
     console.error("Error creating appointment:", error);
