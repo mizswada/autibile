@@ -1,6 +1,7 @@
 ﻿<script setup>
 import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { escapeHtml } from '@/utils/escapeHtml';
 
 definePageMeta({
   title: "Payment Form",
@@ -122,12 +123,12 @@ const submitPayment = async () => {
         <p>Please confirm this payment is correct and has been received:</p>
         <hr style="margin:8px 0;" />
         <p><strong>Invoice:</strong> ${formatInvoiceId(invoiceData.value.invoice_id)}</p>
-        <p><strong>Patient:</strong> ${invoiceData.value.patient_name || 'N/A'}</p>
-        <p><strong>Description:</strong> ${invoiceData.value.description || 'N/A'}</p>
+        <p><strong>Patient:</strong> ${escapeHtml(invoiceData.value.patient_name || 'N/A')}</p>
+        <p><strong>Description:</strong> ${escapeHtml(invoiceData.value.description || 'N/A')}</p>
         <p><strong>Amount:</strong> RM ${formatPrice(invoiceData.value.amount)}</p>
-        <p><strong>Method:</strong> ${form.value.method}</p>
-        ${!isCash ? `<p><strong>Bank / Provider:</strong> ${form.value.bank_name || '-'}</p>` : ''}
-        ${!isCash ? `<p><strong>Reference:</strong> ${form.value.reference_code || '-'}</p>` : ''}
+        <p><strong>Method:</strong> ${escapeHtml(form.value.method)}</p>
+        ${!isCash ? `<p><strong>Bank / Provider:</strong> ${escapeHtml(form.value.bank_name || '-')}</p>` : ''}
+        ${!isCash ? `<p><strong>Reference:</strong> ${escapeHtml(form.value.reference_code || '-')}</p>` : ''}
         <hr style="margin:8px 0;" />
         <p style="color:#b45309;">This will record the payment, mark the invoice as <strong>Paid</strong>, issue a receipt, and credit the patient's sessions immediately. Make sure the details are correct before continuing.</p>
       </div>

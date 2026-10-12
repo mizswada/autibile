@@ -1,6 +1,10 @@
 import prisma from "~/server/utils/prisma";
 
 export default defineEventHandler(async (event) => {
+  if (!event.context.user?.userID) {
+    return { statusCode: 401, success: false, message: "Unauthorized: please log in." };
+  }
+
   const patientId = parseInt(getQuery(event).patientId);
 
   if (!patientId) {
@@ -94,7 +98,9 @@ export default defineEventHandler(async (event) => {
     // 5. Referrals (mock or real)
     let referrals = [];
     try {
-      const refRes = await $fetch(`/api/patientProfile/referrals?patientId=${patientId}`);
+      const refRes = await $fetch(`/api/patientProfile/referrals?patientId=${patientId}`, {
+        headers: { cookie: getRequestHeader(event, 'cookie') || '' },
+      });
       if (refRes && refRes.length) referrals = refRes;
     } catch (e) {
       // fallback to empty or mock

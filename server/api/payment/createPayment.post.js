@@ -137,38 +137,49 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    const pendingPayment = await prisma.payment.findFirst({
-      where: {
-        invoice_id: invoiceIdValue,
-        status: "Pending",
-        deleted_at: null,
-      },
-    });
+    // Lock the invoice, then re-check and insert, so two clicks (or a parent paying at the same
+    // moment) cannot leave two payments for one invoice.
+    let paymentData;
+    try {
+      paymentData = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT invoice_id FROM invoice WHERE invoice_id = ${invoiceIdValue} FOR UPDATE`;
 
-    if (pendingPayment) {
-      return {
-        statusCode: 400,
-        message: "This invoice has a pending payment awaiting approval",
-      };
+        const current = await tx.invoice.findFirst({
+          where: { invoice_id: invoiceIdValue, deleted_at: null },
+          select: { status: true },
+        });
+        if (!current || current.status !== "Unpaid") throw new Error("NOT_UNPAID");
+
+        const pendingPayment = await tx.payment.findFirst({
+          where: { invoice_id: invoiceIdValue, status: { in: ["Pending", "Approved"] }, deleted_at: null },
+          select: { status: true },
+        });
+        if (pendingPayment) throw new Error(pendingPayment.status === "Pending" ? "PENDING" : "ALREADY_RECORDED");
+
+        // Create admin payment record
+        return tx.payment.create({
+          data: {
+            patient_id: patientIdValue,
+            invoice_id: invoiceIdValue,
+            amount: amountValue,
+            method: method,
+            bank_name: isCash ? null : bank_name,
+            reference_code: isCash ? null : reference_code,
+            status: "Approved",
+            submitted_by: "admin",
+            approved_by: userID,
+            approved_at: new Date(),
+            created_at: new Date(),
+            updated_at: new Date(),
+          },
+        });
+      });
+    } catch (txError) {
+      if (txError.message === "NOT_UNPAID") return { statusCode: 400, message: "This invoice is not unpaid any more. Refresh and check it." };
+      if (txError.message === "PENDING") return { statusCode: 400, message: "This invoice has a pending payment awaiting approval" };
+      if (txError.message === "ALREADY_RECORDED") return { statusCode: 400, message: "A payment is already recorded for this invoice" };
+      throw txError;
     }
-
-    // Create admin payment record
-    const paymentData = await prisma.payment.create({
-      data: {
-        patient_id: patientIdValue,
-        invoice_id: invoiceIdValue,
-        amount: amountValue,
-        method: method,
-        bank_name: isCash ? null : bank_name,
-        reference_code: isCash ? null : reference_code,
-        status: "Approved",
-        submitted_by: "admin",
-        approved_by: userID,
-        approved_at: new Date(),
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-    });
 
     if (!paymentData) {
       return {

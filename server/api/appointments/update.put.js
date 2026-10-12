@@ -16,6 +16,7 @@ import { normalizeAppointmentStatus } from "~/utils/appointmentStatus";
 import { reconcileUnbilled, releaseSession, takeSession } from "~/server/utils/sessionBalance";
 import { linkCoveredAppointments } from "~/server/utils/coverage";
 import { refreshInvoiceSessionDates } from "~/server/utils/invoiceDescription";
+import { assertAppointmentUnchanged } from "~/server/utils/appointmentLock";
 import { isAdminRequest } from "~/server/utils/reports/guard";
 import { withoutBillingFields } from "~/server/utils/billingFields";
 
@@ -205,6 +206,8 @@ export default defineEventHandler(async (event) => {
     }
 
     const appointmentResult = await prisma.$transaction(async (tx) => {
+      await assertAppointmentUnchanged(tx, existingAppointment);
+
       if (acquireNew) {
         const targetPatient = await findLinkedActivePatient(tx, newPatientId, {
           patient_id: true,

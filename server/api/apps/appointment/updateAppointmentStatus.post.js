@@ -7,6 +7,7 @@ import {
 } from "~/server/utils/sessionBalance";
 import { linkCoveredAppointments } from "~/server/utils/coverage";
 import { refreshInvoiceSessionDates } from "~/server/utils/invoiceDescription";
+import { assertAppointmentUnchanged } from "~/server/utils/appointmentLock";
 import { isAdminRequest } from "~/server/utils/reports/guard";
 
 export default defineEventHandler(async (event) => {
@@ -60,6 +61,8 @@ export default defineEventHandler(async (event) => {
     const acquireSession = !wasReserved && willBeReserved;
 
     const updatedAppointment = await prisma.$transaction(async (tx) => {
+      await assertAppointmentUnchanged(tx, existingAppointment);
+
       const billingData = {};
 
       if (acquireSession && patientId != null) {

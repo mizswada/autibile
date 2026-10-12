@@ -9,6 +9,9 @@ import {
 
 export default defineEventHandler(async (event) => {
   try {
+    if (!event.context.user?.userID) {
+      return { statusCode: 401, success: false, message: "Unauthorized: please log in." };
+    }
     const query = getQuery(event);
     const {
       date,

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, inject } from "vue";
+import { escapeHtml } from "@/utils/escapeHtml";
 
 definePageMeta({
   title: "Pending Payment Approvals",
@@ -41,13 +42,13 @@ const approvePayment = async (payment) => {
       <div style="text-align:left; font-size:14px; line-height:1.7;">
         <p>Please verify the payment details carefully before approving:</p>
         <hr style="margin:8px 0;" />
-        <p><strong>Patient:</strong> ${payment.user_patients?.fullname || "N/A"}</p>
+        <p><strong>Patient:</strong> ${escapeHtml(payment.user_patients?.fullname || "N/A")}</p>
         <p><strong>Invoice:</strong> INV-${String(payment.invoice_id).padStart(3, "0")}</p>
-        <p><strong>Description:</strong> ${payment.invoice?.description || "N/A"}</p>
+        <p><strong>Description:</strong> ${escapeHtml(payment.invoice?.description || "N/A")}</p>
         <p><strong>Amount:</strong> RM ${formatPrice(payment.amount)}</p>
-        <p><strong>Method:</strong> ${payment.method || "N/A"}</p>
-        <p><strong>Bank / Provider:</strong> ${payment.bank_name || "-"}</p>
-        <p><strong>Reference:</strong> ${payment.reference_code || "-"}</p>
+        <p><strong>Method:</strong> ${escapeHtml(payment.method || "N/A")}</p>
+        <p><strong>Bank / Provider:</strong> ${escapeHtml(payment.bank_name || "-")}</p>
+        <p><strong>Reference:</strong> ${escapeHtml(payment.reference_code || "-")}</p>
         <hr style="margin:8px 0;" />
         <p style="color:#b45309;">Approving will mark this invoice as <strong>Paid</strong>, issue a receipt, and credit the package sessions to the patient. Only approve after you have confirmed the payment was actually received.</p>
       </div>

@@ -1,5 +1,8 @@
 export default defineEventHandler(async (event) => {
   try {
+    if (!event.context.user?.userID) {
+      return { statusCode: 401, success: false, message: "Unauthorized: please log in." };
+    }
     const query = getQuery(event);
     const { date } = query;
 
@@ -29,6 +32,7 @@ export default defineEventHandler(async (event) => {
     // Get existing admin appointments for this date - use practitioner_id being null instead of is_admin_appointment field
     const existingAdminAppointments = await $fetch('/api/appointments/list', {
       method: 'GET',
+      headers: { cookie: getRequestHeader(event, 'cookie') || '' },
       params: {
         start_date: startOfDay.toISOString(),
         end_date: endOfDay.toISOString(),

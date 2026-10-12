@@ -13,6 +13,9 @@ const MCHATR_QUESTIONNAIRE_ID = 1;
 
 export default defineEventHandler(async (event) => {
   try {
+    if (!event.context.user?.userID) {
+      return { statusCode: 401, success: false, message: "Unauthorized: please log in." };
+    }
     const query = getQuery(event);
     const parentID = query.parentID ? parseInt(query.parentID) : null;
     const activeOnly =

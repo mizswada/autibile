@@ -1,6 +1,7 @@
 import prisma from "~/server/utils/prisma";
 import { reconcileUnbilled, releaseSession } from "~/server/utils/sessionBalance";
 import { refreshInvoiceSessionDates } from "~/server/utils/invoiceDescription";
+import { assertAppointmentUnchanged } from "~/server/utils/appointmentLock";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -42,6 +43,8 @@ export default defineEventHandler(async (event) => {
       existingAppointment.status !== 37 && existingAppointment.patient_id != null;
 
     const deletedAppointment = await prisma.$transaction(async (tx) => {
+      await assertAppointmentUnchanged(tx, existingAppointment);
+
       if (shouldRefund) {
         const patient = await tx.user_patients.findUnique({
           where: { patient_id: existingAppointment.patient_id },
@@ -87,7 +90,9 @@ export default defineEventHandler(async (event) => {
     console.error('Error deleting appointment:', error);
     return {
       success: false,
-      message: 'Failed to delete appointment',
+      message: String(error.message || '').startsWith('This appointment was changed')
+        ? error.message
+        : 'Failed to delete appointment',
       error: error.message
     };
   }

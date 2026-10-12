@@ -165,7 +165,7 @@ const completionWarning = computed(() => {
   return "";
 });
 
-async function saveStatus() {
+async function saveStatus(acknowledgeOutstanding = false) {
   if (!selectedRequest.value) return;
   isSaving.value = true;
   try {
@@ -175,8 +175,29 @@ async function saveStatus() {
         requestId: selectedRequest.value.requestId,
         status: updateStatus.value,
         adminNotes: adminNotes.value,
+        acknowledgeOutstanding: acknowledgeOutstanding === true,
       },
     });
+
+    // Open money or sessions on the account: ask before deactivating it.
+    if (result.statusCode === 409 && result.code === "OUTSTANDING_BILLING") {
+      const open = result.data || {};
+      const lines = ["This account still has open billing:"];
+      if (open.unpaidInvoices) lines.push(`- ${open.unpaidInvoices} unpaid invoice(s), RM ${Number(open.unpaidAmount || 0).toFixed(2)}`);
+      if (open.unbilledSessions) lines.push(`- ${open.unbilledSessions} session(s) not billed yet`);
+      if (open.pendingPayments) lines.push(`- ${open.pendingPayments} payment(s) waiting for approval`);
+      lines.push(
+        "",
+        "After the account is deactivated these can no longer be paid or billed. Settle, void or waive them first, or continue anyway.",
+        "",
+        "Deactivate the account anyway?",
+      );
+      isSaving.value = false;
+      if (confirm(lines.join("\n"))) {
+        await saveStatus(true);
+      }
+      return;
+    }
 
     if (result.statusCode === 200) {
       showMessage("Request updated successfully.");

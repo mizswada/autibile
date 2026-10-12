@@ -1,5 +1,9 @@
 // Added by: Firzana Huda 24 June 2025
 export default defineEventHandler(async (event) => {
+  if (!event.context.user?.userID) {
+    return { statusCode: 401, success: false, message: "Unauthorized: please log in." };
+  }
+
   const parentID = parseInt(getQuery(event).parentID);
 
   if (!parentID) {

@@ -1,5 +1,8 @@
 export default defineEventHandler(async (event) => {
   try {
+    if (!event.context.user?.userID) {
+      return { statusCode: 401, success: false, message: "Unauthorized: please log in." };
+    }
     // Fetch reasons from lookup table where refCode is referal_reason
     const reasons = await prisma.lookup.findMany({
       where: {

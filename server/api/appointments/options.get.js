@@ -6,6 +6,9 @@ import {
 
 export default defineEventHandler(async (event) => {
   try {
+    if (!event.context.user?.userID) {
+      return { statusCode: 401, success: false, message: "Unauthorized: please log in." };
+    }
     // Active patients linked to an Active parent only
     const patients = await prisma.user_patients.findMany({
       where: linkedActivePatientWhere(),

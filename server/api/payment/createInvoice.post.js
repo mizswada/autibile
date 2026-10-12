@@ -6,6 +6,11 @@ import { formatShortDate } from "~/server/utils/invoiceDescription";
 const ITEM_TYPES = ["Package", "Product", "Other"];
 
 
+// Amounts are stored as DECIMAL(10,2); stay far below the limit instead of failing in the database.
+const MAX_QTY = 1000;
+const MAX_UNIT_PRICE = 1000000;
+const MAX_TOTAL = 9999999.99;
+
 const round2 = (value) => Math.round(value * 100) / 100;
 const truncate = (text, max) => (text.length > max ? `${text.slice(0, max - 3)}...` : text);
 
@@ -24,6 +29,9 @@ async function buildItem(row, index) {
   const qty = parseInt(row.qty ?? 1, 10);
   if (isNaN(qty) || qty < 1) {
     return { error: `${label}: quantity must be at least 1` };
+  }
+  if (qty > MAX_QTY) {
+    return { error: `${label}: quantity cannot be more than ${MAX_QTY}` };
   }
 
   const submittedPrice = parseFloat(row.unitPrice);
@@ -189,6 +197,12 @@ export default defineEventHandler(async (event) => {
       return {
         statusCode: 400,
         message: "Amount must be a positive number",
+      };
+    }
+    if (totalAmount > MAX_TOTAL || invoiceItems.some((item) => item.unit_price > MAX_UNIT_PRICE)) {
+      return {
+        statusCode: 400,
+        message: "The amount is too large. Check the price and quantity.",
       };
     }
 

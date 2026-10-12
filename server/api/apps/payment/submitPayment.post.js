@@ -55,33 +55,50 @@ export default defineEventHandler(async (event) => {
       return { statusCode: 400, message: "The payment amount must match the invoice amount" };
     }
 
-    const existingPending = await prisma.payment.findFirst({
-      where: {
-        invoice_id: invoiceID,
-        status: "Pending",
-        deleted_at: null,
-      },
-    });
+    // Lock the invoice, then re-check and insert, so a double tap (or an admin recording the
+    // payment at the same moment) cannot leave two payments for one invoice.
+    let payment;
+    try {
+      payment = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT invoice_id FROM invoice WHERE invoice_id = ${invoiceID} FOR UPDATE`;
 
-    if (existingPending) {
-      return { statusCode: 400, message: "A payment is already pending approval for this invoice" };
+        const current = await tx.invoice.findFirst({
+          where: { invoice_id: invoiceID, deleted_at: null },
+          select: { status: true },
+        });
+        if (!current || current.status === "Paid") throw new Error("ALREADY_PAID");
+        if (current.status === "Void") throw new Error("NOT_VALID");
+
+        const existingPending = await tx.payment.findFirst({
+          where: { invoice_id: invoiceID, status: "Pending", deleted_at: null },
+          select: { payment_id: true },
+        });
+        if (existingPending) throw new Error("ALREADY_PENDING");
+
+        return tx.payment.create({
+          data: {
+            patient_id: invoice.patient_id,
+            invoice_id: invoiceID,
+            amount,
+            method,
+            bank_name: isCash ? null : bankName,
+            reference_code: isCash ? null : referenceCode,
+            status: "Pending",
+            submitted_by: "parent",
+            parent_id: auth.parentId,
+            created_at: new Date(),
+            updated_at: new Date(),
+          },
+        });
+      });
+    } catch (txError) {
+      if (txError.message === "ALREADY_PAID") return { statusCode: 400, message: "Invoice is already paid" };
+      if (txError.message === "NOT_VALID") return { statusCode: 400, message: "This invoice is no longer valid" };
+      if (txError.message === "ALREADY_PENDING") {
+        return { statusCode: 400, message: "A payment is already pending approval for this invoice" };
+      }
+      throw txError;
     }
-
-    const payment = await prisma.payment.create({
-      data: {
-        patient_id: invoice.patient_id,
-        invoice_id: invoiceID,
-        amount,
-        method,
-        bank_name: isCash ? null : bankName,
-        reference_code: isCash ? null : referenceCode,
-        status: "Pending",
-        submitted_by: "parent",
-        parent_id: auth.parentId,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-    });
 
     return {
       statusCode: 201,

@@ -9,6 +9,7 @@ import {
 } from "~/server/utils/accountRequestHelpers";
 import { TEMP_RESET_PASSWORD } from "~/server/utils/accountRequestHandlers";
 import { fulfillAccountDeletion } from "~/server/utils/fulfillAccountDeletion";
+import { getParentOutstanding } from "~/server/utils/outstandingBilling";
 
 const ALLOWED_STATUSES = ["Pending", "In Progress", "Completed", "Rejected"];
 
@@ -143,6 +144,19 @@ export default defineEventHandler(async (event) => {
           },
         });
       } else {
+        // Deleting a parent deactivates the children: open invoices could no longer be paid and
+        // unbilled sessions would vanish from To Bill. Make the admin confirm that knowingly.
+        if (existing.account_type === "Parents" && body?.acknowledgeOutstanding !== true) {
+          const outstanding = await getParentOutstanding(prisma, targetUserId);
+          if (outstanding) {
+            return {
+              statusCode: 409,
+              code: "OUTSTANDING_BILLING",
+              message: "This account still has unpaid invoices, unbilled sessions or pending payments.",
+              data: outstanding,
+            };
+          }
+        }
         await fulfillAccountDeletion({
           userId: targetUserId,
           accountType: existing.account_type,
