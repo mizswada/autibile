@@ -79,11 +79,9 @@ const fetchInvoice = async () => {
   }
 };
 
-const updateStatus = async (newStatus) => {
-  const warning = newStatus === 'Paid'
-    ? '\n\nThis adds any therapy package sessions to the patient and cannot be undone here. To record a real payment with a receipt, use Make Payment instead.'
-    : '';
-  if (!confirm(`Are you sure you want to mark this invoice as ${newStatus}?${warning}`)) {
+// Legacy only: an invoice that was marked Paid by hand (no payment, no sessions) can go back to Unpaid.
+const markUnpaid = async () => {
+  if (!confirm('Mark this invoice as Unpaid?')) {
     return;
   }
 
@@ -91,21 +89,11 @@ const updateStatus = async (newStatus) => {
   try {
     const response = await $fetch('/api/payment/updateInvoiceStatus', {
       method: 'PUT',
-      body: {
-        invoiceID: parseInt(invoiceId),
-        status: newStatus,
-      },
+      body: { invoiceID: parseInt(invoiceId), status: 'Unpaid' },
     });
 
     if (response.statusCode === 200) {
-      showMessage(`Invoice status updated to ${newStatus} successfully`, 'success');
-      
-      // If it's a package and status is Paid, show session addition message
-      if (newStatus === 'Paid' && response.data.available_sessions !== undefined) {
-        showMessage(`Added sessions to patient. New available sessions: ${response.data.available_sessions}`, 'success');
-      }
-      
-      // Refresh invoice data
+      showMessage('Invoice marked as Unpaid', 'success');
       await fetchInvoice();
     } else {
       showMessage(response.message || 'Failed to update invoice status', 'error');
@@ -113,6 +101,53 @@ const updateStatus = async (newStatus) => {
   } catch (error) {
     console.error('Error updating invoice status:', error);
     showMessage(error.data?.message || 'An error occurred while updating the invoice status', 'error');
+  } finally {
+    isUpdating.value = false;
+  }
+};
+
+// Full refund of a paid invoice: the money is handed back outside the system.
+const refundInvoice = async () => {
+  const takeBack = invoiceData.value?.sessions_to_take_back || 0;
+  const reason = prompt('Why is this invoice being refunded? (required)');
+  if (reason === null) return;
+  if (reason.trim().length < 3) {
+    showMessage('A reason is required to refund an invoice.', 'error');
+    return;
+  }
+
+  const balance = invoiceData.value?.patient_balance ?? 0;
+  const lines = [
+    'Refund this invoice in full?',
+    '',
+    `- The invoice becomes void and its payment is marked Refunded.`,
+    takeBack > 0
+      ? `- ${takeBack} session(s) are taken back (balance ${balance} -> ${balance - takeBack}).`
+      : '- No sessions are taken back.',
+    '- Appointments it billed go back to the To Bill list.',
+    '',
+    'Hand the money back to the parent separately. This cannot be undone.',
+  ];
+  if (!confirm(lines.join('\n'))) {
+    return;
+  }
+
+  isUpdating.value = true;
+  try {
+    const response = await $fetch('/api/payment/refundInvoice', {
+      method: 'PUT',
+      body: { invoiceID: parseInt(invoiceId), reason: reason.trim() },
+    });
+
+    if (response.statusCode === 200) {
+      showMessage('Invoice refunded', 'success');
+      await fetchInvoice();
+    } else {
+      showMessage(response.message || 'Failed to refund the invoice', 'error');
+    }
+  } catch (error) {
+    console.error('Error refunding invoice:', error);
+    showMessage(error.data?.message || 'An error occurred while refunding the invoice', 'error');
   } finally {
     isUpdating.value = false;
   }
@@ -297,6 +332,23 @@ onMounted(() => {
           </ul>
         </div>
 
+        <!-- Prepaid sessions taken from this invoice -->
+        <div v-if="invoiceData.covered_appointments && invoiceData.covered_appointments.length" class="bg-white border border-gray-200 p-6 rounded-lg">
+          <h6 class="font-semibold text-lg mb-2 text-gray-800">Sessions used</h6>
+          <p class="text-sm text-gray-600 mb-3">Appointments that used a session from this paid package.</p>
+          <ul class="text-sm space-y-1">
+            <li v-for="appointment in invoiceData.covered_appointments" :key="appointment.appointment_id">
+              {{ formatShortDate(appointment.date) }}
+              <NuxtLink
+                :to="{ path: '/appointmentManagement/newAppointment/scheduledAppointment', query: { editId: String(appointment.appointment_id) } }"
+                class="ml-2 text-primary underline"
+              >
+                Open appointment
+              </NuxtLink>
+            </li>
+          </ul>
+        </div>
+
         <!-- Void notice -->
         <div v-if="isVoid" class="bg-gray-50 border border-gray-200 p-6 rounded-lg">
           <h6 class="font-semibold text-lg mb-2 text-gray-800">This invoice is void</h6>
@@ -312,23 +364,31 @@ onMounted(() => {
           <div class="flex gap-4">
             <rs-button
               v-if="invoiceData.status === 'Unpaid'"
-              variant="success" 
+              variant="success"
               size="sm"
               :disabled="isUpdating || hasPendingPayment"
-              @click="updateStatus('Paid')"
+              @click="router.push({ path: '/payment/paymentForm', query: { invoiceId: String(invoiceData.invoice_id) } })"
             >
-              <Icon v-if="isUpdating" name="line-md:loading-twotone-loop" class="mr-2" />
-              <span>{{ isUpdating ? 'Updating...' : 'Mark as Paid' }}</span>
+              <span>Record payment</span>
             </rs-button>
             <rs-button
               v-if="invoiceData.status === 'Paid' && !invoiceData.sessions_credited && invoiceData.latest_payment?.status !== 'Approved'"
               variant="warning"
               size="sm"
               :disabled="isUpdating || hasPendingPayment"
-              @click="updateStatus('Unpaid')"
+              @click="markUnpaid"
             >
               <Icon v-if="isUpdating" name="line-md:loading-twotone-loop" class="mr-2" />
               <span>{{ isUpdating ? 'Updating...' : 'Mark as Unpaid' }}</span>
+            </rs-button>
+            <rs-button
+              v-if="invoiceData.status === 'Paid'"
+              variant="danger"
+              size="sm"
+              :disabled="isUpdating"
+              @click="refundInvoice"
+            >
+              Refund invoice
             </rs-button>
             <rs-button
               v-if="invoiceData.status === 'Unpaid'"
@@ -341,7 +401,7 @@ onMounted(() => {
             </rs-button>
           </div>
           <p class="text-sm text-gray-600 mt-2">
-            <strong>Note:</strong> When an invoice with a therapy package is paid, the sessions are added to the patient's account (once).
+            <strong>Note:</strong> An invoice is paid by recording a payment, which issues a receipt and adds any package sessions to the patient's account (once). The full amount is paid at once; part payments are not supported.
           </p>
           <p v-if="hasPendingPayment" class="text-sm text-blue-600 mt-2">
             Parent payment submission is pending approval. Approve/reject it from Pending Approvals before changing invoice status manually.

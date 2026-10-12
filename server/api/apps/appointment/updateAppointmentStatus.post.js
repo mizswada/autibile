@@ -5,6 +5,7 @@ import {
   releaseSession as giveSessionBack,
   takeSession,
 } from "~/server/utils/sessionBalance";
+import { linkCoveredAppointments } from "~/server/utils/coverage";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -105,6 +106,11 @@ export default defineEventHandler(async (event) => {
       // The freed session may cover an older unbilled appointment of that patient.
       if (releaseSession && patientId != null) {
         await reconcileUnbilled(tx, patientId);
+      }
+
+      // Prepaid booking: remember which paid invoice the session came from.
+      if (acquireSession && patientId != null && billingData.needs_billing === false) {
+        await linkCoveredAppointments(tx, patientId, [parseInt(appointment_id, 10)]);
       }
 
       return updated;

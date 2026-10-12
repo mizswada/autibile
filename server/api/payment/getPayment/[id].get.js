@@ -1,3 +1,5 @@
+import { requireAdmin } from "~/server/utils/reports/guard";
+
 export default defineEventHandler(async (event) => {
   try {
     // Extract userID from the session context for authorization
@@ -7,6 +9,12 @@ export default defineEventHandler(async (event) => {
         statusCode: 401,
         message: "Unauthorized: Missing user session",
       };
+    }
+
+    // Billing data is for administrators only (not for doctors / therapists).
+    const guard = requireAdmin(event);
+    if (!guard.ok) {
+      return { statusCode: guard.statusCode, message: guard.message };
     }
 
     // Get payment ID from URL parameters

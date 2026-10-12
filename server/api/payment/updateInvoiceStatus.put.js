@@ -1,4 +1,3 @@
-import { creditInvoiceSessions } from "~/server/utils/invoiceSessions";
 import { requireAdmin } from "~/server/utils/reports/guard";
 
 export default defineEventHandler(async (event) => {
@@ -29,11 +28,19 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    // Validate status
-    if (!['Paid', 'Unpaid'].includes(status)) {
+    // An invoice becomes Paid only through a recorded payment (Make Payment), so a receipt
+    // always exists and the sessions are credited together with it.
+    if (status === 'Paid') {
       return {
         statusCode: 400,
-        message: "Invalid status. Must be either 'Paid' or 'Unpaid'",
+        message: "An invoice cannot be marked Paid by hand. Record a payment from Make Payment so a receipt is issued.",
+      };
+    }
+
+    if (status !== 'Unpaid') {
+      return {
+        statusCode: 400,
+        message: "Invalid status. Only 'Unpaid' can be set here",
       };
     }
 
@@ -88,61 +95,20 @@ export default defineEventHandler(async (event) => {
       if (currentInvoice.sessions_credited || approvedPayment) {
         return {
           statusCode: 400,
-          message: "This invoice has a recorded payment or credited sessions, so it cannot be marked Unpaid. Use Adjust sessions to correct the sessions.",
+          message: "This invoice has a recorded payment or credited sessions, so it cannot be marked Unpaid. Use Refund invoice to reverse it.",
         };
       }
     }
 
-    // Status change and session credit happen together. creditInvoiceSessions
-    // credits at most once per invoice, so toggling Paid again never adds sessions twice.
-    // The status is changed FIRST, so the session credit (and the matching of unbilled
-    // appointments that follows it) already sees this invoice as Paid.
-    const patientSelect = {
-      user_patients: {
-        select: {
-          patient_id: true,
-          fullname: true,
-          available_session: true,
+    const updatedInvoice = await prisma.invoice.update({
+      where: { invoice_id: invoiceIdValue },
+      data: { status, update_at: new Date() },
+      include: {
+        user_patients: {
+          select: { patient_id: true, fullname: true, available_session: true },
         },
       },
-    };
-
-    let updatedInvoice;
-    try {
-      updatedInvoice = await prisma.$transaction(async (tx) => {
-        await tx.invoice.update({
-          where: {
-            invoice_id: invoiceIdValue,
-          },
-          data: {
-            status: status,
-            update_at: new Date(),
-          },
-        });
-
-        if (status === 'Paid' && currentInvoice.status === 'Unpaid') {
-          const result = await creditInvoiceSessions(invoiceIdValue, tx);
-          if (result.reason === 'patient_inactive') {
-            // Rolls the status change back as well.
-            throw new Error('PATIENT_INACTIVE');
-          }
-        }
-
-        // Read again so the returned balance includes the sessions just added.
-        return tx.invoice.findUnique({
-          where: { invoice_id: invoiceIdValue },
-          include: patientSelect,
-        });
-      });
-    } catch (txError) {
-      if (txError?.message === 'PATIENT_INACTIVE') {
-        return {
-          statusCode: 400,
-          message: "Cannot mark invoice as Paid: patient is inactive or deleted",
-        };
-      }
-      throw txError;
-    }
+    });
 
     return {
       statusCode: 200,

@@ -1,7 +1,8 @@
 /**
  * Billing state of an appointment ("book first, bill later").
  *
- *   covered        booked with a prepaid session
+ *   covered        booked with a prepaid session (invoice_id, when set, is the paid
+ *                  invoice it was taken from: needs_billing is false)
  *   unbilled       booked with no prepaid session and no invoice yet
  *   billed_unpaid  linked to an invoice that is still Unpaid
  *   paid           linked to a Paid invoice
@@ -15,14 +16,17 @@ export function deriveBillingState(appointment, invoiceStatus) {
   if (appointment.status === 37) return null;
   if (appointment.billing_waived) return "waived";
 
+  // Prepaid appointment, possibly linked to the invoice that paid for it.
+  if (!appointment.needs_billing) return "covered";
+
   if (appointment.invoice_id) {
     if (invoiceStatus === "Paid") return "paid";
     if (invoiceStatus === "Unpaid") return "billed_unpaid";
     // Void or missing invoice: the appointment is waiting for billing again.
-    return appointment.needs_billing ? "unbilled" : "covered";
+    return "unbilled";
   }
 
-  return appointment.needs_billing ? "unbilled" : "covered";
+  return "unbilled";
 }
 
 /**
@@ -50,15 +54,20 @@ export async function attachBillingToEvents(db, appointments, events) {
     const invoiceStatus = appointment.invoice_id
       ? statusByInvoice[appointment.invoice_id]
       : null;
+    const billingState = deriveBillingState(appointment, invoiceStatus);
+    const isCovered = billingState === "covered";
     return {
       ...event,
       extendedProps: {
         ...event.extendedProps,
         needs_billing: !!appointment.needs_billing,
         billing_waived: !!appointment.billing_waived,
-        invoice_id: appointment.invoice_id ?? null,
-        invoice_status: invoiceStatus ?? null,
-        billing_state: deriveBillingState(appointment, invoiceStatus),
+        // invoice_id = the invoice that BILLS it; covered_by_invoice_id = the paid invoice
+        // a prepaid appointment was taken from.
+        invoice_id: isCovered ? null : appointment.invoice_id ?? null,
+        invoice_status: isCovered ? null : invoiceStatus ?? null,
+        covered_by_invoice_id: isCovered ? appointment.invoice_id ?? null : null,
+        billing_state: billingState,
       },
     };
   });

@@ -104,9 +104,11 @@ async function loadUnbilled(patientId, preselect = null) {
     if (response.success) {
       unbilled.value = response.data;
       const ids = response.data.map((appointment) => appointment.appointment_id);
+      // Nothing is ticked unless the admin came from a specific session (deep link), so a
+      // product-only invoice for a patient with unbilled sessions needs no unticking.
       selectedAppointmentIds.value = preselect && preselect.length
         ? ids.filter((id) => preselect.includes(id))
-        : ids;
+        : [];
       autoFillPackageRow();
     }
   } catch (error) {
@@ -123,6 +125,19 @@ function autoFillPackageRow() {
   row.refId = String(single.package_id);
   row.unitPrice = String(single.amount ?? '');
   row.qty = selectedCount.value;
+}
+
+// Ticking the first session suggests the single-session package (only into an empty row).
+watch(selectedCount, (count, previous) => {
+  if (previous === 0 && count > 0) autoFillPackageRow();
+});
+
+function selectAllUnbilled() {
+  selectedAppointmentIds.value = unbilled.value.map((appointment) => appointment.appointment_id);
+}
+
+function clearUnbilledSelection() {
+  selectedAppointmentIds.value = [];
 }
 
 // Set the first package row's quantity so its sessions cover the selected appointments.
@@ -442,7 +457,7 @@ const saveInvoice = async (goToPayment = false) => {
             </span>
           </div>
           <p class="text-xs text-amber-800 mb-2">
-            These appointments were booked when the patient had no sessions left. Tick the ones this invoice covers, and add a therapy package row for the price (for example the single-session package).
+            These appointments were booked when the patient had no sessions left. Tick the ones this invoice bills, and add a therapy package row for the price (for example the single-session package). Leave all unticked for an invoice that is not for these sessions (for example a product).
           </p>
           <label
             v-for="appointment in unbilled"
@@ -459,6 +474,8 @@ const saveInvoice = async (goToPayment = false) => {
             <span class="text-gray-600">{{ appointment.time_slot }} · {{ appointment.service_name }}</span>
           </label>
           <div class="flex flex-wrap items-center gap-3 mt-2">
+            <rs-button size="sm" variant="primary-outline" @click="selectAllUnbilled">Select all</rs-button>
+            <rs-button size="sm" variant="primary-outline" @click="clearUnbilledSelection">Clear</rs-button>
             <rs-button size="sm" variant="primary-outline" @click="matchPackageQuantity">Match package quantity</rs-button>
             <span v-if="coverageShortBy > 0" class="text-sm text-red-700">
               Short by {{ coverageShortBy }} session(s): add package sessions or untick appointments.

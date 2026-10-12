@@ -1,7 +1,8 @@
 import prisma from "~/server/utils/prisma";
 import { requireAdmin } from "~/server/utils/reports/guard";
 import { formatAppointmentCalendarEvent } from "~/server/utils/appointmentTime";
-import { unbilledAppointmentsListWhere } from "~/server/utils/adminNotifications";
+import { unbilledAppointmentsListWhere } from "~/server/utils/billingWhere";
+import { reconcileAllUnbilled } from "~/server/utils/sessionBalance";
 
 /**
  * Appointments booked without a prepaid session that no invoice bills yet (admin only).
@@ -18,6 +19,9 @@ export default defineEventHandler(async (event) => {
 
     const patientId = parseInt(getQuery(event).patient_id, 10);
     const hasPatient = Number.isInteger(patientId) && patientId > 0;
+
+    // Self-healing: drop markers the balance already covers (hand edits, old races).
+    await reconcileAllUnbilled(prisma);
 
     const appointments = await prisma.appointments.findMany({
       where: unbilledAppointmentsListWhere(hasPatient ? { patient_id: patientId } : {}),

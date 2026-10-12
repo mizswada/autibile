@@ -12,6 +12,7 @@ import {
 } from "~/server/utils/appointmentTime";
 import { normalizeAppointmentStatus } from "~/utils/appointmentStatus";
 import { takeSession } from "~/server/utils/sessionBalance";
+import { linkCoveredAppointments } from "~/server/utils/coverage";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -122,6 +123,11 @@ export default defineEventHandler(async (event) => {
         start_time,
         end_time,
       );
+
+      // Prepaid booking: remember which paid invoice the session came from.
+      if (!needsBilling && appointmentStatus !== 37) {
+        await linkCoveredAppointments(tx, patient.patient_id, [created.appointment_id]);
+      }
 
       return tx.appointments.findUnique({
         where: { appointment_id: created.appointment_id },

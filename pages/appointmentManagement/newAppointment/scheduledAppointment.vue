@@ -94,6 +94,7 @@ const buildCalendarEvent = (appt) => {
       needs_billing: appt.needsBilling,
       billing_state: appt.billingState,
       invoice_id: appt.invoiceId,
+      covered_by_invoice_id: appt.coveredByInvoiceId,
     },
   };
 };
@@ -152,6 +153,7 @@ function handleEventClick(info) {
       needsBilling: !!extendedProps.needs_billing,
       billingState: extendedProps.billing_state ?? null,
       invoiceId: extendedProps.invoice_id ?? null,
+      coveredByInvoiceId: extendedProps.covered_by_invoice_id ?? null,
       rawExtendedProps: extendedProps
     };
     
@@ -505,6 +507,7 @@ const { data: appointmentsData, pending: appointmentsLoading, refresh: _refreshA
           needsBilling: !!appt.extendedProps.needs_billing,
           billingState: appt.extendedProps.billing_state ?? null,
           invoiceId: appt.extendedProps.invoice_id ?? null,
+          coveredByInvoiceId: appt.extendedProps.covered_by_invoice_id ?? null,
           rawExtendedProps: appt.extendedProps
         };
       });
@@ -2443,6 +2446,19 @@ const validatePatientData = (patient) => {
               </p>
               <p v-if="selectedAppointment.billingState === 'unbilled'" class="text-xs text-gray-500 mt-1">
                 Booked without a prepaid session. Bill it so the parent can pay.
+              </p>
+            </div>
+
+            <div v-if="canSeeBilling && selectedAppointment.billingState === 'covered' && selectedAppointment.coveredByInvoiceId">
+              <p class="text-sm text-gray-500">Billing</p>
+              <p class="font-medium">
+                Prepaid session from
+                <NuxtLink
+                  :to="`/payment/viewInvoice/${selectedAppointment.coveredByInvoiceId}`"
+                  class="text-sm text-primary underline"
+                >
+                  {{ formatInvoiceNumber(selectedAppointment.coveredByInvoiceId) }}
+                </NuxtLink>
               </p>
             </div>
 

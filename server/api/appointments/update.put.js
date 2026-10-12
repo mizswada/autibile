@@ -14,6 +14,7 @@ import {
 } from "~/server/utils/appointmentTime";
 import { normalizeAppointmentStatus } from "~/utils/appointmentStatus";
 import { reconcileUnbilled, releaseSession, takeSession } from "~/server/utils/sessionBalance";
+import { linkCoveredAppointments } from "~/server/utils/coverage";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -241,6 +242,11 @@ export default defineEventHandler(async (event) => {
       // (Runs after this appointment's own billing fields were cleared above.)
       if (releaseOld && existingPatientId != null) {
         await reconcileUnbilled(tx, existingPatientId);
+      }
+
+      // Prepaid booking: remember which paid invoice the session came from.
+      if (acquireNew && updateData.needs_billing === false) {
+        await linkCoveredAppointments(tx, newPatientId, [parseInt(appointment_id, 10)]);
       }
 
       if (pendingStartTime && pendingEndTime) {

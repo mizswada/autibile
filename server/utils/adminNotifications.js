@@ -1,3 +1,6 @@
+import { unbilledAppointmentsListWhere } from "~/server/utils/billingWhere";
+import { reconcileAllUnbilled } from "~/server/utils/sessionBalance";
+
 export const DIARY_UNSEEN_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export function getDiaryUnseenSince(now = new Date()) {
@@ -12,27 +15,20 @@ export function diaryUnseenWhere(now = new Date()) {
   };
 }
 
-/** Appointments booked without a prepaid session that no invoice bills yet. */
-export function unbilledAppointmentsWhere(extra = {}) {
-  return {
-    deleted_at: null,
-    needs_billing: true,
-    billing_waived: false,
-    invoice_id: null,
-    status: { not: 37 },
-    ...extra,
-  };
-}
+// Stale "to bill" markers (hand edits in the database, old races) heal themselves: at most
+// once a minute per server process, while something is waiting to be billed.
+const HEAL_INTERVAL_MS = 60 * 1000;
+let lastHealAt = 0;
 
-/**
- * Same, for lists and counts: appointments of a deleted patient are left out.
- * (Mutations use unbilledAppointmentsWhere, which has no relation filter.)
- */
-export function unbilledAppointmentsListWhere(extra = {}) {
-  return unbilledAppointmentsWhere({
-    user_patients: { is: { deleted_at: null } },
-    ...extra,
-  });
+async function healUnbilledMarkers(prismaClient) {
+  const now = Date.now();
+  if (now - lastHealAt < HEAL_INTERVAL_MS) return;
+  lastHealAt = now;
+  try {
+    await reconcileAllUnbilled(prismaClient);
+  } catch (error) {
+    console.error("Error healing unbilled markers:", error);
+  }
 }
 
 export async function getAdminNotificationCounts(prismaClient) {
@@ -43,7 +39,7 @@ export async function getAdminNotificationCounts(prismaClient) {
     accountRequestPendingCount,
     userApprovalPendingCount,
     diaryUnseenRows,
-    toBillCount,
+    toBillCountRaw,
   ] = await Promise.all([
     prismaClient.payment.count({
       where: {
@@ -71,6 +67,14 @@ export async function getAdminNotificationCounts(prismaClient) {
       where: unbilledAppointmentsListWhere(),
     }),
   ]);
+
+  let toBillCount = toBillCountRaw;
+  if (toBillCountRaw > 0) {
+    await healUnbilledMarkers(prismaClient);
+    toBillCount = await prismaClient.appointments.count({
+      where: unbilledAppointmentsListWhere(),
+    });
+  }
 
   const diaryUnseenPatientIds = [
     ...new Set(

@@ -7,7 +7,7 @@ import {
   evaluateAgeAgainstLimits,
   formatAgeRange,
 } from "~/server/utils/questionnaireAge";
-import { unbilledAppointmentsListWhere } from "~/server/utils/adminNotifications";
+import { unbilledAppointmentsListWhere } from "~/server/utils/billingWhere";
 
 const MCHATR_QUESTIONNAIRE_ID = 1;
 

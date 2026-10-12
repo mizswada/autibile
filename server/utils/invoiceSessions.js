@@ -2,6 +2,26 @@ import { findActivePatient } from "~/server/utils/activeEntities";
 import { creditSessions, reconcileUnbilled } from "~/server/utils/sessionBalance";
 
 /**
+ * How many sessions an invoice gives. Sessions come from the invoice items (package rows,
+ * a snapshot taken when the invoice was made). Legacy invoices without items fall back to
+ * matching the package by `invoice_type` name. `invoice` must include `invoice_item`.
+ */
+export async function sessionsOnInvoice(db, invoice) {
+  if (invoice.invoice_item?.length > 0) {
+    return invoice.invoice_item
+      .filter((item) => item.item_type === "Package")
+      .reduce((sum, item) => sum + (item.sessions || 0), 0);
+  }
+  if (invoice.invoice_type && invoice.invoice_type !== "Other") {
+    const matchingPackage = await db.renamedpackage.findFirst({
+      where: { package_name: invoice.invoice_type, status: "Active", deleted_at: null },
+    });
+    return matchingPackage?.avail_session || 0;
+  }
+  return 0;
+}
+
+/**
  * Credit the package sessions of an invoice to its patient - exactly once.
  *
  * The `invoice.sessions_credited` flag is the only guard: it is claimed with an
@@ -39,17 +59,7 @@ export async function creditInvoiceSessions(invoiceId, db = null) {
     ? await findActivePatient(db, invoice.patient_id, { patient_id: true, available_session: true })
     : null;
 
-  let sessions = 0;
-  if (invoice.invoice_item.length > 0) {
-    sessions = invoice.invoice_item
-      .filter((item) => item.item_type === "Package")
-      .reduce((sum, item) => sum + (item.sessions || 0), 0);
-  } else if (invoice.invoice_type && invoice.invoice_type !== "Other") {
-    const matchingPackage = await db.renamedpackage.findFirst({
-      where: { package_name: invoice.invoice_type, status: "Active", deleted_at: null },
-    });
-    sessions = matchingPackage?.avail_session || 0;
-  }
+  const sessions = await sessionsOnInvoice(db, invoice);
 
   if (sessions <= 0) {
     // Nothing to credit (product / other invoice). Mark it done so the flag stays truthful.

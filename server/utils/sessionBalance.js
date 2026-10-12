@@ -7,7 +7,8 @@
  * - All helpers take a Prisma client (usually the `tx` of a $transaction).
  */
 
-import { unbilledAppointmentsWhere } from "~/server/utils/adminNotifications";
+import { unbilledAppointmentsWhere } from "~/server/utils/billingWhere";
+import { linkCoveredAppointments } from "~/server/utils/coverage";
 
 export const MAX_UNBILLED_SETTING_KEY = "MAX_UNBILLED_SESSIONS";
 export const DEFAULT_MAX_UNBILLED = 5;
@@ -94,53 +95,117 @@ export async function creditSessions(db, patientId, count) {
  * balance rises, the oldest unbilled appointments are covered by it, so they must stop
  * asking to be billed (otherwise the clinic could invoice them a second time).
  *
+ * The server runs as several processes (pm2 cluster), so an in-memory lock is not enough.
+ * Every read here is a locking read (SELECT ... FOR UPDATE): it sees the latest committed
+ * data instead of the transaction's older snapshot, and it makes two overlapping
+ * reconciles for the same patient wait for each other.
+ *
  * Call it AFTER the cancelled / deleted appointment's own billing fields were cleared.
  * Returns how many appointments were marked as covered.
  */
 export async function reconcileUnbilled(db, patientId) {
-  const balance = await readBalance(db, patientId);
+  const balanceRows = await db.$queryRaw`
+    SELECT available_session FROM user_patients WHERE patient_id = ${patientId} FOR UPDATE`;
+  const balance = Number(balanceRows?.[0]?.available_session ?? 0);
   const owed = Math.max(0, -balance);
 
-  const unbilled = await db.appointments.findMany({
-    where: unbilledAppointmentsWhere({ patient_id: patientId }),
-    select: { appointment_id: true },
-    orderBy: [{ date: "asc" }, { appointment_id: "asc" }],
-  });
+  const unbilled = await db.$queryRaw`
+    SELECT appointment_id FROM appointments
+    WHERE patient_id = ${patientId} AND deleted_at IS NULL AND needs_billing = 1
+      AND billing_waived = 0 AND invoice_id IS NULL AND status <> 37
+    ORDER BY date ASC, appointment_id ASC
+    FOR UPDATE`;
   if (!unbilled.length) return 0;
 
   // Appointments billed on an unpaid invoice still count as owed until that invoice is paid.
-  const billed = await db.appointments.findMany({
-    where: {
-      patient_id: patientId,
-      deleted_at: null,
-      status: { not: 37 },
-      billing_waived: false,
-      invoice_id: { not: null },
-    },
-    select: { invoice_id: true },
-  });
-  let billedUnpaid = 0;
-  if (billed.length) {
-    const invoiceIds = [...new Set(billed.map((a) => a.invoice_id))];
-    const unpaid = await db.invoice.findMany({
-      where: { invoice_id: { in: invoiceIds }, status: "Unpaid" },
-      select: { invoice_id: true },
-    });
-    const unpaidIds = new Set(unpaid.map((invoice) => invoice.invoice_id));
-    billedUnpaid = billed.filter((a) => unpaidIds.has(a.invoice_id)).length;
-  }
+  const billedUnpaidRows = await db.$queryRaw`
+    SELECT a.appointment_id FROM appointments a
+    JOIN invoice i ON i.invoice_id = a.invoice_id
+    WHERE a.patient_id = ${patientId} AND a.deleted_at IS NULL AND a.status <> 37
+      AND a.billing_waived = 0 AND i.status = 'Unpaid'
+    FOR UPDATE`;
+  const billedUnpaid = billedUnpaidRows.length;
 
   const stillUnbilled = Math.max(0, owed - billedUnpaid);
   const excess = unbilled.length - stillUnbilled;
   if (excess <= 0) return 0;
 
   // Sessions are used in order, so the oldest unbilled appointments are the covered ones.
-  const coveredIds = unbilled.slice(0, excess).map((a) => a.appointment_id);
+  const coveredIds = unbilled.slice(0, excess).map((a) => Number(a.appointment_id));
   await db.appointments.updateMany({
     where: { appointment_id: { in: coveredIds }, invoice_id: null },
     data: { needs_billing: false, updated_at: new Date() },
   });
+  // Show which paid invoice covers them (best effort, informational).
+  await linkCoveredAppointments(db, patientId, coveredIds);
   return excess;
+}
+
+/**
+ * The opposite of reconcileUnbilled: after the balance GOES DOWN (a refund took sessions
+ * back, an admin removed sessions) a negative balance may no longer be explained by the
+ * unbilled appointments. The newest appointments that were treated as prepaid are marked
+ * "needs billing" again so they show up in To Bill. Returns how many were marked.
+ */
+export async function flagUncoveredAppointments(db, patientId) {
+  const balanceRows = await db.$queryRaw`
+    SELECT available_session FROM user_patients WHERE patient_id = ${patientId} FOR UPDATE`;
+  const owed = Math.max(0, -Number(balanceRows?.[0]?.available_session ?? 0));
+  if (owed === 0) return 0;
+
+  const unbilled = await db.$queryRaw`
+    SELECT appointment_id FROM appointments
+    WHERE patient_id = ${patientId} AND deleted_at IS NULL AND needs_billing = 1
+      AND billing_waived = 0 AND invoice_id IS NULL AND status <> 37
+    FOR UPDATE`;
+  const billedUnpaid = await db.$queryRaw`
+    SELECT a.appointment_id FROM appointments a
+    JOIN invoice i ON i.invoice_id = a.invoice_id
+    WHERE a.patient_id = ${patientId} AND a.deleted_at IS NULL AND a.status <> 37
+      AND a.billing_waived = 0 AND i.status = 'Unpaid'
+    FOR UPDATE`;
+
+  const shortage = owed - unbilled.length - billedUnpaid.length;
+  if (shortage <= 0) return 0;
+
+  // Sessions are used in order, so the newest appointments are the ones left uncovered.
+  const candidates = await db.$queryRaw`
+    SELECT appointment_id FROM appointments
+    WHERE patient_id = ${patientId} AND deleted_at IS NULL AND needs_billing = 0
+      AND billing_waived = 0 AND invoice_id IS NULL AND status <> 37
+    ORDER BY date DESC, appointment_id DESC
+    LIMIT ${shortage}
+    FOR UPDATE`;
+  if (!candidates.length) return 0;
+
+  await db.appointments.updateMany({
+    where: {
+      appointment_id: { in: candidates.map((a) => Number(a.appointment_id)) },
+      invoice_id: null,
+    },
+    data: { needs_billing: true, updated_at: new Date() },
+  });
+  return candidates.length;
+}
+
+/**
+ * Self-healing pass: re-checks every patient that still has an unbilled marker. Fixes markers
+ * left behind by hand edits in the database or by an old race. It only ever clears markers
+ * that the balance already covers, so it is safe to run at any time.
+ * Returns how many appointments were cleared.
+ */
+export async function reconcileAllUnbilled(client = prisma) {
+  const rows = await client.appointments.findMany({
+    where: unbilledAppointmentsWhere(),
+    distinct: ["patient_id"],
+    select: { patient_id: true },
+  });
+
+  let cleared = 0;
+  for (const { patient_id: patientId } of rows) {
+    cleared += await client.$transaction((tx) => reconcileUnbilled(tx, patientId));
+  }
+  return cleared;
 }
 
 /**
@@ -170,9 +235,12 @@ export async function adjustBalance(db, patientId, delta, { reason, admin, ip })
     },
   });
 
-  // Giving sessions can cover appointments that were waiting to be billed.
+  // Giving sessions can cover appointments that were waiting to be billed; removing them
+  // can leave appointments uncovered.
   if (delta > 0) {
     await reconcileUnbilled(db, patientId);
+  } else if (delta < 0) {
+    await flagUncoveredAppointments(db, patientId);
   }
 
   return { balanceBefore, balanceAfter };

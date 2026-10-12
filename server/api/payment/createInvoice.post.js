@@ -1,5 +1,5 @@
 import { findLinkedActivePatient } from "~/server/utils/activeEntities";
-import { unbilledAppointmentsWhere } from "~/server/utils/adminNotifications";
+import { unbilledAppointmentsWhere } from "~/server/utils/billingWhere";
 import { requireAdmin } from "~/server/utils/reports/guard";
 
 const ITEM_TYPES = ["Package", "Product", "Other"];

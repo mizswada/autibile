@@ -1,8 +1,16 @@
+import { requireAdmin } from "~/server/utils/reports/guard";
+
 export default defineEventHandler(async (event) => {
   try {
     const { userID } = event.context.user || {};
     if (!userID) {
       return { statusCode: 401, message: "Unauthorized: Missing user session" };
+    }
+
+    // Billing data is for administrators only (not for doctors / therapists).
+    const guard = requireAdmin(event);
+    if (!guard.ok) {
+      return { statusCode: guard.statusCode, message: guard.message };
     }
 
     const payments = await prisma.payment.findMany({

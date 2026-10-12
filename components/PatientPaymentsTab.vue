@@ -275,6 +275,9 @@ onMounted(loadPayments);
                     <div v-if="invoice.billed_appointments.length" class="text-xs text-gray-500 mt-1">
                       Sessions: {{ invoice.billed_appointments.map((a) => formatShortDate(a.date)).join(', ') }}
                     </div>
+                    <div v-if="invoice.covered_appointments?.length" class="text-xs text-gray-500 mt-1">
+                      Sessions used: {{ invoice.covered_appointments.map((a) => formatShortDate(a.date)).join(', ') }}
+                    </div>
                     <div v-if="invoice.status === 'Void' && invoice.void_reason" class="text-xs text-gray-500 mt-1">
                       Void: {{ invoice.void_reason }}
                     </div>

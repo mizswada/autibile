@@ -1,3 +1,5 @@
+import { requireAdmin } from "~/server/utils/reports/guard";
+
 export default defineEventHandler(async (event) => {
   try {
     // Extract userID from the session context for authorization
@@ -7,6 +9,12 @@ export default defineEventHandler(async (event) => {
         statusCode: 401,
         message: "Unauthorized: Missing user session",
       };
+    }
+
+    // Billing data is for administrators only (not for doctors / therapists).
+    const guard = requireAdmin(event);
+    if (!guard.ok) {
+      return { statusCode: guard.statusCode, message: guard.message };
     }
 
     // Get query parameters for filtering
@@ -33,7 +41,7 @@ export default defineEventHandler(async (event) => {
       whereClause.patient_id = patientIdValue;
     }
 
-    if (status && ['Pending', 'Approved', 'Rejected'].includes(status)) {
+    if (status && ['Pending', 'Approved', 'Rejected', 'Refunded'].includes(status)) {
       whereClause.status = status;
     } else {
       whereClause.status = "Approved";

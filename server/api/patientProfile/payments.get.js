@@ -1,5 +1,5 @@
 import { requireAdmin } from "~/server/utils/reports/guard";
-import { unbilledAppointmentsWhere } from "~/server/utils/adminNotifications";
+import { unbilledAppointmentsWhere } from "~/server/utils/billingWhere";
 
 const round2 = (value) => Math.round(value * 100) / 100;
 
@@ -43,15 +43,18 @@ export default defineEventHandler(async (event) => {
       invoices.length
         ? prisma.appointments.findMany({
             where: { invoice_id: { in: invoices.map((invoice) => invoice.invoice_id) }, deleted_at: null },
-            select: { appointment_id: true, invoice_id: true, date: true },
+            select: { appointment_id: true, invoice_id: true, date: true, needs_billing: true },
             orderBy: [{ date: "asc" }, { appointment_id: "asc" }],
           })
         : [],
       prisma.appointments.count({ where: unbilledAppointmentsWhere({ patient_id: patientId }) }),
     ]);
+    // needs_billing = billed on that invoice; otherwise a prepaid session taken from it.
     const billedByInvoice = {};
+    const coveredByInvoice = {};
     for (const appointment of billedAppointments) {
-      (billedByInvoice[appointment.invoice_id] ||= []).push({
+      const bucket = appointment.needs_billing ? billedByInvoice : coveredByInvoice;
+      (bucket[appointment.invoice_id] ||= []).push({
         appointment_id: appointment.appointment_id,
         date: appointment.date,
       });
@@ -126,6 +129,7 @@ export default defineEventHandler(async (event) => {
         pay_later: invoice.pay_later,
         void_reason: invoice.void_reason,
         billed_appointments: billedByInvoice[invoice.invoice_id] || [],
+        covered_appointments: coveredByInvoice[invoice.invoice_id] || [],
         items: invoice.invoice_item,
         payment_id: latestPayment?.status === "Approved" ? latestPayment.payment_id : null,
         payment_method: latestPayment?.method || null,
