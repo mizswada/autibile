@@ -19,7 +19,8 @@ export default defineEventHandler(async (event) => {
         deleted_at: null,
       },
       include: {
-        invoice: true,
+        // Line items, so the receipt lists the same rows as the web receipt.
+        invoice: { include: { invoice_item: { orderBy: { item_id: "asc" } } } },
         user_patients: {
           select: {
             patient_id: true,
