@@ -21,7 +21,7 @@ export const ENFORCE_APP_AUTH_KEY = "ENFORCE_APP_AUTH";
 const CACHE_MS = 30 * 1000;
 let enforcedCache = { value: false, expires: 0 };
 
-async function isEnforced() {
+export async function isAppAuthEnforced() {
   if (enforcedCache.expires > Date.now()) return enforcedCache.value;
   const row = await prisma.app_settings.findUnique({ where: { setting_key: ENFORCE_APP_AUTH_KEY } });
   enforcedCache = { value: String(row?.setting_value || "") === "1", expires: Date.now() + CACHE_MS };
@@ -72,7 +72,7 @@ export async function isAppAccountActive({ username, roles = [] }) {
 }
 
 async function anonymous() {
-  if (await isEnforced()) {
+  if (await isAppAuthEnforced()) {
     return { ok: false, statusCode: 401, message: "Unauthorized: please log in again." };
   }
   return { ok: true, authenticated: false };
